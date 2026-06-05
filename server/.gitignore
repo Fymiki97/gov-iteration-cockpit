@@ -1,0 +1,8 @@
+node_modules/
+.nitro/
+.output/
+dist-server.zip
+*.log
+.DS_Store
+.env
+.env.local

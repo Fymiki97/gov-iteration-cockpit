@@ -1,7 +1,16 @@
 {
   "version": "1",
   "meta": {
-    "projectId": "760386581358207"
+    "projectId": "760386581358207",
+    "framework": "react"
   },
-  "command": {}
+  "command": {
+    "install": "pnpm install",
+    "dev": "pnpm run dev",
+    "build": "pnpm run build",
+    "zip": "$system-zip frontend:./client/dist server:./server/.output:.output"
+  },
+  "scopes": ["kso.dbsheet.readwrite"],
+  "redirect_url": "http://localhost:5917/api/oauth/callback",
+  "cover": true
 }

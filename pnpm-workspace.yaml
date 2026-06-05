@@ -1,0 +1,12 @@
+packages:
+  - client
+  - server
+
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  msw: true
+
+catalog:
+  "@ks-open/capability": "latest"
+  "@wps365-open/appbase-js": "latest"
