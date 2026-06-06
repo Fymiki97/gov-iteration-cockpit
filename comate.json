@@ -5,12 +5,12 @@
     "framework": "react"
   },
   "command": {
-    "install": "pnpm install",
+    "install": "pnpm install --ignore-scripts",
     "dev": "pnpm run dev",
-    "build": "pnpm run build",
-    "zip": "pnpm run pack"
+    "build": "",
+    "zip": "$system-zip frontend:./client/dist"
   },
   "scopes": ["kso.dbsheet.readwrite"],
-  "redirect_url": "http://localhost:5917/api/oauth/callback",
+  "redirect_url": "http://localhost:5922/api/oauth/callback",
   "cover": true
 }

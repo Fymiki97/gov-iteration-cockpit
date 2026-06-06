@@ -1,6 +1,23 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { createWps365 } from "@ks-open/capability/client/wps365";
 import type { Wps365Client } from "@ks-open/capability/client/wps365";
+import {
+  ResponsiveContainer as RechartResponsive,
+  ComposedChart as RechartComposed,
+  Bar as RechartBar,
+  Line as RechartLine,
+  XAxis as RechartXAxis,
+  YAxis as RechartYAxisLeft,
+  CartesianGrid as RechartCartesianGrid,
+  Tooltip as RechartTooltip,
+  Legend as RechartLegend,
+  PieChart as RechartPie,
+  Pie as RechartPieShape,
+  Cell as RechartCell,
+} from "recharts";
+import type { PieLabelRenderProps } from "recharts";
+
+const RechartYAxisRight = (props: React.ComponentProps<typeof RechartYAxisLeft>) => <RechartYAxisLeft orientation="right" {...props} />;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // Tabs 组件不再使用（已改为侧边栏导航）
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -58,6 +75,8 @@ interface ReqRow {
   onesUrl: string;
   modTime: string;
   month: string;
+  workload: number;
+  noTest: boolean;
 }
 
 interface MilestoneRow {
@@ -87,9 +106,14 @@ interface MonthDetail {
   total: number;
   completed: number;
   pct: number;
+  completionRate: number;
   topStatuses: { name: string; count: number; color: string }[];
   milestoneCount: number;
   riskCount: number;
+  totalWorkload: number;
+  noTestCount: number;
+  noTestRatio: number;
+  terminatedCount: number;
 }
 
 type FilterTag = "total" | "completed" | "risk" | "bar" | null;
@@ -121,6 +145,9 @@ export function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reqPage, setReqPage] = useState(0);
+  const [monthTableSortCol, setMonthTableSortCol] = useState("month");
+  const [monthTableSortAsc, setMonthTableSortAsc] = useState(true);
+  const [monthCardsCollapsed, setMonthCardsCollapsed] = useState(false);
   const REQ_PAGE_SIZE = 20;
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [silentRefreshing, setSilentRefreshing] = useState(false);
@@ -227,7 +254,7 @@ export function DashboardPage() {
   const stats = useMemo(() => {
     let sumProgress = 0;
     let completed = 0;
-    const byMonth: Record<string, { total: number; sumProgress: number; completed: number; statuses: Record<string, number> }> = {};
+    const byMonth: Record<string, { total: number; sumProgress: number; completed: number; statuses: Record<string, number>; totalWorkload: number; noTestCount: number; terminatedCount: number }> = {};
     const statusCounts: Record<string, number> = {};
     requirements.forEach((r) => {
       const prog = getStatusProgress(r.status);
@@ -235,11 +262,14 @@ export function DashboardPage() {
       if (prog >= 100) completed++;
       sumProgress += prog;
       const m = getMonth(r);
-      if (!byMonth[m]) byMonth[m] = { total: 0, sumProgress: 0, completed: 0, statuses: {} };
+      if (!byMonth[m]) byMonth[m] = { total: 0, sumProgress: 0, completed: 0, statuses: {}, totalWorkload: 0, noTestCount: 0, terminatedCount: 0 };
       byMonth[m].total++;
       byMonth[m].sumProgress += prog;
       if (prog >= 100) byMonth[m].completed++;
       byMonth[m].statuses[r.status] = (byMonth[m].statuses[r.status] || 0) + 1;
+      byMonth[m].totalWorkload += r.workload;
+      if (r.noTest) byMonth[m].noTestCount++;
+      if (isTerminated(r.status)) byMonth[m].terminatedCount++;
     });
     const total = requirements.length;
     const activeRisks = risks.filter((r) => !r.status.includes("解除") && !r.status.includes("关闭") && !r.status.includes("已关闭") && !r.status.includes("完成")).length;
@@ -257,14 +287,21 @@ export function DashboardPage() {
     return Object.entries(stats.byMonth)
       .map(([month, d]) => {
         const st = Object.entries(d.statuses).sort(([, a], [, b]) => b - a).slice(0, 4);
+        const cRate = d.total > 0 ? Math.round(d.completed / d.total * 100) : 0;
+        const ntRatio = d.total > 0 ? Math.round(d.noTestCount / d.total * 100) : 0;
         return {
           month,
           total: d.total,
           completed: d.completed,
           pct: d.total > 0 ? Math.round(d.sumProgress / d.total) : 0,
+          completionRate: cRate,
           topStatuses: st.map(([name, count], i) => ({ name, count, color: STATUS_COLORS[i % STATUS_COLORS.length] })),
           milestoneCount: stats.msByMonth[month] || 0,
           riskCount: stats.riskByMonth[month] || 0,
+          totalWorkload: d.totalWorkload,
+          noTestCount: d.noTestCount,
+          noTestRatio: ntRatio,
+          terminatedCount: d.terminatedCount,
         };
       })
       .sort((a, b) => {
@@ -692,54 +729,241 @@ export function DashboardPage() {
               {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-44" />)}</div>
               ) : monthlyMonthFilter === "全部" ? (
-                /* === 全部月份：概览卡片网格 === */
-                monthDetails.length === 0 ? <p className="text-sm text-[#94A3B8] py-4 text-center">暂无迭代数据</p> : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {monthDetails.map((md) => (
-                      <div
-                        key={md.month}
-                        className="p-5 rounded-xl border border-[#E4ECFC] bg-white hover:shadow-md hover:border-[#2563EB]/20 cursor-pointer transition-all group"
-                        onClick={() => setMonthlyMonthFilter(md.month)}
-                      >
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-lg font-bold text-[#0F172A]">{md.month}</span>
-                          <ChevronRight className="w-4 h-4 text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 mb-4">
-                          <div className="text-center p-2 rounded-lg bg-[#F1F5FD]">
-                            <p className="text-xs text-[#94A3B8]">需求总数</p>
-                            <p className="text-lg font-bold text-[#2563EB]">{md.total}</p>
+                /* === 全部月份：概览卡片 + 整合对比视图 === */
+                monthDetails.length === 0 ? <p className="text-sm text-[#94A3B8] py-4 text-center">暂无迭代数据</p> : (() => {
+                  const CHART_COLORS = { total: "#2563EB", completed: "#059669", rate: "#F59E0B", workload: "#8B5CF6", noTest: "#EC4899" };
+                  const chartData = monthDetails.filter(d => d.month !== "未参与排期");
+                  const totalAll = monthDetails.reduce((s, d) => s + d.total, 0);
+                  const completedAll = monthDetails.reduce((s, d) => s + d.completed, 0);
+                  const workloadAll = chartData.reduce((s, d) => s + d.totalWorkload, 0);
+                  const noTestAll = chartData.reduce((s, d) => s + d.noTestCount, 0);
+                  const terminatedAll = monthDetails.reduce((s, d) => s + d.terminatedCount, 0);
+                  const sorted = [...monthDetails].sort((a, b) => {
+                    const key = monthTableSortCol as keyof MonthDetail;
+                    const va = a[key] ?? 0, vb = b[key] ?? 0;
+                    const cmp = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb));
+                    return monthTableSortAsc ? cmp : -cmp;
+                  });
+                  const toggleSort = (col: string) => { if (monthTableSortCol === col) setMonthTableSortAsc(!monthTableSortAsc); else { setMonthTableSortCol(col); setMonthTableSortAsc(true); } };
+                  const SortIcon = ({ col }: { col: string }) => monthTableSortCol === col ? <span className="ml-0.5 text-[10px]">{monthTableSortAsc ? "▲" : "▼"}</span> : null;
+
+                  return (
+                  <div className="space-y-5">
+                    {/* 可折叠月份概览卡片 */}
+                    <Card className="shadow-sm border-[#E4ECFC]">
+                      <CardHeader className="pb-1 cursor-pointer select-none" onClick={() => setMonthCardsCollapsed(!monthCardsCollapsed)}>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-semibold text-[#0F172A]">各迭代概览</CardTitle>
+                          <div className="flex items-center gap-2 text-xs text-[#94A3B8]">
+                            <span>{monthDetails.length} 个迭代</span>
+                            <ChevronDown className={`w-4 h-4 transition-transform ${monthCardsCollapsed ? "-rotate-90" : ""}`} />
                           </div>
-                          <div className="text-center p-2 rounded-lg bg-emerald-50">
-                            <p className="text-xs text-[#94A3B8]">已完成</p>
-                            <p className="text-lg font-bold text-[#059669]">{md.completed}</p>
-                          </div>
-                          <div className="text-center p-2 rounded-lg bg-blue-50">
-                            <p className="text-xs text-[#94A3B8]">完成度</p>
-                            <p className="text-lg font-bold text-[#2563EB]">{md.pct}%</p>
-                          </div>
                         </div>
-                        <div className="w-full h-2.5 bg-[#F1F5FD] rounded-full overflow-hidden mb-3">
-                          <div className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#059669] transition-all duration-500" style={{ width: `${md.pct}%` }} />
-                        </div>
-                        {md.topStatuses.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mb-3">
-                            {md.topStatuses.map(s => (
-                              <span key={s.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs"
-                                style={{ background: s.color + "18", color: s.color, border: `1px solid ${s.color}30` }}>
-                                {s.name} {s.count}
-                              </span>
+                      </CardHeader>
+                      {!monthCardsCollapsed && (
+                        <CardContent className="pt-2">
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {monthDetails.map((md) => (
+                              <div
+                                key={md.month}
+                                className="p-3 rounded-lg border border-[#E4ECFC] bg-white hover:shadow-md hover:border-[#2563EB]/20 cursor-pointer transition-all group"
+                                onClick={() => setMonthlyMonthFilter(md.month)}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm font-bold text-[#0F172A]">{md.month}</span>
+                                  <ChevronRight className="w-3.5 h-3.5 text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
+                                </div>
+                                <div className="flex items-center gap-3 mb-2">
+                                  <div className="text-center">
+                                    <p className="text-[10px] text-[#94A3B8]">总数</p>
+                                    <p className="text-sm font-bold text-[#2563EB]">{md.total}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-[10px] text-[#94A3B8]">完成</p>
+                                    <p className="text-sm font-bold text-[#059669]">{md.completed}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-[10px] text-[#94A3B8]">完成率</p>
+                                    <p className="text-sm font-bold text-[#2563EB]">{md.completionRate}%</p>
+                                  </div>
+                                </div>
+                                <div className="w-full h-1.5 bg-[#F1F5FD] rounded-full overflow-hidden mb-2">
+                                  <div className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#059669] transition-all duration-500" style={{ width: `${md.completionRate}%` }} />
+                                </div>
+                                {md.topStatuses.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {md.topStatuses.slice(0, 3).map(s => (
+                                      <span key={s.name} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px]"
+                                        style={{ background: s.color + "18", color: s.color, border: `1px solid ${s.color}30` }}>
+                                        {s.name} {s.count}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             ))}
                           </div>
+                        </CardContent>
+                      )}
+                    </Card>
+
+                    {/* 组合图表：需求总数/已完成（柱状）+ 完成率（折线） — 排除"未参与排期" */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                      <Card className="lg:col-span-2 shadow-sm border-[#E4ECFC]">
+                        <CardHeader className="pb-1">
+                          <CardTitle className="text-sm font-semibold text-[#0F172A]">需求规模与产出对比</CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-2">
+                          <RechartResponsive width="100%" height={300}>
+                            <RechartComposed data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                              <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
+                              <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
+                              <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                              <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
+                              <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
+                              <RechartLegend wrapperStyle={{ fontSize: 12 }} />
+                              <RechartBar yAxisId="left" dataKey="total" name="需求总数" fill={CHART_COLORS.total} radius={[3, 3, 0, 0]} barSize={28} />
+                              <RechartBar yAxisId="left" dataKey="completed" name="已完成" fill={CHART_COLORS.completed} radius={[3, 3, 0, 0]} barSize={28} />
+                              <RechartLine yAxisId="right" type="monotone" dataKey="completionRate" name="完成率(%)" stroke={CHART_COLORS.rate} strokeWidth={2} dot={{ r: 4 }} label={{ position: "top", fontSize: 11, fill: CHART_COLORS.rate }} />
+                            </RechartComposed>
+                          </RechartResponsive>
+                        </CardContent>
+                      </Card>
+
+                      {/* 饼图：工作量占比 */}
+                      <Card className="shadow-sm border-[#E4ECFC]">
+                        <CardHeader className="pb-1">
+                          <CardTitle className="text-sm font-semibold text-[#0F172A]">工作量分布</CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-2">
+                          {workloadAll > 0 ? (
+                            <RechartResponsive width="100%" height={250}>
+                              <RechartPie>
+                                <RechartPieShape data={chartData.filter(d => d.totalWorkload > 0).map(d => ({ name: d.month, value: d.totalWorkload }))}
+                                  cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={2} dataKey="value"
+                                  label={({ name, percent }: PieLabelRenderProps) => `${name ?? ""} ${((Number(percent) || 0) * 100).toFixed(0)}%`} labelLine={false}>
+                                  {chartData.filter(d => d.totalWorkload > 0).map((_, i) => (
+                                    <RechartCell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />
+                                  ))}
+                                </RechartPieShape>
+                                <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
+                              </RechartPie>
+                            </RechartResponsive>
+                          ) : (
+                            <div className="h-[250px] flex flex-col items-center justify-center text-[#94A3B8]">
+                              <Layers className="w-8 h-8 mb-2 opacity-40" />
+                              <p className="text-xs">暂无工作量数据</p>
+                              <p className="text-[11px] mt-1">多维表格中添加"工作量"字段后自动展示</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* 免测需求对比 — 排除"未参与排期" */}
+                    <Card className="shadow-sm border-[#E4ECFC]">
+                      <CardHeader className="pb-1">
+                        <CardTitle className="text-sm font-semibold text-[#0F172A]">免测需求对比</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-2">
+                        {noTestAll > 0 ? (
+                          <RechartResponsive width="100%" height={220}>
+                            <RechartComposed data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                              <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
+                              <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
+                              <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                              <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
+                              <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
+                              <RechartBar yAxisId="left" dataKey="noTestCount" name="免测需求数" fill={CHART_COLORS.noTest} radius={[3, 3, 0, 0]} barSize={32} />
+                              <RechartLine yAxisId="right" type="monotone" dataKey="noTestRatio" name="免测比例(%)" stroke="#6366F1" strokeWidth={2} dot={{ r: 4 }} />
+                            </RechartComposed>
+                          </RechartResponsive>
+                        ) : (
+                          <div className="py-8 text-center text-[#94A3B8]">
+                            <p className="text-xs">暂无免测数据</p>
+                            <p className="text-[11px] mt-1">多维表格中添加"是否免测"字段后自动展示</p>
+                          </div>
                         )}
-                        <div className="flex items-center gap-4 text-xs text-[#94A3B8]">
-                          <span className="flex items-center gap-1"><Milestone className="w-3 h-3" />里程碑 {md.milestoneCount} 项</span>
-                          <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" />风险 {md.riskCount} 项</span>
+                      </CardContent>
+                    </Card>
+
+                    {/* 详细数据表格（包含全部月份含未参与排期） */}
+                    <Card className="shadow-sm border-[#E4ECFC]">
+                      <CardHeader className="pb-1">
+                        <CardTitle className="text-sm font-semibold text-[#0F172A]">月度数据总表</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-2">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b-2 border-[#E4ECFC] bg-[#F8FAFC] text-left">
+                                {[
+                                  { key: "month", label: "月份" },
+                                  { key: "total", label: "需求总数" },
+                                  { key: "completed", label: "已完成" },
+                                  { key: "pct", label: "完成率" },
+                                  { key: "totalWorkload", label: "总工作量" },
+                                  { key: "noTestCount", label: "免测数" },
+                                  { key: "terminatedCount", label: "终止数" },
+                                  { key: "milestoneCount", label: "里程碑" },
+                                  { key: "riskCount", label: "风险" },
+                                ].map(h => (
+                                  <th key={h.key} className="py-2.5 px-3 font-semibold text-[#0F172A] whitespace-nowrap cursor-pointer hover:text-[#2563EB] select-none text-xs" onClick={() => toggleSort(h.key)}>
+                                    {h.label}<SortIcon col={h.key} />
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sorted.map((d, i) => {
+                                const cRate = d.total > 0 ? Math.round(d.completed / d.total * 100) : 0;
+                                return (
+                                <tr key={d.month} className={`border-b border-[#F1F5FD] hover:bg-[#F8FAFC] transition-colors cursor-pointer ${i % 2 !== 0 ? "bg-[#FAFBFF]" : ""}`} onClick={() => setMonthlyMonthFilter(d.month)}>
+                                  <td className="py-2.5 px-3 font-medium text-[#0F172A] text-xs">{d.month}</td>
+                                  <td className="py-2.5 px-3 text-xs">{d.total}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#059669] font-medium">{d.completed}</td>
+                                  <td className="py-2.5 px-3 text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-16 h-1.5 bg-[#F1F5FD] rounded-full overflow-hidden">
+                                        <div className="h-full rounded-full bg-[#2563EB]" style={{ width: `${cRate}%` }} />
+                                      </div>
+                                      <span className="text-[#2563EB] font-medium">{cRate}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.totalWorkload > 0 ? d.totalWorkload : "—"}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.noTestCount || "—"}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.terminatedCount || "—"}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.milestoneCount}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.riskCount}</td>
+                                </tr>
+                                );
+                              })}
+                              <tr className="border-t-2 border-[#E4ECFC] bg-[#F8FAFC] font-semibold">
+                                <td className="py-2.5 px-3 text-xs text-[#0F172A]">合计</td>
+                                <td className="py-2.5 px-3 text-xs">{totalAll}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#059669]">{completedAll}</td>
+                                <td className="py-2.5 px-3 text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 h-1.5 bg-[#F1F5FD] rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full bg-[#2563EB]" style={{ width: `${totalAll > 0 ? Math.round(completedAll / totalAll * 100) : 0}%` }} />
+                                    </div>
+                                    <span className="text-[#2563EB]">{totalAll > 0 ? Math.round(completedAll / totalAll * 100) : 0}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{workloadAll > 0 ? workloadAll : "—"}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{noTestAll || "—"}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{terminatedAll || "—"}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{monthDetails.reduce((s, d) => s + d.milestoneCount, 0)}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{monthDetails.reduce((s, d) => s + d.riskCount, 0)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
-                      </div>
-                    ))}
+                      </CardContent>
+                    </Card>
                   </div>
-                )
+                  );
+                })()
               ) : (() => {
                 /* === 单月详情视图 === */
                 const md = monthDetails.find(d => d.month === monthlyMonthFilter);
@@ -989,7 +1213,7 @@ export function DashboardPage() {
                                         <div className="flex items-center gap-2 mt-1 text-xs text-[#94A3B8] flex-wrap">
                                           {m.eventDate && <span className="flex items-center gap-0.5"><Calendar className="w-3 h-3" />{m.eventDate}</span>}
                                           {m.daysLeft > 0 && <span className="text-[#059669] font-medium">剩余 {m.daysLeft} 工作日</span>}
-                                          {m.delayDays > 0 && <span className="text-[#DC2626] font-medium">{m.hasActual ? `延期 ${m.delayDays} 天完成` : `已延期 ${m.delayDays} 天`}</span>}
+                                          {m.delayDays > 0 && <span className="text-[#DC2626] font-medium">{m.hasActual ? `延期 ${m.delayDays} 工作日完成` : `已延期 ${m.delayDays} 工作日`}</span>}
                                         </div>
                                       </div>
                                       {isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal shrink-0">{m.hasActual ? "延期完成" : "延期中"}</Badge>
@@ -1019,7 +1243,7 @@ export function DashboardPage() {
                                               <p className="text-sm font-medium text-[#0F172A] truncate">{m.name}</p>
                                               <div className="flex items-center gap-2 mt-1 text-xs text-[#94A3B8] flex-wrap">
                                                 {m.eventDate && <span className="flex items-center gap-0.5"><Calendar className="w-3 h-3" />{m.eventDate}</span>}
-                                                {isDelayed && <span className="text-amber-600 font-medium">延期 {m.delayDays} 天</span>}
+                                                {isDelayed && <span className="text-amber-600 font-medium">延期 {m.delayDays} 工作日完成</span>}
                                                 {m.note && <span className="text-emerald-600">{m.note}</span>}
                                               </div>
                                             </div>
@@ -1592,8 +1816,8 @@ function workingDaysBetween(from: Date, to: Date): number {
   const step = cur.getTime() < endTime ? 1 : -1;
   while (true) {
     cur.setDate(cur.getDate() + step);
-    if (isWorkday(cur)) count += step;
     if (cur.getTime() === endTime) break;
+    if (isWorkday(cur)) count += step;
   }
   return count;
 }
@@ -1674,6 +1898,8 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       level: str(f["需求级别"]), project: str(f["所属项目"]), iteration: str(f["迭代"]),
       testDate: str(f["计划提测时间"]), devOwner: str(f["开发负责人"]), testOwner: str(f["测试负责人"]),
       onesId: o.id, onesUrl: o.url, modTime: r.last_modified_time || "", month: str(f["排期月度"]),
+      workload: parseFloat(str(f["工作量"] || f["人天"] || f["故事点"])) || 0,
+      noTest: /免测|无需测试|不测试/i.test(str(f["是否免测"] || f["免测"])),
     };
   });
   // 调试：打印前5条的modTime格式

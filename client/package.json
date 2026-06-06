@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5917",
+    "dev": "vite --port 5917 --host",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "pack:frontend": "vite build && node ../scripts/zip-dir.mjs dist ../.publish/dist-frontend.zip",
@@ -13,15 +13,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@base-ui/react": "^1.3.0",
     "@ks-open/capability": "catalog:",
     "@wps365-open/appbase-js": "catalog:",
-    "@base-ui/react": "^1.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.6.1",
+    "recharts": "^3.8.1",
     "shadcn": "^4.1.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
