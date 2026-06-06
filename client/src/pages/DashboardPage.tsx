@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { createWps365 } from "@ks-open/capability/client/wps365";
 import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,6 +118,9 @@ export function DashboardPage() {
   const [milestoneGroupExpanded, setMilestoneGroupExpanded] = useState<Record<string, boolean>>({});
   const [reqPage, setReqPage] = useState(0);
   const REQ_PAGE_SIZE = 20;
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [silentRefreshing, setSilentRefreshing] = useState(false);
+  const autoRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
@@ -142,10 +145,10 @@ export function DashboardPage() {
     return () => { cancelled = true; };
   }, []);
 
-  /* === 加载数据 === */
-  const loadData = useCallback(async () => {
+  /* === 加载数据（silent=true 时不清空已有数据、不显示骨架屏） === */
+  const loadData = useCallback(async (silent = false) => {
     if (!wps) return;
-    setLoading(true);
+    if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
     try {
       const [reqRes, milRes, riskRes] = await Promise.all([
         wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 2000, page_size: 1000 }),
@@ -155,27 +158,27 @@ export function DashboardPage() {
       if (reqRes.data?.records) {
         const reqs = parseReqs(reqRes.data.records);
         setRequirements(reqs);
-        // 月份分布诊断
-        const monthDist: Record<string, number> = {};
-        reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
-        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
-        // 打印前3条记录的原始字段 keys 和 month 相关值
-        if (reqRes.data.records.length > 0) {
-          const raw = reqRes.data.records.slice(0, 3).map(r => {
-            const f = fld(r as RawRec);
-            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
-            const vals: Record<string, string> = {};
-            monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
-            return { id: r.id, monthKeys: vals };
-          });
-          console.log("[需求-含月的字段]", JSON.stringify(raw));
+        if (!silent) {
+          const monthDist: Record<string, number> = {};
+          reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
+          console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
+          if (reqRes.data.records.length > 0) {
+            const raw = reqRes.data.records.slice(0, 3).map(r => {
+              const f = fld(r as RawRec);
+              const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
+              const vals: Record<string, string> = {};
+              monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
+              return { id: r.id, monthKeys: vals };
+            });
+            console.log("[需求-含月的字段]", JSON.stringify(raw));
+          }
+          console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
         }
-        console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
       }
       if (milRes.data?.records) {
         const mils = parseMils(milRes.data.records);
         setMilestones(mils);
-        if (milRes.data.records.length > 0) {
+        if (!silent && milRes.data.records.length > 0) {
           const raw = milRes.data.records.slice(0, 5).map(r => {
             const f = fld(r as RawRec);
             return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
@@ -184,18 +187,40 @@ export function DashboardPage() {
         }
       }
       if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
+      setLastRefreshTime(new Date());
     } catch (err) {
       console.error("加载失败:", err);
     } finally {
-      setLoading(false);
+      if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
     }
   }, [wps]);
 
-  useEffect(() => { if (wps) loadData(); }, [wps, loadData]);
+  // 首次加载
+  useEffect(() => { if (wps) loadData(false); }, [wps, loadData]);
 
-  /* === 全量统计 (加权进度) === */
+  // 自动轮询：工作时间(8:00-21:00) 5分钟，其余 1小时
+  useEffect(() => {
+    if (!wps) return;
+    function scheduleNext() {
+      const h = new Date().getHours();
+      const ms = (h >= 8 && h < 21) ? 5 * 60_000 : 60 * 60_000;
+      autoRefreshRef.current = setTimeout(() => { loadData(true).then(scheduleNext); }, ms);
+    }
+    scheduleNext();
+    return () => { if (autoRefreshRef.current) clearTimeout(autoRefreshRef.current); };
+  }, [wps, loadData]);
+
+  // 页面可见性恢复时立即刷新
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && wps) loadData(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [wps, loadData]);
+
+  /* === 全量统计 (加权进度，需求终止权重为0但计入总数) === */
   const stats = useMemo(() => {
-    const total = requirements.length;
     let sumProgress = 0;
     let completed = 0;
     const byMonth: Record<string, { total: number; sumProgress: number; completed: number; statuses: Record<string, number> }> = {};
@@ -212,6 +237,7 @@ export function DashboardPage() {
       if (prog >= 100) byMonth[m].completed++;
       byMonth[m].statuses[r.status] = (byMonth[m].statuses[r.status] || 0) + 1;
     });
+    const total = requirements.length;
     const activeRisks = risks.filter((r) => !r.status.includes("解除") && !r.status.includes("关闭") && !r.status.includes("已关闭") && !r.status.includes("完成")).length;
     const msByMonth: Record<string, number> = {};
     milestones.forEach(m => { if (m.month) msByMonth[m.month] = (msByMonth[m.month] || 0) + 1; });
@@ -371,17 +397,40 @@ export function DashboardPage() {
             <p className="text-sm text-[#94A3B8] mt-1">2026政务产品研发迭代规划 · 实时追踪</p>
           </div>
           <button
-            onClick={() => { setLoading(true); setRequirements([]); setMilestones([]); setRisks([]); loadData(); }}
-            disabled={loading}
+            onClick={() => loadData(requirements.length > 0)}
+            disabled={loading || silentRefreshing}
             className="flex items-center gap-2 px-4 py-2 text-sm text-[#64748B] hover:text-[#2563EB] hover:bg-[#F1F5FD] rounded-lg transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading || silentRefreshing ? "animate-spin" : ""}`} />
             刷新数据
           </button>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-8 py-6">
+        {/* 数据更新状态栏 */}
+        {lastRefreshTime && (
+          <div className="flex items-center justify-between mb-4 px-4 py-2.5 rounded-lg bg-[#F8FAFC] border border-[#E4ECFC]">
+            <div className="flex items-center gap-2 text-sm text-[#64748B]">
+              <Clock className="w-3.5 h-3.5 text-[#94A3B8]" />
+              <span>数据更新时间：</span>
+              <span className="font-medium text-[#0F172A]">
+                {lastRefreshTime.getFullYear()}-{(lastRefreshTime.getMonth() + 1).toString().padStart(2, "0")}-{lastRefreshTime.getDate().toString().padStart(2, "0")}{" "}
+                {lastRefreshTime.getHours().toString().padStart(2, "0")}:{lastRefreshTime.getMinutes().toString().padStart(2, "0")}:{lastRefreshTime.getSeconds().toString().padStart(2, "0")}
+              </span>
+              {silentRefreshing && (
+                <span className="flex items-center gap-1 text-[#2563EB] text-xs">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#2563EB] animate-pulse" />
+                  同步中...
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-[#94A3B8]">
+              {(() => { const h = new Date().getHours(); return h >= 8 && h < 21 ? "工作时段 · 每5分钟自动刷新" : "非工作时段 · 每小时自动刷新"; })()}
+            </span>
+          </div>
+        )}
+
         <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
           <TabsList variant="line" className="mb-6">
             <TabsTrigger value={TAB_OVERVIEW}><BarChart3 className="w-4 h-4" />迭代概览</TabsTrigger>
@@ -454,17 +503,17 @@ export function DashboardPage() {
                                   <tbody className="text-[#64748B]">
                                     {[
                                       ["未开始 / 待排期","0%","0%"],
-                                      ["需求立项中","8%","0%"],
-                                      ["需求分析中","12%","8%"],
-                                      ["UX设计中","10%","20%"],
-                                      ["开发方案设计中","10%","30%"],
-                                      ["开发中","30%","40%"],
-                                      ["验收中","7%","70%"],
-                                      ["测试中","8%","77%"],
-                                      ["待合并","5%","85%"],
-                                      ["版本测试中","5%","90%"],
-                                      ["灰度发布","3%","95%"],
-                                      ["已发布","2%","100%"],
+                                      ["需求立项中","6%","6%"],
+                                      ["需求分析中","9%","15%"],
+                                      ["开发方案设计中（含Open API设计）","8%","23%"],
+                                      ["开发中","45%","68%"],
+                                      ["测试中","12%","80%"],
+                                      ["验收中","5%","85%"],
+                                      ["待合并","3%","88%"],
+                                      ["版本测试中","5%","93%"],
+                                      ["灰度发布","3%","96%"],
+                                      ["已发布","4%","100%"],
+                                      ["需求终止","0%","0%"],
                                     ].map(([s,w,p],i) => (
                                       <tr key={s} className={i % 2 === 0 ? "bg-white" : "bg-[#FAFBFF]"}>
                                         <td className="py-1 px-3">{s}</td>
@@ -741,17 +790,17 @@ export function DashboardPage() {
                                   <tbody className="text-[#64748B]">
                                     {[
                                       ["未开始 / 待排期","0%","0%"],
-                                      ["需求立项中","8%","0%"],
-                                      ["需求分析中","12%","8%"],
-                                      ["UX设计中","10%","20%"],
-                                      ["开发方案设计中","10%","30%"],
-                                      ["开发中","30%","40%"],
-                                      ["验收中","7%","70%"],
-                                      ["测试中","8%","77%"],
-                                      ["待合并","5%","85%"],
-                                      ["版本测试中","5%","90%"],
-                                      ["灰度发布","3%","95%"],
-                                      ["已发布","2%","100%"],
+                                      ["需求立项中","6%","6%"],
+                                      ["需求分析中","9%","15%"],
+                                      ["开发方案设计中（含Open API设计）","8%","23%"],
+                                      ["开发中","45%","68%"],
+                                      ["测试中","12%","80%"],
+                                      ["验收中","5%","85%"],
+                                      ["待合并","3%","88%"],
+                                      ["版本测试中","5%","93%"],
+                                      ["灰度发布","3%","96%"],
+                                      ["已发布","4%","100%"],
+                                      ["需求终止","0%","0%"],
                                     ].map(([s,w,p],i) => (
                                       <tr key={s} className={i % 2 === 0 ? "bg-white" : "bg-[#FAFBFF]"}>
                                         <td className="py-1 px-3">{s}</td>
@@ -1447,21 +1496,22 @@ function summary(v: unknown): string {
 /** 状态 → 累计进度% 映射 (模糊匹配) */
 function getStatusProgress(s: string): number {
   if (!s) return 0;
+  if (/终止|作废|废弃/.test(s)) return 0;
   if (/已发布/.test(s)) return 100;
-  if (/灰度发布/.test(s)) return 95;
-  if (/版本测试/.test(s)) return 90;
-  if (/待合并/.test(s)) return 85;
-  if (/测试中/.test(s)) return 77;
-  if (/验收中/.test(s)) return 70;
-  if (/开发中/.test(s)) return 40;
-  if (/开发方案/.test(s)) return 30;
-  if (/ux设计|ui设计/i.test(s)) return 20;
-  if (/需求分析/.test(s)) return 8;
-  if (/需求立项/.test(s)) return 0;
+  if (/灰度发布/.test(s)) return 96;
+  if (/版本测试/.test(s)) return 93;
+  if (/待合并/.test(s)) return 88;
+  if (/验收中/.test(s)) return 85;
+  if (/测试中/.test(s)) return 80;
+  if (/开发中/.test(s)) return 68;
+  if (/开发方案|Open\s*API/i.test(s)) return 23;
+  if (/需求分析/.test(s)) return 15;
+  if (/需求立项/.test(s)) return 6;
   if (/未开始|待排期|待规划/.test(s)) return 0;
   return 0;
 }
 function isComplete(s: string): boolean { return getStatusProgress(s) >= 100; }
+function isTerminated(s: string): boolean { return /终止|作废|废弃/.test(s); }
 function getMonth(r: ReqRow): string { return r.month || "未参与排期"; }
 function uniqSorted(arr: string[]): string[] { return [...new Set(arr.filter(Boolean))].sort(); }
 
