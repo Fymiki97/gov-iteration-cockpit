@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { createWps365 } from "@ks-open/capability/client/wps365";
 import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+// Tabs 组件不再使用（已改为侧边栏导航）
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,8 @@ import {
   ChevronRight,
   ChevronDown,
   Info,
+  Menu,
+  PanelLeftClose,
 } from "lucide-react";
 
 /* ==================== 常量 ==================== */
@@ -116,6 +118,8 @@ export function DashboardPage() {
   const [milestoneQuickFilter, setMilestoneQuickFilter] = useState<string>("全部");
   const [milestoneSearchText, setMilestoneSearchText] = useState("");
   const [milestoneGroupExpanded, setMilestoneGroupExpanded] = useState<Record<string, boolean>>({});
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reqPage, setReqPage] = useState(0);
   const REQ_PAGE_SIZE = 20;
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
@@ -329,6 +333,8 @@ export function DashboardPage() {
     return Array.from(s).sort();
   }, [requirements]);
 
+  const riskOnesIdSet = useMemo(() => new Set(risks.map(r => r.onesId).filter(Boolean)), [risks]);
+
   /* === 里程碑 (sheet23) === */
   const milestoneMonths = useMemo(() => {
     const s = new Set<string>();
@@ -386,61 +392,110 @@ export function DashboardPage() {
     );
   }
 
+  const NAV_ITEMS = [
+    { key: TAB_OVERVIEW, label: "迭代概览", icon: BarChart3 },
+    { key: TAB_MONTHLY, label: "月度迭代情况", icon: CalendarDays },
+    { key: TAB_LIST, label: "需求列表", icon: ListChecks },
+    { key: TAB_MILESTONE, label: "里程碑", icon: Milestone },
+  ] as const;
+
   /* ==================== 渲染 ==================== */
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
-      {/* 顶部 */}
-      <header className="bg-white border-b border-[#E4ECFC]">
-        <div className="max-w-7xl mx-auto px-8 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-[#0F172A] tracking-tight">政务产研迭代进度看板</h1>
-            <p className="text-sm text-[#94A3B8] mt-1">2026政务产品研发迭代规划 · 实时追踪</p>
+    <div className="min-h-screen bg-[#F8FAFC] flex">
+      {/* 移动端遮罩 */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/30 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* 侧边栏 */}
+      <aside className={`fixed md:sticky top-0 left-0 z-40 h-screen bg-white border-r border-[#E4ECFC] flex flex-col shrink-0 transition-all duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} ${sidebarCollapsed ? "md:w-[68px]" : "md:w-[260px]"} w-[260px]`}>
+        {/* 标题区域 */}
+        <div className={`border-b border-[#E4ECFC] ${sidebarCollapsed ? "px-3 py-4" : "px-5 py-5"}`}>
+          <div className="flex items-center justify-between">
+            <div className={`flex items-center ${sidebarCollapsed ? "justify-center w-full" : "gap-3"}`}>
+              <div className={`rounded-lg bg-[#1E3A5F] flex items-center justify-center shrink-0 ${sidebarCollapsed ? "w-9 h-9" : "w-10 h-10"}`}>
+                <BarChart3 className={`text-white ${sidebarCollapsed ? "w-4.5 h-4.5" : "w-5 h-5"}`} />
+              </div>
+              {!sidebarCollapsed && (
+                <div>
+                  <h1 className="text-base font-bold text-[#0F172A] leading-snug tracking-tight">政务产研迭代进度看板</h1>
+                  <p className="text-[11px] text-[#94A3B8] leading-tight mt-0.5">2026 研发迭代规划</p>
+                </div>
+              )}
+            </div>
+            <button className="md:hidden p-1 rounded hover:bg-[#F1F5FD]" onClick={() => setSidebarOpen(false)}>
+              <PanelLeftClose className="w-4 h-4 text-[#94A3B8]" />
+            </button>
           </div>
+        </div>
+
+        {/* 导航项 */}
+        <nav className={`flex-1 py-4 space-y-1 ${sidebarCollapsed ? "px-2" : "px-3"}`}>
+          {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+            <button key={key} onClick={() => { setTab(key); setSidebarOpen(false); }}
+              title={sidebarCollapsed ? label : undefined}
+              className={`w-full flex items-center rounded-lg transition-colors ${sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"} text-sm ${tab === key ? "bg-[#F1F5FD] text-[#2563EB] font-medium" : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"}`}>
+              <Icon className={`w-[18px] h-[18px] shrink-0 ${tab === key ? "text-[#2563EB]" : "text-[#94A3B8]"}`} />
+              {!sidebarCollapsed && label}
+            </button>
+          ))}
+        </nav>
+
+        {/* 底部 */}
+        <div className={`border-t border-[#E4ECFC] space-y-2 ${sidebarCollapsed ? "px-2 py-3" : "px-4 py-4"}`}>
+          {!sidebarCollapsed && lastRefreshTime && (
+            <div className="text-[11px] text-[#94A3B8] space-y-0.5">
+              <p className="flex items-center gap-1">
+                {silentRefreshing ? <><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#2563EB] animate-pulse" /> 同步中...</> : <>
+                  更新于 {lastRefreshTime.getFullYear()}-{(lastRefreshTime.getMonth() + 1).toString().padStart(2, "0")}-{lastRefreshTime.getDate().toString().padStart(2, "0")}{" "}
+                  {lastRefreshTime.getHours().toString().padStart(2, "0")}:{lastRefreshTime.getMinutes().toString().padStart(2, "0")}:{lastRefreshTime.getSeconds().toString().padStart(2, "0")}
+                </>}
+              </p>
+              <p>{(() => { const h = new Date().getHours(); return h >= 8 && h < 21 ? "工作时段 · 每5分钟自动刷新" : "非工作时段 · 每小时自动刷新"; })()}</p>
+            </div>
+          )}
           <button
             onClick={() => loadData(requirements.length > 0)}
             disabled={loading || silentRefreshing}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-[#64748B] hover:text-[#2563EB] hover:bg-[#F1F5FD] rounded-lg transition-colors"
+            title={sidebarCollapsed ? "刷新数据" : undefined}
+            className={`w-full flex items-center justify-center gap-2 text-xs text-[#64748B] hover:text-[#2563EB] hover:bg-[#F1F5FD] rounded-lg border border-[#E4ECFC] transition-colors ${sidebarCollapsed ? "p-2.5" : "px-3 py-2"}`}
           >
-            <RefreshCw className={`w-4 h-4 ${loading || silentRefreshing ? "animate-spin" : ""}`} />
-            刷新数据
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${loading || silentRefreshing ? "animate-spin" : ""}`} />
+            {!sidebarCollapsed && "刷新数据"}
+          </button>
+          {/* 收起/展开按钮 */}
+          <button
+            onClick={() => setSidebarCollapsed(c => !c)}
+            className="hidden md:flex w-full items-center justify-center gap-2 px-3 py-2 text-xs text-[#94A3B8] hover:text-[#64748B] hover:bg-[#F8FAFC] rounded-lg transition-colors"
+          >
+            <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
+            {!sidebarCollapsed && "收起侧栏"}
           </button>
         </div>
-      </header>
+      </aside>
 
-      <div className="max-w-7xl mx-auto px-8 py-6">
-        {/* 数据更新状态栏 */}
-        {lastRefreshTime && (
-          <div className="flex items-center justify-between mb-4 px-4 py-2.5 rounded-lg bg-[#F8FAFC] border border-[#E4ECFC]">
-            <div className="flex items-center gap-2 text-sm text-[#64748B]">
-              <Clock className="w-3.5 h-3.5 text-[#94A3B8]" />
-              <span>数据更新时间：</span>
-              <span className="font-medium text-[#0F172A]">
-                {lastRefreshTime.getFullYear()}-{(lastRefreshTime.getMonth() + 1).toString().padStart(2, "0")}-{lastRefreshTime.getDate().toString().padStart(2, "0")}{" "}
-                {lastRefreshTime.getHours().toString().padStart(2, "0")}:{lastRefreshTime.getMinutes().toString().padStart(2, "0")}:{lastRefreshTime.getSeconds().toString().padStart(2, "0")}
-              </span>
-              {silentRefreshing && (
-                <span className="flex items-center gap-1 text-[#2563EB] text-xs">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#2563EB] animate-pulse" />
-                  同步中...
-                </span>
-              )}
+      {/* 右侧主内容区 */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* 顶部栏 */}
+        <header className="bg-white border-b border-[#E4ECFC] sticky top-0 z-20">
+          <div className="px-6 md:px-8 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button className="md:hidden p-1.5 rounded-lg hover:bg-[#F1F5FD]" onClick={() => setSidebarOpen(true)}>
+                <Menu className="w-5 h-5 text-[#64748B]" />
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold text-[#0F172A] tracking-tight">
+                  {NAV_ITEMS.find(n => n.key === tab)?.label || "政务产研迭代进度看板"}
+                </h1>
+                <p className="text-xs text-[#94A3B8] mt-0.5">2026政务产品研发迭代规划 · 实时追踪</p>
+              </div>
             </div>
-            <span className="text-xs text-[#94A3B8]">
-              {(() => { const h = new Date().getHours(); return h >= 8 && h < 21 ? "工作时段 · 每5分钟自动刷新" : "非工作时段 · 每小时自动刷新"; })()}
-            </span>
           </div>
-        )}
+        </header>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
-          <TabsList variant="line" className="mb-6">
-            <TabsTrigger value={TAB_OVERVIEW}><BarChart3 className="w-4 h-4" />迭代概览</TabsTrigger>
-            <TabsTrigger value={TAB_MONTHLY}><CalendarDays className="w-4 h-4" />月度迭代情况</TabsTrigger>
-            <TabsTrigger value={TAB_LIST}><ListChecks className="w-4 h-4" />需求列表</TabsTrigger>
-            <TabsTrigger value={TAB_MILESTONE}><Milestone className="w-4 h-4" />里程碑</TabsTrigger>
-          </TabsList>
-
+        <main className="flex-1 overflow-y-auto px-6 md:px-8 py-6">
           {/* ============ TAB 1: 迭代概览 ============ */}
-          <TabsContent value={TAB_OVERVIEW}>
+          {tab === TAB_OVERVIEW && (
             <div className="space-y-6">
               {/* 4 卡片 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -479,55 +534,9 @@ export function DashboardPage() {
                     <Card className="shadow-sm border-[#E4ECFC] hover:shadow-md hover:border-blue-300 cursor-pointer transition-all" onClick={() => goToList("completed")}>
                       <CardContent className="p-5 flex items-center justify-between">
                         <div>
-                          <div className="flex items-center gap-1">
-                            <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">完成进度</p>
-                            <Popover>
-                              <PopoverTrigger
-                                render={<button type="button" className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-[#F1F5FD] transition-colors" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                                  <Info className="w-3.5 h-3.5 text-[#CBD5E1] hover:text-[#94A3B8]" />
-                                </button>}
-                              />
-                              <PopoverContent className="bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg p-0 min-w-[340px]" side="bottom" align="start">
-                                <div className="px-3 pt-3 pb-2 border-b border-[#E4ECFC]">
-                                  <p className="text-xs font-semibold">进度权重说明</p>
-                                  <p className="text-[11px] text-[#94A3B8] mt-0.5">完成进度 = 所有需求按状态加权平均</p>
-                                </div>
-                                <table className="w-full text-xs">
-                                  <thead>
-                                    <tr className="border-y border-[#E4ECFC] bg-[#F8FAFC]">
-                                      <th className="py-1.5 px-3 text-left font-medium text-[#64748B]">阶段</th>
-                                      <th className="py-1.5 px-2 text-center font-medium text-[#64748B]">权重</th>
-                                      <th className="py-1.5 px-3 text-center font-medium text-[#64748B]">累计进度</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="text-[#64748B]">
-                                    {[
-                                      ["未开始 / 待排期","0%","0%"],
-                                      ["需求立项中","6%","6%"],
-                                      ["需求分析中","9%","15%"],
-                                      ["开发方案设计中（含Open API设计）","8%","23%"],
-                                      ["开发中","45%","68%"],
-                                      ["测试中","12%","80%"],
-                                      ["验收中","5%","85%"],
-                                      ["待合并","3%","88%"],
-                                      ["版本测试中","5%","93%"],
-                                      ["灰度发布","3%","96%"],
-                                      ["已发布","4%","100%"],
-                                      ["需求终止","0%","0%"],
-                                    ].map(([s,w,p],i) => (
-                                      <tr key={s} className={i % 2 === 0 ? "bg-white" : "bg-[#FAFBFF]"}>
-                                        <td className="py-1 px-3">{s}</td>
-                                        <td className="py-1 px-2 text-center">{w}</td>
-                                        <td className="py-1 px-3 text-center font-medium text-[#2563EB]">{p}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          <p className="text-3xl font-bold text-[#2563EB] mt-1">{stats.pct}%</p>
-                          <p className="text-xs text-[#94A3B8] mt-0.5">{stats.completed}/{stats.total}</p>
+                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">完成进度</p>
+                          <p className="text-3xl font-bold text-[#2563EB] mt-1">{stats.total > 0 ? Math.round(stats.completed / stats.total * 100) : 0}%</p>
+                          <p className="text-xs text-[#94A3B8] mt-0.5">已完成 {stats.completed} / 总计 {stats.total}</p>
                         </div>
                         <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-[#2563EB]" /></div>
                       </CardContent>
@@ -658,10 +667,10 @@ export function DashboardPage() {
                 );
               })()}
             </div>
-          </TabsContent>
+          )}
 
           {/* ============ TAB 2: 月度迭代情况 ============ */}
-          <TabsContent value={TAB_MONTHLY}>
+          {tab === TAB_MONTHLY && (
             <div className="space-y-6">
               {/* 月份筛选器 */}
               <div className="flex items-center gap-3 flex-wrap">
@@ -1127,10 +1136,10 @@ export function DashboardPage() {
                 );
               })()}
             </div>
-          </TabsContent>
+          )}
 
           {/* ============ TAB 3: 需求列表 ============ */}
-          <TabsContent value={TAB_LIST}>
+          {tab === TAB_LIST && (
             <Card className="shadow-sm border-[#E4ECFC]">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1189,8 +1198,10 @@ export function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {paginatedReqs.map((r, i) => (
-                          <tr key={r.id} className={`border-b border-[#F1F5FD] hover:bg-[#F8FAFC] transition-colors ${i % 2 === 0 ? "" : "bg-[#FAFBFF]"}`}>
+                        {paginatedReqs.map((r, i) => {
+                          const isRiskRelated = !!(r.onesId && riskOnesIdSet.has(r.onesId));
+                          return (
+                          <tr key={r.id} className={`border-b transition-colors ${isRiskRelated ? "bg-red-50/60 border-red-100 hover:bg-red-50" : i % 2 === 0 ? "border-[#F1F5FD] hover:bg-[#F8FAFC]" : "bg-[#FAFBFF] border-[#F1F5FD] hover:bg-[#F8FAFC]"}`}>
                             <td className="py-3 px-4 whitespace-nowrap">
                               {r.onesUrl ? (
                                 <a href={r.onesUrl} target="_blank" rel="noopener noreferrer"
@@ -1210,8 +1221,10 @@ export function DashboardPage() {
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.testDate || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.devOwner || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.testOwner || "-"}</td>
+                            {isRiskRelated && <td className="py-3 px-1 whitespace-nowrap"><AlertTriangle className="w-3.5 h-3.5 text-[#DC2626]" /></td>}
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1230,10 +1243,10 @@ export function DashboardPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
 
           {/* ============ TAB 4: 里程碑 ============ */}
-          <TabsContent value={TAB_MILESTONE} keepMounted>
+          {tab === TAB_MILESTONE && (
             <div className="space-y-4">
               {/* 顶部工具栏 */}
               <div className="flex items-center gap-3 flex-wrap">
@@ -1470,8 +1483,8 @@ export function DashboardPage() {
                 </Card>
               )}
             </div>
-          </TabsContent>
-        </Tabs>
+          )}
+        </main>
       </div>
     </div>
   );
