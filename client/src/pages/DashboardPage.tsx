@@ -171,19 +171,23 @@ export function DashboardPage() {
 
   useEffect(() => { if (wps) loadData(); }, [wps, loadData]);
 
-  /* === 全量统计 === */
+  /* === 全量统计 (加权进度) === */
   const stats = useMemo(() => {
     const total = requirements.length;
+    let sumProgress = 0;
     let completed = 0;
-    const byMonth: Record<string, { total: number; completed: number; statuses: Record<string, number> }> = {};
+    const byMonth: Record<string, { total: number; sumProgress: number; completed: number; statuses: Record<string, number> }> = {};
     const statusCounts: Record<string, number> = {};
     requirements.forEach((r) => {
+      const prog = getStatusProgress(r.status);
       statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
-      if (isComplete(r.status)) completed++;
+      if (prog >= 100) completed++;
+      sumProgress += prog;
       const m = getMonth(r);
-      if (!byMonth[m]) byMonth[m] = { total: 0, completed: 0, statuses: {} };
+      if (!byMonth[m]) byMonth[m] = { total: 0, sumProgress: 0, completed: 0, statuses: {} };
       byMonth[m].total++;
-      if (isComplete(r.status)) byMonth[m].completed++;
+      byMonth[m].sumProgress += prog;
+      if (prog >= 100) byMonth[m].completed++;
       byMonth[m].statuses[r.status] = (byMonth[m].statuses[r.status] || 0) + 1;
     });
     const activeRisks = risks.filter((r) => r.status.includes("风险") && !r.status.includes("解除")).length;
@@ -191,12 +195,12 @@ export function DashboardPage() {
     milestones.forEach(m => { if (m.month) msByMonth[m.month] = (msByMonth[m.month] || 0) + 1; });
     const riskByMonth: Record<string, number> = {};
     risks.forEach(r => { const km = r.iteration; if (km) riskByMonth[km] = (riskByMonth[km] || 0) + 1; });
-    return { total, completed, activeRisks, pct: total > 0 ? Math.round((completed / total) * 100) : 0, byMonth, statusCounts, msByMonth, riskByMonth };
+    return { total, sumProgress, completed, activeRisks, pct: total > 0 ? Math.round(sumProgress / total) : 0, byMonth, statusCounts, msByMonth, riskByMonth };
   }, [requirements, risks, milestones]);
 
   const monthOrder = ["2&3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月", "未参与规划"];
 
-  /*  月度迭代情况 (全量) */
+  /*  月度迭代情况 (全量、加权进度) */
   const monthDetails: MonthDetail[] = useMemo(() => {
     return Object.entries(stats.byMonth)
       .map(([month, d]) => {
@@ -205,7 +209,7 @@ export function DashboardPage() {
           month,
           total: d.total,
           completed: d.completed,
-          pct: d.total > 0 ? Math.round((d.completed / d.total) * 100) : 0,
+          pct: d.total > 0 ? Math.round(d.sumProgress / d.total) : 0,
           topStatuses: st.map(([name, count], i) => ({ name, count, color: STATUS_COLORS[i % STATUS_COLORS.length] })),
           milestoneCount: stats.msByMonth[month] || 0,
           riskCount: stats.riskByMonth[month] || 0,
@@ -405,8 +409,19 @@ export function DashboardPage() {
                                 </p>}
                               />
                               <TooltipContent>
-                                <p className="text-xs">公式：已完成数 ÷ 需求总数 × 100%</p>
-                                <p className="text-xs text-[#94A3B8]">无权重，所有需求等值计算</p>
+                                <p className="text-xs font-medium">公式：Σ(各需求状态进度) ÷ 需求总数</p>
+                                <p className="text-xs text-[#94A3B8] mt-0.5">状态进度权重层累：</p>
+                                <div className="text-xs text-[#94A3B8] mt-0.5 grid grid-cols-2 gap-x-3">
+                                  <span>未开始/立项</span><span className="text-right">0%</span>
+                                  <span>需求分析</span><span className="text-right">8%</span>
+                                  <span>UX设计</span><span className="text-right">20%</span>
+                                  <span>开发设计/开发中</span><span className="text-right">30~40%</span>
+                                  <span>验收中</span><span className="text-right">70%</span>
+                                  <span>测试中</span><span className="text-right">77%</span>
+                                  <span>待合并/版本测试</span><span className="text-right">85~90%</span>
+                                  <span>灰度发布</span><span className="text-right">95%</span>
+                                  <span>已发布</span><span className="text-right">100%</span>
+                                </div>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -780,7 +795,24 @@ function summary(v: unknown): string {
   if (typeof v === "object" && v && "summary" in v) return String((v as Record<string, unknown>).summary || "");
   return str(v);
 }
-function isComplete(s: string): boolean { return /已发布|完成|完结/.test(s); }
+/** 状态 → 累计进度% 映射 (模糊匹配) */
+function getStatusProgress(s: string): number {
+  if (!s) return 0;
+  if (/已发布/.test(s)) return 100;
+  if (/灰度发布/.test(s)) return 95;
+  if (/版本测试/.test(s)) return 90;
+  if (/待合并/.test(s)) return 85;
+  if (/测试中/.test(s)) return 77;
+  if (/验收中/.test(s)) return 70;
+  if (/开发中/.test(s)) return 40;
+  if (/开发方案/.test(s)) return 30;
+  if (/ux设计|ui设计/i.test(s)) return 20;
+  if (/需求分析/.test(s)) return 8;
+  if (/需求立项/.test(s)) return 0;
+  if (/未开始|待排期|待规划/.test(s)) return 0;
+  return 0;
+}
+function isComplete(s: string): boolean { return getStatusProgress(s) >= 100; }
 function getMonth(r: ReqRow): string { return r.month || "未参与规划"; }
 function uniqSorted(arr: string[]): string[] { return [...new Set(arr.filter(Boolean))].sort(); }
 
