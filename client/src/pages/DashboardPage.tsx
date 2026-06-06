@@ -113,7 +113,7 @@ export function DashboardPage() {
   const [monthlyMonthFilter, setMonthlyMonthFilter] = useState("全部");
   const [milestoneCompletedExpanded, setMilestoneCompletedExpanded] = useState(false);
   const [hoveredPie, setHoveredPie] = useState<string | null>(null);
-  const [milestoneQuickFilter, setMilestoneQuickFilter] = useState<"7days" | "pending" | "all">("all");
+  const [milestoneQuickFilter, setMilestoneQuickFilter] = useState<string>("全部");
   const [milestoneSearchText, setMilestoneSearchText] = useState("");
   const [milestoneGroupExpanded, setMilestoneGroupExpanded] = useState<Record<string, boolean>>({});
   const [reqPage, setReqPage] = useState(0);
@@ -212,7 +212,7 @@ export function DashboardPage() {
       if (prog >= 100) byMonth[m].completed++;
       byMonth[m].statuses[r.status] = (byMonth[m].statuses[r.status] || 0) + 1;
     });
-    const activeRisks = risks.filter((r) => r.status.includes("风险") && !r.status.includes("解除")).length;
+    const activeRisks = risks.filter((r) => !r.status.includes("解除") && !r.status.includes("关闭") && !r.status.includes("已关闭") && !r.status.includes("完成")).length;
     const msByMonth: Record<string, number> = {};
     milestones.forEach(m => { if (m.month) msByMonth[m.month] = (msByMonth[m.month] || 0) + 1; });
     const riskByMonth: Record<string, number> = {};
@@ -1189,7 +1189,7 @@ export function DashboardPage() {
               {/* 顶部工具栏 */}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-medium text-[#0F172A]">迭代月份：</span>
-                <Select value={milestoneMonth} onValueChange={(val) => { setMilestoneMonth(val as string); setMilestoneSearchText(""); setMilestoneQuickFilter("all"); }}>
+                <Select value={milestoneMonth} onValueChange={(val) => { setMilestoneMonth(val as string); setMilestoneSearchText(""); setMilestoneQuickFilter("全部"); }}>
                   <SelectTrigger className="w-[140px] border-[#E4ECFC]">
                     <SelectValue />
                   </SelectTrigger>
@@ -1202,14 +1202,14 @@ export function DashboardPage() {
                 </Select>
                 {milestoneMonth === "全部" ? (
                   <>
-                    <Select value={milestoneQuickFilter} onValueChange={(val) => setMilestoneQuickFilter(val as "7days" | "pending" | "all")}>
+                    <Select value={milestoneQuickFilter} onValueChange={(val) => { if (val) setMilestoneQuickFilter(val); }}>
                       <SelectTrigger className="w-[110px] border-[#E4ECFC] ml-1">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">全部</SelectItem>
-                        <SelectItem value="7days">近7天</SelectItem>
-                        <SelectItem value="pending">待完成</SelectItem>
+                        <SelectItem value="全部">全部</SelectItem>
+                        <SelectItem value="近7天">近7天</SelectItem>
+                        <SelectItem value="待完成">待完成</SelectItem>
                       </SelectContent>
                     </Select>
                     <div className="relative ml-auto min-w-[180px]">
@@ -1249,10 +1249,10 @@ export function DashboardPage() {
                     const q = milestoneSearchText.trim().toLowerCase();
                     all = all.filter(m => m.name.toLowerCase().includes(q));
                   }
-                  if (milestoneQuickFilter === "7days") {
+                  if (milestoneQuickFilter === "近7天") {
                     const d7 = new Date(today); d7.setDate(d7.getDate() + 7);
                     all = all.filter(m => { const s = mileStatus(m); const d = parseDate(m.eventDate); return s.label === "已逾期" || (d && d.getTime() >= todayTime && d.getTime() <= d7.getTime()); });
-                  } else if (milestoneQuickFilter === "pending") {
+                  } else if (milestoneQuickFilter === "待完成") {
                     all = all.filter(m => mileStatus(m).label !== "已完成");
                   }
 
