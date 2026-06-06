@@ -1,0 +1,287 @@
+=====Input Params=====
+numThread(8),padding(50),maxSideLen(1024),boxScoreThresh(0.500000),boxThresh(0.300000),unClipRatio(1.600000),doAngle(1),mostAngle(1),GPU(-1)
+=====Init Models=====
+--- Init DbNet ---
+--- Init AngleNet ---
+--- Init CrnnNet ---
+Init Models Success!
+=====Start detect=====
+ScaleParam(sw:440,sh:463,dw:416,dh:448,0.945455,0.967603)
+---------- step: dbNet getTextBoxes ----------
+dbNetTime(115.557800ms)
+TextBox[0](+padding)[score(0.842566),[x: 333, y: 53], [x: 376, y: 53], [x: 376, y: 72], [x: 333, y: 72]]
+TextBox[1](+padding)[score(0.792310),[x: 194, y: 62], [x: 227, y: 62], [x: 227, y: 80], [x: 194, y: 80]]
+TextBox[2](+padding)[score(0.765684),[x: 283, y: 62], [x: 316, y: 62], [x: 316, y: 80], [x: 283, y: 80]]
+TextBox[3](+padding)[score(0.684089),[x: 344, y: 71], [x: 363, y: 71], [x: 363, y: 88], [x: 344, y: 88]]
+TextBox[4](+padding)[score(0.745911),[x: 195, y: 96], [x: 264, y: 96], [x: 264, y: 116], [x: 195, y: 116]]
+TextBox[5](+padding)[score(0.687117),[x: 286, y: 104], [x: 314, y: 104], [x: 314, y: 124], [x: 286, y: 124]]
+TextBox[6](+padding)[score(0.671547),[x: 342, y: 105], [x: 365, y: 105], [x: 365, y: 122], [x: 342, y: 122]]
+TextBox[7](+padding)[score(0.817320),[x: 195, y: 112], [x: 227, y: 112], [x: 227, y: 131], [x: 195, y: 131]]
+TextBox[8](+padding)[score(0.773674),[x: 287, y: 137], [x: 313, y: 137], [x: 313, y: 156], [x: 287, y: 156]]
+TextBox[9](+padding)[score(0.760695),[x: 342, y: 137], [x: 365, y: 137], [x: 365, y: 155], [x: 342, y: 155]]
+TextBox[10](+padding)[score(0.847518),[x: 196, y: 137], [x: 262, y: 137], [x: 262, y: 155], [x: 196, y: 155]]
+TextBox[11](+padding)[score(0.777126),[x: 195, y: 160], [x: 263, y: 160], [x: 263, y: 180], [x: 195, y: 180]]
+TextBox[12](+padding)[score(0.797643),[x: 284, y: 161], [x: 316, y: 161], [x: 316, y: 179], [x: 284, y: 179]]
+TextBox[13](+padding)[score(0.795359),[x: 342, y: 162], [x: 365, y: 162], [x: 365, y: 178], [x: 342, y: 178]]
+TextBox[14](+padding)[score(0.725891),[x: 196, y: 184], [x: 255, y: 184], [x: 255, y: 203], [x: 196, y: 203]]
+TextBox[15](+padding)[score(0.788575),[x: 284, y: 184], [x: 316, y: 184], [x: 316, y: 203], [x: 284, y: 203]]
+TextBox[16](+padding)[score(0.801353),[x: 339, y: 184], [x: 370, y: 184], [x: 370, y: 203], [x: 339, y: 203]]
+TextBox[17](+padding)[score(0.854080),[x: 60, y: 208], [x: 137, y: 208], [x: 137, y: 226], [x: 60, y: 226]]
+TextBox[18](+padding)[score(0.749168),[x: 195, y: 207], [x: 264, y: 207], [x: 264, y: 228], [x: 195, y: 228]]
+TextBox[19](+padding)[score(0.770308),[x: 284, y: 217], [x: 316, y: 217], [x: 316, y: 235], [x: 284, y: 235]]
+TextBox[20](+padding)[score(0.734970),[x: 339, y: 217], [x: 370, y: 217], [x: 370, y: 235], [x: 339, y: 235]]
+TextBox[21](+padding)[score(0.685168),[x: 195, y: 224], [x: 227, y: 224], [x: 227, y: 243], [x: 195, y: 243]]
+TextBox[22](+padding)[score(0.776871),[x: 59, y: 226], [x: 169, y: 226], [x: 169, y: 243], [x: 59, y: 243]]
+TextBox[23](+padding)[score(0.753652),[x: 60, y: 240], [x: 142, y: 240], [x: 142, y: 258], [x: 60, y: 258]]
+TextBox[24](+padding)[score(0.837147),[x: 196, y: 249], [x: 237, y: 249], [x: 237, y: 267], [x: 196, y: 267]]
+TextBox[25](+padding)[score(0.815133),[x: 284, y: 249], [x: 316, y: 249], [x: 316, y: 267], [x: 284, y: 267]]
+TextBox[26](+padding)[score(0.779656),[x: 339, y: 249], [x: 370, y: 249], [x: 370, y: 267], [x: 339, y: 267]]
+TextBox[27](+padding)[score(0.769098),[x: 196, y: 272], [x: 239, y: 272], [x: 239, y: 291], [x: 196, y: 291]]
+TextBox[28](+padding)[score(0.733323),[x: 286, y: 272], [x: 314, y: 272], [x: 314, y: 292], [x: 286, y: 292]]
+TextBox[29](+padding)[score(0.754712),[x: 339, y: 273], [x: 370, y: 273], [x: 370, y: 292], [x: 339, y: 292]]
+TextBox[30](+padding)[score(0.748581),[x: 195, y: 295], [x: 240, y: 295], [x: 240, y: 317], [x: 195, y: 317]]
+TextBox[31](+padding)[score(0.764456),[x: 287, y: 297], [x: 313, y: 297], [x: 313, y: 316], [x: 287, y: 316]]
+TextBox[32](+padding)[score(0.707124),[x: 339, y: 296], [x: 370, y: 296], [x: 370, y: 316], [x: 339, y: 316]]
+TextBox[33](+padding)[score(0.749482),[x: 288, y: 321], [x: 312, y: 321], [x: 312, y: 338], [x: 288, y: 338]]
+TextBox[34](+padding)[score(0.837788),[x: 196, y: 321], [x: 237, y: 321], [x: 237, y: 340], [x: 196, y: 340]]
+TextBox[35](+padding)[score(0.748771),[x: 338, y: 321], [x: 370, y: 321], [x: 370, y: 340], [x: 338, y: 340]]
+TextBox[36](+padding)[score(0.661522),[x: 287, y: 344], [x: 313, y: 344], [x: 313, y: 364], [x: 287, y: 364]]
+TextBox[37](+padding)[score(0.749563),[x: 195, y: 344], [x: 263, y: 344], [x: 263, y: 364], [x: 195, y: 364]]
+TextBox[38](+padding)[score(0.775445),[x: 339, y: 345], [x: 370, y: 345], [x: 370, y: 363], [x: 339, y: 363]]
+TextBox[39](+padding)[score(0.712727),[x: 287, y: 369], [x: 313, y: 369], [x: 313, y: 388], [x: 287, y: 388]]
+TextBox[40](+padding)[score(0.792561),[x: 338, y: 368], [x: 370, y: 368], [x: 370, y: 387], [x: 338, y: 387]]
+TextBox[41](+padding)[score(0.842297),[x: 196, y: 369], [x: 250, y: 369], [x: 250, y: 387], [x: 196, y: 387]]
+TextBox[42](+padding)[score(0.754453),[x: 197, y: 390], [x: 239, y: 393], [x: 238, y: 412], [x: 196, y: 409]]
+TextBox[43](+padding)[score(0.764355),[x: 287, y: 393], [x: 313, y: 393], [x: 313, y: 412], [x: 287, y: 412]]
+TextBox[44](+padding)[score(0.793741),[x: 337, y: 394], [x: 373, y: 394], [x: 373, y: 410], [x: 337, y: 410]]
+---------- step: drawTextBoxes ----------
+---------- step: angleNet getAngles ----------
+angle[0][index(0), score(0.714967), time(4.505100ms)]
+angle[1][index(0), score(0.711589), time(3.150700ms)]
+angle[2][index(0), score(0.985435), time(2.523600ms)]
+angle[3][index(0), score(0.536086), time(2.469300ms)]
+angle[4][index(0), score(0.999864), time(2.416700ms)]
+angle[5][index(0), score(0.580016), time(2.428100ms)]
+angle[6][index(0), score(0.554994), time(2.735400ms)]
+angle[7][index(0), score(0.978613), time(3.139900ms)]
+angle[8][index(0), score(0.614187), time(2.914600ms)]
+angle[9][index(0), score(0.796312), time(2.778000ms)]
+angle[10][index(0), score(1.000000), time(2.751300ms)]
+angle[11][index(0), score(0.999490), time(2.970200ms)]
+angle[12][index(0), score(0.776831), time(3.444500ms)]
+angle[13][index(0), score(0.580603), time(2.838100ms)]
+angle[14][index(0), score(0.900972), time(2.713100ms)]
+angle[15][index(0), score(0.979123), time(2.685000ms)]
+angle[16][index(0), score(0.708935), time(2.712200ms)]
+angle[17][index(0), score(1.000000), time(2.764000ms)]
+angle[18][index(0), score(1.000000), time(3.007900ms)]
+angle[19][index(0), score(0.847628), time(2.479000ms)]
+angle[20][index(0), score(0.540820), time(2.389700ms)]
+angle[21][index(0), score(0.609485), time(2.370700ms)]
+angle[22][index(0), score(1.000000), time(2.404700ms)]
+angle[23][index(0), score(1.000000), time(2.507400ms)]
+angle[24][index(0), score(0.997280), time(2.693800ms)]
+angle[25][index(0), score(0.707449), time(3.535800ms)]
+angle[26][index(0), score(0.952940), time(2.910600ms)]
+angle[27][index(0), score(0.997632), time(2.789700ms)]
+angle[28][index(0), score(0.769671), time(2.738900ms)]
+angle[29][index(0), score(0.668588), time(3.192100ms)]
+angle[30][index(0), score(0.758533), time(3.098700ms)]
+angle[31][index(0), score(0.614187), time(2.834500ms)]
+angle[32][index(0), score(0.970210), time(2.807200ms)]
+angle[33][index(0), score(0.612393), time(2.779000ms)]
+angle[34][index(0), score(0.943672), time(3.514700ms)]
+angle[35][index(0), score(0.787420), time(3.157100ms)]
+angle[36][index(0), score(0.544429), time(3.032500ms)]
+angle[37][index(0), score(0.930607), time(2.882800ms)]
+angle[38][index(0), score(0.611026), time(2.761000ms)]
+angle[39][index(0), score(0.706961), time(2.956600ms)]
+angle[40][index(0), score(0.853688), time(2.836300ms)]
+angle[41][index(0), score(0.999989), time(3.353600ms)]
+angle[42][index(0), score(0.987988), time(2.915900ms)]
+angle[43][index(0), score(0.566595), time(2.914100ms)]
+angle[44][index(0), score(0.920373), time(2.818300ms)]
+---------- step: crnnNet getTextLine ----------
+textLine[0](累计进)
+textScores[0]{0.999788 ,0.999648 ,0.999993}
+crnnTime[0](19.241000ms)
+textLine[1](阶段)
+textScores[1]{0.999953 ,0.993721}
+crnnTime[1](82.198600ms)
+textLine[2](权重)
+textScores[2]{0.998754 ,0.999762}
+crnnTime[2](16.881400ms)
+textLine[3](度)
+textScores[3]{0.999921}
+crnnTime[3](13.261400ms)
+textLine[4](未开始／待)
+textScores[4]{0.996385 ,0.999501 ,0.999929 ,0.681428 ,0.950882}
+crnnTime[4](55.155300ms)
+textLine[5](0%)
+textScores[5]{0.99848 ,0.999789}
+crnnTime[5](13.277400ms)
+textLine[6](0%)
+textScores[6]{0.996017 ,0.994208}
+crnnTime[6](12.811000ms)
+textLine[7](排期)
+textScores[7]{0.993546 ,0.999986}
+crnnTime[7](18.267500ms)
+textLine[8](8%)
+textScores[8]{0.999368 ,0.999622}
+crnnTime[8](14.915900ms)
+textLine[9](0%)
+textScores[9]{0.995622 ,0.998546}
+crnnTime[9](13.290700ms)
+textLine[10](需求立项中)
+textScores[10]{0.99979 ,0.999622 ,0.999527 ,0.999932 ,0.999766}
+crnnTime[10](28.515100ms)
+textLine[11](需求分析中)
+textScores[11]{0.999078 ,0.999482 ,0.999961 ,0.999813 ,0.999802}
+crnnTime[11](24.578200ms)
+textLine[12](12%)
+textScores[12]{0.999716 ,0.999933 ,0.976081}
+crnnTime[12](16.964000ms)
+textLine[13](8%)
+textScores[13]{0.996328 ,0.905725}
+crnnTime[13](14.873100ms)
+textLine[14](UX设计中)
+textScores[14]{0.999678 ,0.99965 ,0.999438 ,0.999947 ,0.999572}
+crnnTime[14](22.549000ms)
+textLine[15](10%)
+textScores[15]{0.999682 ,0.999916 ,0.999663}
+crnnTime[15](17.927100ms)
+textLine[16](20%)
+textScores[16]{0.999923 ,0.999956 ,0.999937}
+crnnTime[16](17.006200ms)
+textLine[17](进度权重说明)
+textScores[17]{0.99978 ,0.999694 ,0.999129 ,0.998862 ,0.999656 ,0.999781}
+crnnTime[17](26.917300ms)
+textLine[18](开发方案设)
+textScores[18]{0.999969 ,0.999982 ,0.999943 ,0.999603 ,0.999849}
+crnnTime[18](22.283500ms)
+textLine[19](10%)
+textScores[19]{0.99938 ,0.99985 ,0.999617}
+crnnTime[19](15.620000ms)
+textLine[20](30%)
+textScores[20]{0.999441 ,0.999716 ,0.99728}
+crnnTime[20](15.090500ms)
+textLine[21](计中)
+textScores[21]{0.997207 ,0.996201}
+crnnTime[21](16.176200ms)
+textLine[22](完成进度= 所有需求 )
+textScores[22]{0.999876 ,0.999168 ,0.999918 ,0.971377 ,0.999307 ,0.533851 ,0.999972 ,0.999969 ,0.908693 ,0.999958 ,0.625249}
+crnnTime[22](39.075700ms)
+textLine[23](按状态加权平均)
+textScores[23]{0.999523 ,0.998343 ,0.997627 ,0.998689 ,0.938229 ,0.999221 ,0.999985}
+crnnTime[23](27.824000ms)
+textLine[24](开发中)
+textScores[24]{0.999957 ,0.999959 ,0.999823}
+crnnTime[24](18.729000ms)
+textLine[25](30%)
+textScores[25]{0.999537 ,0.999715 ,0.999231}
+crnnTime[25](16.296900ms)
+textLine[26](40%)
+textScores[26]{0.999948 ,0.999823 ,0.999628}
+crnnTime[26](16.543900ms)
+textLine[27](验收中)
+textScores[27]{0.999993 ,0.999882 ,0.99995}
+crnnTime[27](19.068600ms)
+textLine[28](7%)
+textScores[28]{0.999818 ,0.999514}
+crnnTime[28](14.465100ms)
+textLine[29](70%)
+textScores[29]{0.999236 ,0.999624 ,0.99941}
+crnnTime[29](14.623700ms)
+textLine[30](测试中)
+textScores[30]{0.999827 ,0.999463 ,0.999878}
+crnnTime[30](18.906800ms)
+textLine[31](8%)
+textScores[31]{0.999368 ,0.999622}
+crnnTime[31](14.364800ms)
+textLine[32](77%)
+textScores[32]{0.999792 ,0.999884 ,0.995443}
+crnnTime[32](14.670400ms)
+textLine[33](5%)
+textScores[33]{0.999659 ,0.976884}
+crnnTime[33](15.117500ms)
+textLine[34](待合并)
+textScores[34]{0.977761 ,0.973042 ,0.999059}
+crnnTime[34](19.044000ms)
+textLine[35](85%)
+textScores[35]{0.999625 ,0.99986 ,0.993437}
+crnnTime[35](15.931300ms)
+textLine[36](596)
+textScores[36]{0.999899 ,0.865926 ,0.927586}
+crnnTime[36](13.154800ms)
+textLine[37](版本测试中)
+textScores[37]{0.999743 ,0.999964 ,0.999887 ,0.999801 ,0.999891}
+crnnTime[37](26.038400ms)
+textLine[38](90%)
+textScores[38]{0.999736 ,0.999578 ,0.99837}
+crnnTime[38](16.168100ms)
+textLine[39](3%)
+textScores[39]{0.999727 ,0.997471}
+crnnTime[39](13.479700ms)
+textLine[40](95%)
+textScores[40]{0.999711 ,0.999831 ,0.981951}
+crnnTime[40](16.891000ms)
+textLine[41](灰度发布)
+textScores[41]{0.999972 ,0.999856 ,0.999952 ,0.99993}
+crnnTime[41](21.298800ms)
+textLine[42](已发布)
+textScores[42]{0.999537 ,0.999933 ,0.999831}
+crnnTime[42](19.129200ms)
+textLine[43](2%)
+textScores[43]{0.999923 ,0.999896}
+crnnTime[43](13.209400ms)
+textLine[44](100%)
+textScores[44]{0.999782 ,0.999763 ,0.999772 ,0.923094}
+crnnTime[44](19.168900ms)
+=====End detect=====
+FullDetectTime(1169.855600ms)
+累计进
+阶段
+权重
+度
+未开始／待
+0%
+0%
+排期
+8%
+0%
+需求立项中
+需求分析中
+12%
+8%
+UX设计中
+10%
+20%
+进度权重说明
+开发方案设
+10%
+30%
+计中
+完成进度= 所有需求 
+按状态加权平均
+开发中
+30%
+40%
+验收中
+7%
+70%
+测试中
+8%
+77%
+5%
+待合并
+85%
+596
+版本测试中
+90%
+3%
+95%
+灰度发布
+已发布
+2%
+100%
+

@@ -3,7 +3,7 @@ import { createWps365 } from "@ks-open/capability/client/wps365";
 import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -62,7 +62,7 @@ interface MilestoneRow {
   month: string;
   status: string;
   eventDate: string;   // 事件日期
-  daysLeft: number;    // 剩余天数（负数=已超期）
+  daysLeft: number; delayDays: number;
 }
 
 interface RiskRow {
@@ -146,7 +146,7 @@ export function DashboardPage() {
         // 月份分布诊断
         const monthDist: Record<string, number> = {};
         reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
-        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与规划」");
+        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
         // 打印前3条记录的原始字段 keys 和 month 相关值
         if (reqRes.data.records.length > 0) {
           const raw = reqRes.data.records.slice(0, 3).map(r => {
@@ -163,10 +163,6 @@ export function DashboardPage() {
       if (milRes.data?.records) {
         const mils = parseMils(milRes.data.records);
         setMilestones(mils);
-        // 诊断：里程碑月份分布 + 原始字段
-        const monthDist: Record<string, number> = {};
-        mils.forEach(m => { const k = m.month || "(空)"; monthDist[k] = (monthDist[k] || 0) + 1; });
-        console.log("[里程碑-月份分布]", monthDist, "| 规则: 全字段扫描, 匹配 \"x月\" 格式");
         if (milRes.data.records.length > 0) {
           const raw = milRes.data.records.slice(0, 5).map(r => {
             const f = fld(r as RawRec);
@@ -212,7 +208,7 @@ export function DashboardPage() {
     return { total, sumProgress, completed, activeRisks, pct: total > 0 ? Math.round(sumProgress / total) : 0, byMonth, statusCounts, msByMonth, riskByMonth };
   }, [requirements, risks, milestones]);
 
-  const monthOrder = ["2&3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月", "未参与规划"];
+  const monthOrder = ["2&3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月", "未参与排期"];
 
   /*  月度迭代情况 (全量、加权进度) */
   const monthDetails: MonthDetail[] = useMemo(() => {
@@ -272,14 +268,14 @@ export function DashboardPage() {
       );
     }
 
-    if (selectedIterations.length > 0) list = list.filter(r => selectedIterations.includes(r.iteration));
+    if (selectedIterations.length > 0) list = list.filter(r => selectedIterations.includes(r.month));
     if (selectedStatuses.length > 0) list = list.filter(r => selectedStatuses.includes(r.status));
     if (selectedOwners.length > 0) list = list.filter(r => selectedOwners.some(o => r.devOwner === o || r.testOwner === o));
 
     return list;
   }, [requirements, filterTag, searchText, selectedIterations, selectedStatuses, selectedOwners, risks]);
 
-  const allIterations = useMemo(() => uniqSorted(requirements.map(r => r.iteration)), [requirements]);
+  const allIterations = useMemo(() => uniqSorted(requirements.map(r => getMonth(r))), [requirements]);
   const allStatuses = useMemo(() => uniqSorted(requirements.map(r => r.status)), [requirements]);
   const allOwners = useMemo(() => {
     const s = new Set<string>();
@@ -414,15 +410,15 @@ export function DashboardPage() {
                     <Card className="shadow-sm border-[#E4ECFC] hover:shadow-md hover:border-blue-300 cursor-pointer transition-all" onClick={() => goToList("completed")}>
                       <CardContent className="p-5 flex items-center justify-between">
                         <div>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={<p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider inline-flex items-center gap-1 cursor-help">
-                                  完成进度
-                                  <Info className="w-3 h-3 text-[#CBD5E1]" />
-                                </p>}
+                          <div className="flex items-center gap-1">
+                            <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">完成进度</p>
+                            <Popover>
+                              <PopoverTrigger
+                                render={<button type="button" className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-[#F1F5FD] transition-colors" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                                  <Info className="w-3.5 h-3.5 text-[#CBD5E1] hover:text-[#94A3B8]" />
+                                </button>}
                               />
-                              <TooltipContent className="bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg p-0 min-w-[340px]">
+                              <PopoverContent className="bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg p-0 min-w-[340px]" side="bottom" align="start">
                                 <div className="px-3 pt-3 pb-2 border-b border-[#E4ECFC]">
                                   <p className="text-xs font-semibold">进度权重说明</p>
                                   <p className="text-[11px] text-[#94A3B8] mt-0.5">完成进度 = 所有需求按状态加权平均</p>
@@ -458,9 +454,9 @@ export function DashboardPage() {
                                     ))}
                                   </tbody>
                                 </table>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                           <p className="text-3xl font-bold text-[#2563EB] mt-1">{stats.pct}%</p>
                           <p className="text-xs text-[#94A3B8] mt-0.5">{stats.completed}/{stats.total}</p>
                         </div>
@@ -653,7 +649,7 @@ export function DashboardPage() {
                 </div>
                 {/* 筛选栏 */}
                 <div className="flex items-center gap-3 mt-3 flex-wrap">
-                  <MultiSelect allLabel="全部迭代" options={allIterations.map(v => ({ value: v, label: v }))} value={selectedIterations} onChange={setSelectedIterations} />
+                  <MultiSelect allLabel="全部排期月度" options={allIterations.map(v => ({ value: v, label: v }))} value={selectedIterations} onChange={setSelectedIterations} />
                   <MultiSelect allLabel="全部状态" options={allStatuses.map(v => ({ value: v, label: v }))} value={selectedStatuses} onChange={setSelectedStatuses} />
                   <MultiSelect allLabel="全部负责人" options={allOwners.map(v => ({ value: v, label: v }))} value={selectedOwners} onChange={setSelectedOwners} />
                   <div className="relative flex-1 min-w-[220px]">
@@ -730,7 +726,7 @@ export function DashboardPage() {
           </TabsContent>
 
           {/* ============ TAB 4: 里程碑 ============ */}
-          <TabsContent value={TAB_MILESTONE}>
+          <TabsContent value={TAB_MILESTONE} keepMounted>
             <div className="space-y-6">
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-medium text-[#0F172A]">选择迭代月份：</span>
@@ -756,11 +752,11 @@ export function DashboardPage() {
                         <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-[#2563EB] via-[#94A3B8] to-[#E4ECFC]" />
                         <div className="space-y-3">
                           {filteredMilestones.map((m) => {
-                            const isDone = m.status === "已完成";
-                            const isActive = m.status === "进行中";
-                            const isOverdue = !isDone && m.daysLeft < 0;
+                            const isDone = m.status === "已完成" || m.status.includes("正常");
+                            const isOverdue = m.delayDays > 0;
+                            const isActive = !isDone && !isOverdue;
                             return (
-                              <div key={m.id} className="relative group">
+                              <div key={`${m.id}-${m.month}`} className="relative group">
                                 <div className={`absolute -left-[23px] top-3 w-4 h-4 rounded-full border-2 z-10 transition-colors ${
                                   isDone ? "bg-[#059669] border-[#059669]"
                                   : isOverdue ? "bg-[#DC2626] border-[#DC2626]"
@@ -777,10 +773,14 @@ export function DashboardPage() {
                                             <Calendar className="w-3 h-3" />事件日: {m.eventDate}
                                           </span>
                                         )}
-                                        {m.daysLeft !== 0 && (
-                                          <span className={`flex items-center gap-1 font-medium ${m.daysLeft > 0 ? "text-[#059669]" : "text-[#DC2626]"}`}>
-                                            <Clock className="w-3 h-3" />
-                                            {m.daysLeft > 0 ? `剩余 ${m.daysLeft} 天` : `已超期 ${Math.abs(m.daysLeft)} 天`}
+                                        {m.daysLeft > 0 && !isDone && (
+                                          <span className="flex items-center gap-1 font-medium text-[#059669]">
+                                            <Clock className="w-3 h-3" />剩余 {m.daysLeft} 工作日
+                                          </span>
+                                        )}
+                                        {m.delayDays > 0 && (
+                                          <span className="flex items-center gap-1 font-medium text-[#DC2626]">
+                                            <Clock className="w-3 h-3" />已延期 {m.delayDays} 工作日
                                           </span>
                                         )}
                                         {m.month && (
@@ -792,7 +792,7 @@ export function DashboardPage() {
                                     </div>
                                     <div className="flex-shrink-0">
                                       {isDone ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">已完成</Badge>
-                                        : isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal">已超期</Badge>
+                                        : isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal">已延期</Badge>
                                         : isActive ? <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-normal">进行中</Badge>
                                         : <Badge className="bg-slate-100 text-slate-400 border-slate-200 text-xs font-normal">未开始</Badge>}
                                     </div>
@@ -849,7 +849,7 @@ function getStatusProgress(s: string): number {
   return 0;
 }
 function isComplete(s: string): boolean { return getStatusProgress(s) >= 100; }
-function getMonth(r: ReqRow): string { return r.month || "未参与规划"; }
+function getMonth(r: ReqRow): string { return r.month || "未参与排期"; }
 function uniqSorted(arr: string[]): string[] { return [...new Set(arr.filter(Boolean))].sort(); }
 
 /** 通用 ONES ID 解析 */
@@ -862,38 +862,116 @@ function parseOnes(f: Record<string, unknown>): { id: string; url: string } {
   return { id: "", url: "" };
 }
 
-/** 提取字符串中的 x月 */
-function extractMonthFromStr(s: string): string {
-  const m = s.match(/(\d+)月/);
-  return m ? m[1] + "月" : "";
-}
-
-/** 提取日期 (YYYY-MM-DD) 并计算剩余天数 */
-function parseDateAndDays(s: string): { dateStr: string; daysLeft: number } {
+/** 解析日期字符串为 Date */
+function parseDate(s: string): Date | null {
   const m = s.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
-  if (!m) return { dateStr: "", daysLeft: 0 };
+  if (!m) return null;
   const d = new Date(m[1].replace(/\//g, "-"));
-  if (isNaN(d.getTime())) return { dateStr: "", daysLeft: 0 };
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000);
-  return { dateStr: m[1], daysLeft: diff };
+  return isNaN(d.getTime()) ? null : d;
 }
 
-/** sheet23 里程碑解析：全字段扫描提取月份和日期 */
+/** 计算两个日期之间的工作日天数（不含节假日，含调休上班日） */
+function workingDaysBetween(from: Date, to: Date): number {
+  const holidays = [
+    // 元旦 2026-01-01 ~ 01-03
+    ["2026-01-01", "2026-01-03"],
+    // 春节 2026-02-15 ~ 02-23
+    ["2026-02-15", "2026-02-23"],
+    // 清明节 2026-04-04 ~ 04-06
+    ["2026-04-04", "2026-04-06"],
+    // 劳动节 2026-05-01 ~ 05-05
+    ["2026-05-01", "2026-05-05"],
+    // 端午节 2026-06-19 ~ 06-21
+    ["2026-06-19", "2026-06-21"],
+    // 中秋节 2026-09-25 ~ 09-27
+    ["2026-09-25", "2026-09-27"],
+    // 国庆节 2026-10-01 ~ 10-07
+    ["2026-10-01", "2026-10-07"],
+  ];
+  // 调休上班日（周末变工作日）
+  const workdayOverrides = new Set([
+    "2026-01-04", "2026-02-14", "2026-02-28",
+    "2026-05-09", "2026-09-20", "2026-10-10",
+  ]);
+  // 用本地时间取日期字符串，避免 toISOString 的 UTC 偏移
+  function localDateStr(d: Date): string {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function isWorkday(d: Date): boolean {
+    const ds = localDateStr(d);
+    for (const [s, e] of holidays) {
+      if (ds >= s && ds <= e) return false;
+    }
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) return workdayOverrides.has(ds);
+    return true;
+  }
+  let count = 0;
+  const cur = new Date(from);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(0, 0, 0, 0);
+  const endTime = end.getTime();
+  const step = cur.getTime() <= endTime ? 1 : -1;
+  while (cur.getTime() !== endTime) {
+    if (isWorkday(cur)) count += step;
+    cur.setDate(cur.getDate() + step);
+  }
+  return count;
+}
+
+/** sheet23 里程碑解析：从列头提取月份，每个(里程碑, 月)生成一条记录 */
 function parseMils(records: RawRec[]): MilestoneRow[] {
-  return records.map(r => {
+  const result: MilestoneRow[] = [];
+  const monthRe = /^(\d+)月/;
+  for (const r of records) {
     const f = fld(r);
-    // 全字段拼接
-    const allValues = Object.values(f).map(v => str(v)).filter(Boolean);
-    const allText = allValues.join(" ");
-
-    const name = str(f["文本"]) || str(f["名称"]) || str(f["标题"]) || str(f["里程碑"] || allText.substring(0, 30));
-    const month = extractMonthFromStr(allText);
-    const status = str(f["状态"]) || (Boolean(str(f["实际完成日期"])) ? "已完成" : "");
-    const { dateStr, daysLeft } = parseDateAndDays(allText);
-
-    return { id: r.id || "", name, month, status, eventDate: dateStr, daysLeft };
-  });
+    const name = str(f["里程碑"]);
+    if (!name) continue;
+    // 按字段名前缀提取月份
+    const monthData: Record<string, { plan: string; actual: string; progress: string; involved: boolean; days: string; note: string }> = {};
+    for (const [key, val] of Object.entries(f)) {
+      const m = key.match(monthRe);
+      if (!m) continue;
+      const month = m[1] + "月";
+      if (!monthData[month]) monthData[month] = { plan: "", actual: "", progress: "", involved: false, days: "", note: "" };
+      if (key.endsWith("计划完成日期")) monthData[month].plan = str(val);
+      else if (key.endsWith("实际完成日期")) monthData[month].actual = str(val);
+      else if (key.endsWith("进度")) monthData[month].progress = str(val);
+      else if (key.endsWith("迭代是否涉及")) monthData[month].involved = val === true || val === "true" || val === "True";
+      else if (key.endsWith("剩余天数")) monthData[month].days = str(val);
+      else if (key.endsWith("备注")) monthData[month].note = str(val);
+    }
+    for (const [month, d] of Object.entries(monthData)) {
+      // 跳过：不涉及且无任何日期数据的月份
+      if (!d.involved && !d.plan && !d.actual) continue;
+      const eventDate = (d.actual || d.plan || "").replace(/\//g, "-");
+      let status = d.progress;
+      if (!status && d.actual) status = "已完成";
+      else if (!status && d.plan) status = "待完成";
+      // 剩余天数 / 延期天数
+      const planDate = parseDate(d.plan.replace(/\//g, "-"));
+      let daysLeft = 0;
+      let delayDays = 0;
+      if (planDate) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        daysLeft = workingDaysBetween(today, planDate);
+        const isNormal = status.includes("正常");
+        const isCompleted = status === "已完成";
+        if (isNormal) {
+          // 正常完成：不显示任何延期
+          delayDays = 0;
+        } else if (isCompleted && d.actual) {
+          const actualDate = parseDate(d.actual.replace(/\//g, "-"));
+          if (actualDate) delayDays = workingDaysBetween(planDate, actualDate);
+        } else if (!isNormal && !isCompleted) {
+          delayDays = workingDaysBetween(planDate, today);
+        }
+      }
+      result.push({ id: r.id || "", name, month, status, eventDate, daysLeft, delayDays });
+    }
+  }
+  return result;
 }
 
 /** sheet21 需求解析 */
