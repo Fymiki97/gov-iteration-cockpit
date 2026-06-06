@@ -25,6 +25,7 @@ import {
   CalendarDays,
   Clock,
   ChevronRight,
+  ChevronDown,
   Info,
 } from "lucide-react";
 
@@ -110,6 +111,11 @@ export function DashboardPage() {
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [milestoneMonth, setMilestoneMonth] = useState("全部");
   const [monthlyMonthFilter, setMonthlyMonthFilter] = useState("全部");
+  const [milestoneCompletedExpanded, setMilestoneCompletedExpanded] = useState(false);
+  const [hoveredPie, setHoveredPie] = useState<string | null>(null);
+  const [milestoneQuickFilter, setMilestoneQuickFilter] = useState<"7days" | "pending" | "all">("all");
+  const [milestoneSearchText, setMilestoneSearchText] = useState("");
+  const [milestoneGroupExpanded, setMilestoneGroupExpanded] = useState<Record<string, boolean>>({});
   const [reqPage, setReqPage] = useState(0);
   const REQ_PAGE_SIZE = 20;
 
@@ -414,9 +420,9 @@ export function DashboardPage() {
                     <Card className="shadow-sm border-[#E4ECFC] hover:shadow-md hover:border-red-300 cursor-pointer transition-all" onClick={() => goToList("risk")}>
                       <CardContent className="p-5 flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">风险项</p>
+                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">剩余风险</p>
                           <p className="text-3xl font-bold text-[#DC2626] mt-1">{stats.activeRisks}</p>
-                          <p className="text-xs text-[#94A3B8] mt-0.5">点击查看关联需求(ONES ID)</p>
+                          <p className="text-xs text-[#94A3B8] mt-0.5">全部 {risks.length} 项</p>
                         </div>
                         <div className="w-11 h-11 rounded-xl bg-red-50 flex items-center justify-center"><AlertTriangle className="w-5 h-5 text-[#DC2626]" /></div>
                       </CardContent>
@@ -624,25 +630,23 @@ export function DashboardPage() {
                 </Select>
               </div>
 
-              {/* 月份详情卡片 */}
+              {/* 月份内容 */}
               {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-44" />)}</div>
-              ) : (() => {
-                const filtered = monthlyMonthFilter === "全部" ? monthDetails : monthDetails.filter(md => md.month === monthlyMonthFilter);
-                if (filtered.length === 0) return <p className="text-sm text-[#94A3B8] py-4 text-center">该月份暂无迭代数据</p>;
-                return (
+              ) : monthlyMonthFilter === "全部" ? (
+                /* === 全部月份：概览卡片网格 === */
+                monthDetails.length === 0 ? <p className="text-sm text-[#94A3B8] py-4 text-center">暂无迭代数据</p> : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filtered.map((md) => (
+                    {monthDetails.map((md) => (
                       <div
                         key={md.month}
                         className="p-5 rounded-xl border border-[#E4ECFC] bg-white hover:shadow-md hover:border-[#2563EB]/20 cursor-pointer transition-all group"
-                        onClick={() => { setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
+                        onClick={() => setMonthlyMonthFilter(md.month)}
                       >
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-lg font-bold text-[#0F172A]">{md.month}</span>
                           <ChevronRight className="w-4 h-4 text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
                         </div>
-                        {/* 核心指标 */}
                         <div className="grid grid-cols-3 gap-3 mb-4">
                           <div className="text-center p-2 rounded-lg bg-[#F1F5FD]">
                             <p className="text-xs text-[#94A3B8]">需求总数</p>
@@ -657,11 +661,9 @@ export function DashboardPage() {
                             <p className="text-lg font-bold text-[#2563EB]">{md.pct}%</p>
                           </div>
                         </div>
-                        {/* 进度条 */}
                         <div className="w-full h-2.5 bg-[#F1F5FD] rounded-full overflow-hidden mb-3">
                           <div className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#059669] transition-all duration-500" style={{ width: `${md.pct}%` }} />
                         </div>
-                        {/* 状态标签 */}
                         {md.topStatuses.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mb-3">
                             {md.topStatuses.map(s => (
@@ -672,13 +674,406 @@ export function DashboardPage() {
                             ))}
                           </div>
                         )}
-                        {/* 底部指标 */}
                         <div className="flex items-center gap-4 text-xs text-[#94A3B8]">
                           <span className="flex items-center gap-1"><Milestone className="w-3 h-3" />里程碑 {md.milestoneCount} 项</span>
                           <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" />风险 {md.riskCount} 项</span>
                         </div>
                       </div>
                     ))}
+                  </div>
+                )
+              ) : (() => {
+                /* === 单月详情视图 === */
+                const md = monthDetails.find(d => d.month === monthlyMonthFilter);
+                if (!md) return <p className="text-sm text-[#94A3B8] py-4 text-center">该月份暂无迭代数据</p>;
+                const allStatuses = Object.entries(stats.byMonth[md.month]?.statuses || {}).sort(([, a], [, b]) => b - a);
+                const statusMax = Math.max(...allStatuses.map(([, c]) => c), 1);
+                const monthMilestones = milestones.filter(m => m.month === md.month).sort((a, b) => (a.eventDate || "zzzz").localeCompare(b.eventDate || "zzzz"));
+                const monthRisks = risks.filter(r => r.iteration === md.month);
+                const monthReqs = requirements.filter(r => getMonth(r) === md.month).sort((a, b) => b.modTime.localeCompare(a.modTime));
+                return (
+                  <div className="space-y-6">
+                    {/* 核心指标卡片 */}
+                    {(() => {
+                      const doneMilCount = monthMilestones.filter(m => m.status === "已完成" || m.status.includes("已完成") || m.status.includes("正常") || (m.hasActual && m.delayDays > 0)).length;
+                      const activeRiskCount = monthRisks.filter(r => !r.status.includes("解除") && !r.status.includes("关闭") && !r.status.includes("已关闭")).length;
+                      return (
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                      <Card className="shadow-sm border-[#E4ECFC] hover:shadow-md hover:border-[#2563EB]/30 cursor-pointer transition-all"
+                        onClick={() => { setSelectedIterations([md.month]); setFilterTag(null); setSelectedStatuses([]); setSelectedOwners([]); setSearchText(""); setTab(TAB_LIST); }}>
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">需求总数</p>
+                          <p className="text-3xl font-bold text-[#2563EB] mt-1">{md.total}</p>
+                          <p className="text-xs text-[#94A3B8] mt-0.5">点击查看</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="shadow-sm border-[#E4ECFC] hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all"
+                        onClick={() => { setSelectedIterations([md.month]); setFilterTag("completed"); setSelectedStatuses([]); setSelectedOwners([]); setSearchText(""); setTab(TAB_LIST); }}>
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">已完成</p>
+                          <p className="text-3xl font-bold text-[#059669] mt-1">{md.completed}</p>
+                          <p className="text-xs text-[#94A3B8] mt-0.5">点击查看</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="shadow-sm border-[#E4ECFC]">
+                        <CardContent className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">进度</p>
+                            <Popover>
+                              <PopoverTrigger
+                                render={<button type="button" className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-[#F1F5FD] transition-colors">
+                                  <Info className="w-3.5 h-3.5 text-[#CBD5E1] hover:text-[#94A3B8]" />
+                                </button>}
+                              />
+                              <PopoverContent className="bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg p-0 min-w-[340px]" side="bottom" align="start">
+                                <div className="px-3 pt-3 pb-2 border-b border-[#E4ECFC]">
+                                  <p className="text-xs font-semibold">进度权重说明</p>
+                                  <p className="text-[11px] text-[#94A3B8] mt-0.5">完成进度 = 所有需求按状态加权平均</p>
+                                </div>
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-y border-[#E4ECFC] bg-[#F8FAFC]">
+                                      <th className="py-1.5 px-3 text-left font-medium text-[#64748B]">阶段</th>
+                                      <th className="py-1.5 px-2 text-center font-medium text-[#64748B]">权重</th>
+                                      <th className="py-1.5 px-3 text-center font-medium text-[#64748B]">累计进度</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="text-[#64748B]">
+                                    {[
+                                      ["未开始 / 待排期","0%","0%"],
+                                      ["需求立项中","8%","0%"],
+                                      ["需求分析中","12%","8%"],
+                                      ["UX设计中","10%","20%"],
+                                      ["开发方案设计中","10%","30%"],
+                                      ["开发中","30%","40%"],
+                                      ["验收中","7%","70%"],
+                                      ["测试中","8%","77%"],
+                                      ["待合并","5%","85%"],
+                                      ["版本测试中","5%","90%"],
+                                      ["灰度发布","3%","95%"],
+                                      ["已发布","2%","100%"],
+                                    ].map(([s,w,p],i) => (
+                                      <tr key={s} className={i % 2 === 0 ? "bg-white" : "bg-[#FAFBFF]"}>
+                                        <td className="py-1 px-3">{s}</td>
+                                        <td className="py-1 px-2 text-center">{w}</td>
+                                        <td className="py-1 px-3 text-center font-medium text-[#2563EB]">{p}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <p className="text-3xl font-bold text-[#2563EB] mt-1">{md.pct}%</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="shadow-sm border-[#E4ECFC]">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">里程碑完成</p>
+                          <p className="text-3xl font-bold text-[#8B5CF6] mt-1">{doneMilCount}</p>
+                          <p className="text-xs text-[#94A3B8] mt-0.5">本期共 {monthMilestones.length} 项</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="shadow-sm border-[#E4ECFC]">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">未关闭风险</p>
+                          <p className="text-3xl font-bold text-[#DC2626] mt-1">{activeRiskCount}</p>
+                          <p className="text-xs text-[#94A3B8] mt-0.5">本期共 {monthRisks.length} 项</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                      );
+                    })()}
+
+                    {/* 状态分布：饼状图 + 数值表格 */}
+                    <Card className="shadow-sm border-[#E4ECFC]">
+                      <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-[#0F172A]">状态分布</CardTitle></CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const pieR = 80;
+                          const pieSize = pieR * 2 + 20;
+                          const pieCx = pieSize / 2;
+                          const pieCy = pieSize / 2;
+                          const toRad = (deg: number) => ((deg - 90) * Math.PI) / 180;
+                          const pol = (cx: number, cy: number, r: number, deg: number) => ({ x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)) });
+
+                          let cum = 0;
+                          const segments = allStatuses.map(([name, count], i) => {
+                            const pct = md.total > 0 ? count / md.total : 0;
+                            const angle = pct * 360;
+                            const startAngle = cum;
+                            cum += angle;
+                            return { name, count, pct, angle, startAngle, endAngle: cum, color: STATUS_COLORS[i % STATUS_COLORS.length] };
+                          });
+
+                          return (
+                            <div className="flex flex-col lg:flex-row items-start gap-6">
+                              {/* 饼状图 */}
+                              <div className="relative shrink-0" style={{ width: pieSize, height: pieSize }}>
+                                <svg width={pieSize} height={pieSize} viewBox={`0 0 ${pieSize} ${pieSize}`}>
+                                  {segments.map(seg => {
+                                    if (seg.angle <= 0) return null;
+                                    const isHovered = hoveredPie === seg.name;
+                                    const scale = isHovered ? 1.045 : 1;
+                                    if (seg.angle >= 359.99) {
+                                      return (
+                                        <circle key={seg.name} cx={pieCx} cy={pieCy} r={pieR} fill={seg.color}
+                                          opacity={hoveredPie && !isHovered ? 0.5 : 0.85}
+                                          className="transition-all duration-200 cursor-pointer"
+                                          style={{ transform: `scale(${scale})`, transformOrigin: `${pieCx}px ${pieCy}px` }}
+                                          onMouseEnter={() => setHoveredPie(seg.name)}
+                                          onMouseLeave={() => setHoveredPie(null)}
+                                          onClick={() => { setSelectedStatuses([seg.name]); setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
+                                        />
+                                      );
+                                    }
+                                    const s = pol(pieCx, pieCy, pieR, seg.startAngle);
+                                    const e = pol(pieCx, pieCy, pieR, seg.endAngle);
+                                    const large = seg.angle > 180 ? 1 : 0;
+                                    const d = `M ${pieCx} ${pieCy} L ${s.x} ${s.y} A ${pieR} ${pieR} 0 ${large} 1 ${e.x} ${e.y} Z`;
+                                    return (
+                                      <path key={seg.name} d={d} fill={seg.color}
+                                        opacity={hoveredPie && !isHovered ? 0.5 : 0.85}
+                                        className="transition-all duration-200 cursor-pointer"
+                                        style={{ transform: `scale(${scale})`, transformOrigin: `${pieCx}px ${pieCy}px` }}
+                                        onMouseEnter={() => setHoveredPie(seg.name)}
+                                        onMouseLeave={() => setHoveredPie(null)}
+                                        onClick={() => { setSelectedStatuses([seg.name]); setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
+                                      />
+                                    );
+                                  })}
+                                </svg>
+                                {hoveredPie && (() => {
+                                  const seg = segments.find(s => s.name === hoveredPie);
+                                  if (!seg) return null;
+                                  return (
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none bg-[#0F172A] text-white px-3 py-1.5 rounded-lg shadow-lg text-xs whitespace-nowrap z-10">
+                                      <span className="font-semibold">{seg.name}</span>：{seg.count} 条 ({Math.round(seg.pct * 100)}%)
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                              {/* 数值表格 */}
+                              <div className="flex-1 min-w-0 w-full">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b-2 border-[#E4ECFC] text-left">
+                                      <th className="py-2 px-2 font-semibold text-[#0F172A] text-xs">状态</th>
+                                      <th className="py-2 px-2 font-semibold text-[#0F172A] text-xs text-right">数量</th>
+                                      <th className="py-2 px-2 font-semibold text-[#0F172A] text-xs text-right">占比</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {segments.map((seg, i) => (
+                                      <tr key={seg.name}
+                                        className={`border-b border-[#F1F5FD] cursor-pointer transition-colors ${hoveredPie === seg.name ? "bg-[#F1F5FD]" : i % 2 === 0 ? "" : "bg-[#FAFBFF]"}`}
+                                        onMouseEnter={() => setHoveredPie(seg.name)}
+                                        onMouseLeave={() => setHoveredPie(null)}
+                                        onClick={() => { setSelectedStatuses([seg.name]); setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}>
+                                        <td className="py-2 px-2 text-xs flex items-center gap-2">
+                                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: seg.color }} />
+                                          {seg.name}
+                                        </td>
+                                        <td className="py-2 px-2 text-xs text-right font-medium text-[#0F172A]">{seg.count}</td>
+                                        <td className="py-2 px-2 text-xs text-right text-[#64748B]">{Math.round(seg.pct * 100)}%</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot>
+                                    <tr className="border-t-2 border-[#E4ECFC]">
+                                      <td className="py-2 px-2 text-xs font-semibold text-[#0F172A]">合计</td>
+                                      <td className="py-2 px-2 text-xs text-right font-bold text-[#2563EB]">{md.total}</td>
+                                      <td className="py-2 px-2 text-xs text-right text-[#64748B]">100%</td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* 里程碑进展 */}
+                      {(() => {
+                        const isMileDone = (m: MilestoneRow) => m.status === "已完成" || m.status.includes("已完成") || m.status.includes("正常") || (m.hasActual && m.delayDays > 0);
+                        const activeMiles = monthMilestones.filter(m => !isMileDone(m));
+                        const doneMiles = monthMilestones.filter(m => isMileDone(m));
+                        const nextMile = activeMiles.find(m => m.eventDate && m.daysLeft >= 0);
+                        return (
+                      <Card className="shadow-sm border-[#E4ECFC]">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base font-semibold text-[#0F172A] flex items-center gap-2 flex-wrap">
+                            <Milestone className="w-4 h-4 text-[#8B5CF6]" />里程碑进展
+                            <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 font-normal">{doneMiles.length}/{monthMilestones.length} 已完成</Badge>
+                          </CardTitle>
+                          {nextMile && (
+                            <p className="text-xs text-[#64748B] mt-1 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-[#2563EB]" />
+                              下一节点：<span className="font-medium text-[#0F172A]">{nextMile.name}</span>
+                              <span className="text-[#94A3B8]">（{nextMile.eventDate}，剩余 {nextMile.daysLeft} 工作日）</span>
+                            </p>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          {monthMilestones.length === 0 ? (
+                            <p className="text-sm text-[#94A3B8] py-6 text-center">该月暂无里程碑</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {activeMiles.map(m => {
+                                const isOverdue = m.delayDays > 0;
+                                return (
+                                  <div key={`${m.id}-${m.month}`} className={`p-3 rounded-lg border transition-colors ${isOverdue ? "border-red-200 bg-red-50/30" : "border-[#E4ECFC] bg-white"}`}>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-[#0F172A] truncate">{m.name}</p>
+                                        <div className="flex items-center gap-2 mt-1 text-xs text-[#94A3B8] flex-wrap">
+                                          {m.eventDate && <span className="flex items-center gap-0.5"><Calendar className="w-3 h-3" />{m.eventDate}</span>}
+                                          {m.daysLeft > 0 && <span className="text-[#059669] font-medium">剩余 {m.daysLeft} 工作日</span>}
+                                          {m.delayDays > 0 && <span className="text-[#DC2626] font-medium">{m.hasActual ? `延期 ${m.delayDays} 天完成` : `已延期 ${m.delayDays} 天`}</span>}
+                                        </div>
+                                      </div>
+                                      {isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal shrink-0">{m.hasActual ? "延期完成" : "延期中"}</Badge>
+                                        : <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-normal shrink-0">进行中</Badge>}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {doneMiles.length > 0 && (
+                                <div className="pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setMilestoneCompletedExpanded(!milestoneCompletedExpanded)}
+                                    className="flex items-center gap-1.5 w-full py-2 px-1 text-xs font-medium text-[#94A3B8] hover:text-[#64748B] transition-colors rounded-md hover:bg-[#F8FAFC]"
+                                  >
+                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${milestoneCompletedExpanded ? "rotate-0" : "-rotate-90"}`} />
+                                    已完成 ({doneMiles.length} 项)
+                                  </button>
+                                  {milestoneCompletedExpanded && (
+                                    <div className="space-y-2 mt-1">
+                                      {doneMiles.map(m => {
+                                        const isDelayed = m.hasActual && m.delayDays > 0;
+                                        return (
+                                        <div key={`${m.id}-${m.month}`} className={`p-3 rounded-lg border transition-colors ${isDelayed ? "border-amber-200 bg-amber-50/30" : "border-emerald-200 bg-emerald-50/30"}`}>
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-medium text-[#0F172A] truncate">{m.name}</p>
+                                              <div className="flex items-center gap-2 mt-1 text-xs text-[#94A3B8] flex-wrap">
+                                                {m.eventDate && <span className="flex items-center gap-0.5"><Calendar className="w-3 h-3" />{m.eventDate}</span>}
+                                                {isDelayed && <span className="text-amber-600 font-medium">延期 {m.delayDays} 天</span>}
+                                                {m.note && <span className="text-emerald-600">{m.note}</span>}
+                                              </div>
+                                            </div>
+                                            {isDelayed
+                                              ? <Badge className="bg-amber-50 text-amber-600 border-amber-200 text-xs font-normal shrink-0">延期完成</Badge>
+                                              : <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal shrink-0">已完成</Badge>}
+                                          </div>
+                                        </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                        );
+                      })()}
+
+                      {/* 风险跟踪 */}
+                      <Card className="shadow-sm border-[#E4ECFC]">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-[#DC2626]" />风险跟踪
+                            <Badge className="bg-red-50 text-red-600 border-red-200 font-normal">{monthRisks.length} 项</Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {monthRisks.length === 0 ? (
+                            <p className="text-sm text-[#94A3B8] py-6 text-center">该月暂无风险项</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {monthRisks.map(r => (
+                                <div key={r.id} className={`p-3 rounded-lg border transition-colors ${r.status.includes("解除") || r.status.includes("关闭") ? "border-[#E4ECFC] bg-[#F8FAFC]" : "border-red-200 bg-red-50/30"}`}>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-[#0F172A] line-clamp-2">{r.title}</p>
+                                      <div className="flex items-center gap-2 mt-1 text-xs text-[#94A3B8] flex-wrap">
+                                        {r.date && <span>{r.date}</span>}
+                                        {r.product && <span>· {r.product}</span>}
+                                        {r.strategy && <span className="text-[#92400E]">策略: {r.strategy}</span>}
+                                      </div>
+                                    </div>
+                                    <Badge className={`text-xs font-normal border shrink-0 ${sc(r.status)}`}>{r.status}</Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* 需求列表 */}
+                    <Card className="shadow-sm border-[#E4ECFC]">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
+                            <ListChecks className="w-4 h-4 text-[#2563EB]" />需求列表
+                            <Badge className="bg-[#F1F5FD] text-[#2563EB] border-none font-normal">{monthReqs.length} 条</Badge>
+                          </CardTitle>
+                          {monthReqs.length > 10 && (
+                            <button className="text-xs text-[#2563EB] hover:text-[#1D4ED8] flex items-center gap-1 transition-colors"
+                              onClick={() => { setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}>
+                              查看全部 <ChevronRight className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b-2 border-[#E4ECFC] bg-[#F8FAFC] text-left">
+                                {["ONES ID", "标题", "状态", "优先级", "提测时间", "开发负责人", "测试负责人"].map(h => (
+                                  <th key={h} className="py-2.5 px-3 font-semibold text-[#0F172A] whitespace-nowrap text-xs">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {monthReqs.slice(0, 10).map((r, i) => (
+                                <tr key={r.id} className={`border-b border-[#F1F5FD] hover:bg-[#F8FAFC] transition-colors ${i % 2 === 0 ? "" : "bg-[#FAFBFF]"}`}>
+                                  <td className="py-2.5 px-3 whitespace-nowrap">
+                                    {r.onesUrl ? (
+                                      <a href={r.onesUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#2563EB] hover:underline text-xs font-medium">
+                                        {r.onesId || "查看"} <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    ) : <span className="text-[#94A3B8] text-xs">-</span>}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-[#0F172A] max-w-[200px] truncate text-xs" title={r.title}>{r.title || "-"}</td>
+                                  <td className="py-2.5 px-3 whitespace-nowrap"><Badge className={`text-xs font-normal border ${sc(r.status)}`}>{r.status || "-"}</Badge></td>
+                                  <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.level || "-"}</td>
+                                  <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.testDate || "-"}</td>
+                                  <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.devOwner || "-"}</td>
+                                  <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.testOwner || "-"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {monthReqs.length > 10 && (
+                            <div className="text-center py-3 border-t border-[#F1F5FD]">
+                              <button className="text-xs text-[#2563EB] hover:text-[#1D4ED8] transition-colors"
+                                onClick={() => { setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}>
+                                还有 {monthReqs.length - 10} 条，点击查看全部 →
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 );
               })()}
@@ -790,10 +1185,11 @@ export function DashboardPage() {
 
           {/* ============ TAB 4: 里程碑 ============ */}
           <TabsContent value={TAB_MILESTONE} keepMounted>
-            <div className="space-y-6">
+            <div className="space-y-4">
+              {/* 顶部工具栏 */}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-medium text-[#0F172A]">迭代月份：</span>
-                <Select value={milestoneMonth} onValueChange={(val) => setMilestoneMonth(val as string)}>
+                <Select value={milestoneMonth} onValueChange={(val) => { setMilestoneMonth(val as string); setMilestoneSearchText(""); setMilestoneQuickFilter("all"); }}>
                   <SelectTrigger className="w-[140px] border-[#E4ECFC]">
                     <SelectValue />
                   </SelectTrigger>
@@ -804,80 +1200,226 @@ export function DashboardPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Badge className="bg-[#F1F5FD] text-[#2563EB] border-none font-normal ml-auto">{filteredMilestones.length} 项</Badge>
+                {milestoneMonth === "全部" ? (
+                  <>
+                    <Select value={milestoneQuickFilter} onValueChange={(val) => setMilestoneQuickFilter(val as "7days" | "pending" | "all")}>
+                      <SelectTrigger className="w-[110px] border-[#E4ECFC] ml-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部</SelectItem>
+                        <SelectItem value="7days">近7天</SelectItem>
+                        <SelectItem value="pending">待完成</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="relative ml-auto min-w-[180px]">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#94A3B8]" />
+                      <Input placeholder="搜索里程碑名称" value={milestoneSearchText} onChange={(e) => setMilestoneSearchText(e.target.value)} className="pl-8 h-8 text-xs border-[#E4ECFC]" />
+                      {milestoneSearchText && <button onClick={() => setMilestoneSearchText("")} className="absolute right-2 top-1/2 -translate-y-1/2"><X className="w-3.5 h-3.5 text-[#94A3B8] hover:text-[#64748B]" /></button>}
+                    </div>
+                  </>
+                ) : (
+                  <Badge className="bg-[#F1F5FD] text-[#2563EB] border-none font-normal ml-auto">{filteredMilestones.length} 项</Badge>
+                )}
               </div>
 
-              <Card className="shadow-sm border-[#E4ECFC]">
-                <CardContent className="p-6">
-                  {loading ? <div className="space-y-4">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div> : (
-                    filteredMilestones.length === 0 ? (
-                      <div className="text-center py-12 text-[#94A3B8]">
-                        <Milestone className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        <p className="text-sm">该月份暂无里程碑</p>
-                      </div>
-                    ) : (
-                      <div className="relative pl-8">
-                        <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-[#2563EB] via-[#94A3B8] to-[#E4ECFC]" />
-                        <div className="space-y-3">
-                          {filteredMilestones.map((m) => {
-                            const isDone = m.status === "已完成" || m.status.includes("已完成") || m.status.includes("正常");
-                            const isOverdue = m.delayDays > 0;
-                            const isActive = !isDone && !isOverdue;
-                            return (
-                              <div key={`${m.id}-${m.month}`} className="relative group">
-                                <div className={`absolute -left-[23px] top-3 w-4 h-4 rounded-full border-2 z-10 transition-colors ${
-                                  isDone ? "bg-[#059669] border-[#059669]"
-                                  : isOverdue ? "bg-[#DC2626] border-[#DC2626]"
-                                  : isActive ? "bg-white border-[#2563EB] group-hover:border-[#1D4ED8]"
-                                  : "bg-white border-[#D1D5DB]"
-                                }`} />
-                                <div className={`p-4 rounded-xl border bg-white transition-all hover:shadow-md ${isOverdue ? "border-red-200" : "border-[#E4ECFC]"}`}>
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <h4 className="text-sm font-medium text-[#0F172A]">{m.name}</h4>
-                                        {m.note && <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">{m.note}</Badge>}
-                                      </div>
-                                      <div className="flex items-center gap-3 mt-1.5 text-xs text-[#94A3B8] flex-wrap">
-                                        {m.eventDate && (
-                                          <span className="flex items-center gap-1">
-                                            <Calendar className="w-3 h-3" />事件日: {m.eventDate}
-                                          </span>
-                                        )}
-                                        {m.daysLeft > 0 && !isDone && (
-                                          <span className="flex items-center gap-1 font-medium text-[#059669]">
-                                            <Clock className="w-3 h-3" />剩余 {m.daysLeft} 工作日
-                                          </span>
-                                        )}
-                                        {m.delayDays > 0 && (
-                                          <span className="flex items-center gap-1 font-medium text-[#DC2626]">
-                                            <Clock className="w-3 h-3" />{m.hasActual ? `延期 ${m.delayDays} 工作日完成` : `已延期 ${m.delayDays} 工作日`}
-                                          </span>
-                                        )}
-                                        {m.month && (
-                                          <span className="flex items-center gap-1">
-                                            <Milestone className="w-3 h-3" />归属: {m.month}
-                                          </span>
-                                        )}
-                                      </div>
+              {milestoneMonth === "全部" ? (
+                /* === 全部：时间视图 === */
+                loading ? <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div> : (() => {
+                  const today = new Date(); today.setHours(0, 0, 0, 0);
+                  const todayTime = today.getTime();
+                  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+                  const tomorrowTime = tomorrow.getTime();
+                  const endOfWeek = new Date(today); endOfWeek.setDate(today.getDate() + (today.getDay() === 0 ? 0 : 7 - today.getDay()));
+                  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                  const weekNames = ["日", "一", "二", "三", "四", "五", "六"];
+                  const fmtD = (d: Date) => `${d.getMonth() + 1}月${d.getDate()}日 周${weekNames[d.getDay()]}`;
+
+                  const mileStatus = (m: MilestoneRow) => {
+                    const isDone = m.status.includes("已完成") || m.status.includes("正常") || m.hasActual;
+                    if (isDone) return { label: "已完成", cls: "bg-emerald-50 text-emerald-600 border-emerald-200", pri: 3 };
+                    const d = parseDate(m.eventDate);
+                    if (d && d.getTime() < todayTime) return { label: "已逾期", cls: "bg-red-50 text-red-600 border-red-200", pri: 0 };
+                    if (m.status.includes("进行") || m.status.includes("开发") || m.status.includes("测试")) return { label: "进行中", cls: "bg-blue-50 text-blue-600 border-blue-200", pri: 1 };
+                    return { label: "待开始", cls: "bg-amber-50 text-amber-600 border-amber-200", pri: 2 };
+                  };
+
+                  let all = milestones.filter(m => m.eventDate);
+                  if (milestoneSearchText.trim()) {
+                    const q = milestoneSearchText.trim().toLowerCase();
+                    all = all.filter(m => m.name.toLowerCase().includes(q));
+                  }
+                  if (milestoneQuickFilter === "7days") {
+                    const d7 = new Date(today); d7.setDate(d7.getDate() + 7);
+                    all = all.filter(m => { const s = mileStatus(m); const d = parseDate(m.eventDate); return s.label === "已逾期" || (d && d.getTime() >= todayTime && d.getTime() <= d7.getTime()); });
+                  } else if (milestoneQuickFilter === "pending") {
+                    all = all.filter(m => mileStatus(m).label !== "已完成");
+                  }
+
+                  type MileItem = MilestoneRow & { ds: ReturnType<typeof mileStatus> };
+                  const groups: { key: string; label: string; defOpen: boolean; items: MileItem[] }[] = [
+                    { key: "overdue", label: "已逾期", defOpen: true, items: [] },
+                    { key: "today", label: `今日 · ${fmtD(today)}`, defOpen: true, items: [] },
+                    { key: "tomorrow", label: `明日 · ${fmtD(tomorrow)}`, defOpen: true, items: [] },
+                    { key: "thisWeek", label: "本周剩余", defOpen: true, items: [] },
+                    { key: "thisMonth", label: "本月剩余", defOpen: false, items: [] },
+                    { key: "later", label: "下月及以后", defOpen: false, items: [] },
+                    { key: "done", label: "已完成", defOpen: false, items: [] },
+                  ];
+
+                  all.forEach(m => {
+                    const ds = mileStatus(m);
+                    const item: MileItem = { ...m, ds };
+                    if (ds.label === "已完成") { groups[6].items.push(item); return; }
+                    const d = parseDate(m.eventDate);
+                    if (!d) { groups[5].items.push(item); return; }
+                    const t = d.getTime();
+                    if (t < todayTime) { groups[0].items.push(item); return; }
+                    if (t === todayTime) { groups[1].items.push(item); return; }
+                    if (t === tomorrowTime) { groups[2].items.push(item); return; }
+                    if (t <= endOfWeek.getTime()) { groups[3].items.push(item); return; }
+                    if (t <= endOfMonth.getTime()) { groups[4].items.push(item); return; }
+                    groups[5].items.push(item);
+                  });
+
+                  groups.forEach(g => g.items.sort((a, b) => a.ds.pri !== b.ds.pri ? a.ds.pri - b.ds.pri : (a.eventDate || "").localeCompare(b.eventDate || "")));
+
+                  const isOpen = (k: string, def: boolean) => milestoneGroupExpanded[k] ?? def;
+                  const toggle = (k: string, def: boolean) => setMilestoneGroupExpanded(prev => ({ ...prev, [k]: !(prev[k] ?? def) }));
+                  const total = groups.reduce((s, g) => s + g.items.length, 0);
+
+                  // 找到最近一个待完成的里程碑
+                  const nextMile = [...groups[0].items, ...groups[1].items, ...groups[2].items, ...groups[3].items, ...groups[4].items, ...groups[5].items]
+                    .sort((a, b) => {
+                      const da = parseDate(a.eventDate)?.getTime() ?? Infinity;
+                      const db = parseDate(b.eventDate)?.getTime() ?? Infinity;
+                      return da - db;
+                    })[0] || null;
+
+                  if (total === 0) return (
+                    <Card className="shadow-sm border-[#E4ECFC]">
+                      <CardContent className="p-8 text-center">
+                        <Milestone className="w-8 h-8 mx-auto mb-2 opacity-40 text-[#94A3B8]" />
+                        <p className="text-sm text-[#94A3B8]">没有匹配的里程碑</p>
+                      </CardContent>
+                    </Card>
+                  );
+
+                  return (
+                    <div className="space-y-2.5">
+                      {/* 最近里程碑提示卡片 */}
+                      {nextMile && (
+                        <div className={`rounded-md border-2 px-5 py-4 flex items-center justify-between gap-4 ${nextMile.ds.label === "已逾期" ? "border-red-300 bg-red-50" : "border-[#2563EB]/40 bg-[#F1F5FD]"}`}>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${nextMile.ds.label === "已逾期" ? "bg-red-100" : "bg-[#2563EB]/10"}`}>
+                              <Clock className={`w-4.5 h-4.5 ${nextMile.ds.label === "已逾期" ? "text-[#DC2626]" : "text-[#2563EB]"}`} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs text-[#64748B]">{nextMile.ds.label === "已逾期" ? "最紧急 · 已逾期" : "下一个里程碑"}</p>
+                              <p className="text-sm font-semibold text-[#0F172A] truncate">{nextMile.name}</p>
+                              <p className="text-xs text-[#94A3B8] mt-0.5">{nextMile.eventDate} · {nextMile.month}</p>
+                            </div>
+                          </div>
+                          <Badge className={`text-xs font-normal border shrink-0 ${nextMile.ds.cls}`}>{nextMile.ds.label}</Badge>
+                        </div>
+                      )}
+
+                      {groups.map(g => {
+                        if (g.items.length === 0) return null;
+                        const expanded = isOpen(g.key, g.defOpen);
+                        const isOD = g.key === "overdue";
+                        const isTD = g.key === "today";
+                        return (
+                          <div key={g.key} className={`rounded-md border overflow-hidden ${isOD ? "border-red-200" : isTD ? "border-[#2563EB]/30" : "border-[#E4ECFC]"}`}>
+                            <button type="button" onClick={() => toggle(g.key, g.defOpen)}
+                              className={`w-full flex items-center justify-between px-4 py-2.5 transition-colors ${isOD ? "bg-red-50 hover:bg-red-100/80" : isTD ? "bg-[#F1F5FD] hover:bg-[#E8EDFB]" : "bg-[#F8FAFC] hover:bg-[#F1F5FD]"}`}>
+                              <div className="flex items-center gap-2">
+                                <ChevronDown className={`w-4 h-4 text-[#94A3B8] transition-transform duration-200 ${expanded ? "" : "-rotate-90"}`} />
+                                <span className={`text-sm font-semibold ${isOD ? "text-[#DC2626]" : isTD ? "text-[#2563EB]" : "text-[#0F172A]"}`}>{g.label}</span>
+                              </div>
+                              <Badge className={`font-normal text-xs ${isOD ? "bg-red-100 text-red-600 border-red-200" : "bg-[#F1F5FD] text-[#64748B] border-none"}`}>{g.items.length} 项</Badge>
+                            </button>
+                            {expanded && (
+                              <div className="bg-white">
+                                <div className="flex items-center px-4 py-2 border-b border-[#E4ECFC] bg-[#FAFBFF] text-xs font-medium text-[#94A3B8]">
+                                  <span className="w-28 shrink-0">日期</span>
+                                  <span className="flex-1">里程碑</span>
+                                  <span className="w-16 shrink-0 text-center">迭代</span>
+                                  <span className="w-20 text-right">状态</span>
+                                </div>
+                                <div className="divide-y divide-[#F1F5FD]">
+                                  {g.items.map((m, idx) => (
+                                    <div key={`${m.id}-${m.month}-${idx}`} className={`flex items-center px-4 py-3 transition-colors hover:bg-[#F8FAFC] ${isTD ? "bg-blue-50/20" : ""}`}>
+                                      <span className="text-xs text-[#64748B] w-28 shrink-0">{m.eventDate}</span>
+                                      <span className="flex-1 text-sm text-[#0F172A] truncate pr-2" title={m.name}>{m.name}</span>
+                                      <span className="text-xs text-[#94A3B8] w-16 shrink-0 text-center">{m.month}</span>
+                                      <Badge className={`text-xs font-normal border shrink-0 ${m.ds.cls}`}>{m.ds.label}</Badge>
                                     </div>
-                                    <div className="flex-shrink-0">
-                                      {isDone ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">已完成</Badge>
-                                        : isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal">{m.hasActual ? "延期完成" : "延期中"}</Badge>
-                                        : isActive ? <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-normal">进行中</Badge>
-                                        : <Badge className="bg-slate-100 text-slate-400 border-slate-200 text-xs font-normal">未开始</Badge>}
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              ) : (
+                /* === 单月视图 === */
+                <Card className="shadow-sm border-[#E4ECFC]">
+                  <CardContent className="p-6">
+                    {loading ? <div className="space-y-4">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div> : (
+                      filteredMilestones.length === 0 ? (
+                        <div className="text-center py-12 text-[#94A3B8]">
+                          <Milestone className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                          <p className="text-sm">该月份暂无里程碑</p>
+                        </div>
+                      ) : (
+                        <div className="relative pl-8">
+                          <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-[#2563EB] via-[#94A3B8] to-[#E4ECFC]" />
+                          <div className="space-y-3">
+                            {filteredMilestones.map((m) => {
+                              const isDone = m.status === "已完成" || m.status.includes("已完成") || m.status.includes("正常");
+                              const isOverdue = m.delayDays > 0;
+                              const isActive = !isDone && !isOverdue;
+                              return (
+                                <div key={`${m.id}-${m.month}`} className="relative group">
+                                  <div className={`absolute -left-[23px] top-3 w-4 h-4 rounded-full border-2 z-10 transition-colors ${
+                                    isDone ? "bg-[#059669] border-[#059669]"
+                                    : isOverdue ? "bg-[#DC2626] border-[#DC2626]"
+                                    : isActive ? "bg-white border-[#2563EB] group-hover:border-[#1D4ED8]"
+                                    : "bg-white border-[#D1D5DB]"
+                                  }`} />
+                                  <div className={`p-4 rounded-lg border bg-white transition-all hover:shadow-md ${isOverdue ? "border-red-200" : "border-[#E4ECFC]"}`}>
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="text-sm font-medium text-[#0F172A]">{m.name}</h4>
+                                        <div className="flex items-center gap-3 mt-1.5 text-xs text-[#94A3B8] flex-wrap">
+                                          {m.eventDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{m.eventDate}</span>}
+                                          {m.daysLeft > 0 && !isDone && <span className="flex items-center gap-1 font-medium text-[#059669]"><Clock className="w-3 h-3" />剩余 {m.daysLeft} 工作日</span>}
+                                          {m.delayDays > 0 && <span className="flex items-center gap-1 font-medium text-[#DC2626]"><Clock className="w-3 h-3" />{m.hasActual ? `延期 ${m.delayDays} 工作日完成` : `已延期 ${m.delayDays} 工作日`}</span>}
+                                          {m.month && <span className="flex items-center gap-1"><Milestone className="w-3 h-3" />归属: {m.month}</span>}
+                                        </div>
+                                      </div>
+                                      <div className="flex-shrink-0">
+                                        {isDone ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">已完成</Badge>
+                                          : isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal">{m.hasActual ? "延期完成" : "延期中"}</Badge>
+                                          : isActive ? <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-normal">进行中</Badge>
+                                          : <Badge className="bg-slate-100 text-slate-400 border-slate-200 text-xs font-normal">未开始</Badge>}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  )}
-                </CardContent>
-              </Card>
+                      )
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
         </Tabs>
@@ -1017,7 +1559,7 @@ function parseMils(records: RawRec[]): MilestoneRow[] {
     }
     for (const [month, d] of Object.entries(monthData)) {
       // 跳过：不涉及且无任何日期数据的月份
-      if (!d.involved && !d.plan && !d.actual) continue;
+      if (!d.plan) continue;
       const eventDate = (d.actual || d.plan || "").replace(/\//g, "-");
       let status = d.progress;
       if (!status && d.actual) status = "已完成";
