@@ -8,7 +8,7 @@
     "install": "pnpm install",
     "dev": "pnpm run dev",
     "build": "pnpm run build",
-    "zip": "$system-zip frontend:./client/dist server:./server/.output:.output"
+    "zip": "pnpm run pack"
   },
   "scopes": ["kso.dbsheet.readwrite"],
   "redirect_url": "http://localhost:5917/api/oauth/callback",

@@ -62,6 +62,8 @@ interface MilestoneRow {
   month: string;
   status: string;
   eventDate: string;   // 事件日期
+  hasActual: boolean;  // 是否有实际完成时间
+  note: string;        // 备注
   daysLeft: number; delayDays: number;
 }
 
@@ -302,8 +304,8 @@ export function DashboardPage() {
   }, [milestones]);
 
   const filteredMilestones = useMemo(() => {
-    if (milestoneMonth === "全部") return milestones;
-    return milestones.filter(m => m.month === milestoneMonth);
+    const list = milestoneMonth === "全部" ? milestones : milestones.filter(m => m.month === milestoneMonth);
+    return [...list].sort((a, b) => (a.eventDate || "zzzz").localeCompare(b.eventDate || "zzzz"));
   }, [milestones, milestoneMonth]);
 
   /* === 跳转 === */
@@ -821,7 +823,10 @@ export function DashboardPage() {
                                 <div className={`p-4 rounded-xl border bg-white transition-all hover:shadow-md ${isOverdue ? "border-red-200" : "border-[#E4ECFC]"}`}>
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
-                                      <h4 className="text-sm font-medium text-[#0F172A]">{m.name}</h4>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-sm font-medium text-[#0F172A]">{m.name}</h4>
+                                        {m.note && <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">{m.note}</Badge>}
+                                      </div>
                                       <div className="flex items-center gap-3 mt-1.5 text-xs text-[#94A3B8] flex-wrap">
                                         {m.eventDate && (
                                           <span className="flex items-center gap-1">
@@ -835,7 +840,7 @@ export function DashboardPage() {
                                         )}
                                         {m.delayDays > 0 && (
                                           <span className="flex items-center gap-1 font-medium text-[#DC2626]">
-                                            <Clock className="w-3 h-3" />已延期 {m.delayDays} 工作日
+                                            <Clock className="w-3 h-3" />{m.hasActual ? `延期 ${m.delayDays} 工作日完成` : `已延期 ${m.delayDays} 工作日`}
                                           </span>
                                         )}
                                         {m.month && (
@@ -847,7 +852,7 @@ export function DashboardPage() {
                                     </div>
                                     <div className="flex-shrink-0">
                                       {isDone ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">已完成</Badge>
-                                        : isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal">已延期</Badge>
+                                        : isOverdue ? <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal">{m.hasActual ? "延期完成" : "延期中"}</Badge>
                                         : isActive ? <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-normal">进行中</Badge>
                                         : <Badge className="bg-slate-100 text-slate-400 border-slate-200 text-xs font-normal">未开始</Badge>}
                                     </div>
@@ -871,7 +876,7 @@ export function DashboardPage() {
 }
 
 /* ==================== Helpers ==================== */
-type RawRec = { id?: string; fields?: string | Record<string, unknown>; last_modified_time?: string };
+type RawRec = { id?: string; fields?: string | Record<string, unknown>; last_modified_time?: string; created_time?: string };
 
 function fld(r: RawRec): Record<string, unknown> {
   if (typeof r.fields === "string") { try { return JSON.parse(r.fields); } catch { return {}; } }
@@ -967,12 +972,12 @@ function workingDaysBetween(from: Date, to: Date): number {
   const end = new Date(to);
   end.setHours(0, 0, 0, 0);
   const endTime = end.getTime();
-  const step = cur.getTime() <= endTime ? 1 : -1;
-  // 先跳过起始日，只计两端之间的天数
-  cur.setDate(cur.getDate() + step);
-  while (cur.getTime() !== endTime) {
-    if (isWorkday(cur)) count += step;
+  if (cur.getTime() === endTime) return 0;
+  const step = cur.getTime() < endTime ? 1 : -1;
+  while (true) {
     cur.setDate(cur.getDate() + step);
+    if (isWorkday(cur)) count += step;
+    if (cur.getTime() === endTime) break;
   }
   return count;
 }
@@ -1014,17 +1019,19 @@ function parseMils(records: RawRec[]): MilestoneRow[] {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         daysLeft = workingDaysBetween(today, planDate);
         const isNormal = status.includes("正常");
-        const isDone = status === "已完成" || status.includes("已完成");
         if (isNormal) {
+          // 正常完成：不显示任何延期
           delayDays = 0;
-        } else if (isDone && d.actual) {
+        } else if (d.actual) {
+          // 有实际完成时间就用实际完成时间计算延期
           const actualDate = parseDate(d.actual.replace(/\//g, "-"));
           if (actualDate) delayDays = workingDaysBetween(planDate, actualDate);
-        } else if (!isNormal && !isDone) {
+        } else {
+          // 无实际完成时间：用今天计算延期
           delayDays = workingDaysBetween(planDate, today);
         }
       }
-      result.push({ id: r.id || "", name, month, status, eventDate, daysLeft, delayDays });
+      result.push({ id: r.id || "", name, month, status, eventDate, hasActual: !!d.actual, note: d.note, daysLeft, delayDays });
     }
   }
   return result;
@@ -1032,7 +1039,18 @@ function parseMils(records: RawRec[]): MilestoneRow[] {
 
 /** sheet21 需求解析 */
 function parseReqs(records: RawRec[]): ReqRow[] {
-  return records.map(r => {
+  // 调试：打印前2条记录的 created_time 和 fields 中所有时间相关字段
+  if (records.length > 0) {
+    const r0 = records[0];
+    console.log("[需求-created_time]", r0.created_time || "(空)");
+    console.log("[需求-last_modified_time]", r0.last_modified_time || "(空)");
+    const f0 = fld(r0);
+    const allKeys = Object.keys(f0);
+    console.log("[需求-fields所有key]", allKeys);
+    const timeKeys = allKeys.filter(k => /时间|日期|time|date|提测|完成|更新|修改|创建/i.test(k));
+    console.log("[需求-fields时间字段]", timeKeys.map(k => k + "=" + String(f0[k]).substring(0, 40)));
+  }
+  const result = records.map(r => {
     const f = fld(r);
     const o = parseOnes(f);
     return {
@@ -1042,6 +1060,9 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       onesId: o.id, onesUrl: o.url, modTime: r.last_modified_time || "", month: str(f["排期月度"]),
     };
   });
+  // 调试：打印前5条的modTime格式
+  console.log("[需求modTime样本]", result.slice(0, 5).map(r => ({ title: r.title?.substring(0, 15), modTime: r.modTime })));
+  return result;
 }
 
 /** sheet24 风险解析：强鲁棒 ONES ID — 超链接文本即为 ONES ID */
