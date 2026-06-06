@@ -146,12 +146,12 @@ export function DashboardPage() {
         // 月份分布诊断
         const monthDist: Record<string, number> = {};
         reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
-        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「规划月度」字段, 空值→「未参与规划」");
+        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与规划」");
         // 打印前3条记录的原始字段 keys 和 month 相关值
         if (reqRes.data.records.length > 0) {
           const raw = reqRes.data.records.slice(0, 3).map(r => {
             const f = fld(r as RawRec);
-            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("规划") || k.includes("迭代"));
+            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
             const vals: Record<string, string> = {};
             monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
             return { id: r.id, monthKeys: vals };
@@ -408,20 +408,39 @@ export function DashboardPage() {
                                   <Info className="w-3 h-3 text-[#CBD5E1]" />
                                 </p>}
                               />
-                              <TooltipContent>
-                                <p className="text-xs font-medium">公式：Σ(各需求状态进度) ÷ 需求总数</p>
-                                <p className="text-xs text-[#94A3B8] mt-0.5">状态进度权重层累：</p>
-                                <div className="text-xs text-[#94A3B8] mt-0.5 grid grid-cols-2 gap-x-3">
-                                  <span>未开始/立项</span><span className="text-right">0%</span>
-                                  <span>需求分析</span><span className="text-right">8%</span>
-                                  <span>UX设计</span><span className="text-right">20%</span>
-                                  <span>开发设计/开发中</span><span className="text-right">30~40%</span>
-                                  <span>验收中</span><span className="text-right">70%</span>
-                                  <span>测试中</span><span className="text-right">77%</span>
-                                  <span>待合并/版本测试</span><span className="text-right">85~90%</span>
-                                  <span>灰度发布</span><span className="text-right">95%</span>
-                                  <span>已发布</span><span className="text-right">100%</span>
-                                </div>
+                              <TooltipContent className="bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg p-0 min-w-[340px]">
+                                <p className="text-xs font-semibold px-3 pt-3 pb-1">公式：Σ(各需求状态进度) ÷ 需求总数</p>
+                                <table className="w-full text-xs mt-1">
+                                  <thead>
+                                    <tr className="border-y border-[#E4ECFC] bg-[#F8FAFC]">
+                                      <th className="py-1.5 px-3 text-left font-medium text-[#64748B]">阶段</th>
+                                      <th className="py-1.5 px-2 text-center font-medium text-[#64748B]">权重</th>
+                                      <th className="py-1.5 px-3 text-center font-medium text-[#64748B]">累计进度</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="text-[#64748B]">
+                                    {[
+                                      ["未开始 / 待排期","0%","0%"],
+                                      ["需求立项中","8%","0%"],
+                                      ["需求分析中","12%","8%"],
+                                      ["UX设计中","10%","20%"],
+                                      ["开发方案设计中","10%","30%"],
+                                      ["开发中","30%","40%"],
+                                      ["验收中","7%","70%"],
+                                      ["测试中","8%","77%"],
+                                      ["待合并","5%","85%"],
+                                      ["版本测试中","5%","90%"],
+                                      ["灰度发布","3%","95%"],
+                                      ["已发布","2%","100%"],
+                                    ].map(([s,w,p],i) => (
+                                      <tr key={s} className={i % 2 === 0 ? "bg-white" : "bg-[#FAFBFF]"}>
+                                        <td className="py-1 px-3">{s}</td>
+                                        <td className="py-1 px-2 text-center">{w}</td>
+                                        <td className="py-1 px-3 text-center font-medium text-[#2563EB]">{p}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -869,7 +888,7 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       id: r.id || "", title: str(f["标题"]), status: str(f["状态"]),
       level: str(f["需求级别"]), project: str(f["所属项目"]), iteration: str(f["迭代"]),
       testDate: str(f["计划提测时间"]), devOwner: str(f["开发负责人"]), testOwner: str(f["测试负责人"]),
-      onesId: o.id, onesUrl: o.url, modTime: r.last_modified_time || "", month: str(f["规划月度"]),
+      onesId: o.id, onesUrl: o.url, modTime: r.last_modified_time || "", month: str(f["排期月度"]),
     };
   });
 }
