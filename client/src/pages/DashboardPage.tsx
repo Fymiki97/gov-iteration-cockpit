@@ -103,6 +103,7 @@ export function DashboardPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [milestoneMonth, setMilestoneMonth] = useState("全部");
+  const [monthlyMonthFilter, setMonthlyMonthFilter] = useState("全部");
 
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
@@ -484,36 +485,56 @@ export function DashboardPage() {
 
           {/* ============ TAB 2: 月度迭代情况 ============ */}
           <TabsContent value={TAB_MONTHLY}>
-            <Card className="shadow-sm border-[#E4ECFC]">
-              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-[#0F172A]">月度迭代情况</CardTitle></CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-32" />)}</div>
-                ) : monthDetails.length === 0 ? (
-                  <p className="text-sm text-[#94A3B8] py-4 text-center">暂无迭代数据</p>
-                ) : (
+            <div className="space-y-6">
+              {/* 月份选择器 */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium text-[#0F172A]">选择迭代月份：</span>
+                <button onClick={() => setMonthlyMonthFilter("全部")}
+                  className={`h-9 px-4 text-sm rounded-lg border transition-colors ${monthlyMonthFilter === "全部" ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]" : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"}`}>全部</button>
+                {monthDetails.map(md => (
+                  <button key={md.month} onClick={() => setMonthlyMonthFilter(md.month)}
+                    className={`h-9 px-4 text-sm rounded-lg border transition-colors ${monthlyMonthFilter === md.month ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]" : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"}`}>{md.month}</button>
+                ))}
+              </div>
+
+              {/* 月份详情卡片 */}
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-44" />)}</div>
+              ) : (() => {
+                const filtered = monthlyMonthFilter === "全部" ? monthDetails : monthDetails.filter(md => md.month === monthlyMonthFilter);
+                if (filtered.length === 0) return <p className="text-sm text-[#94A3B8] py-4 text-center">该月份暂无迭代数据</p>;
+                return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {monthDetails.map((md) => (
+                    {filtered.map((md) => (
                       <div
                         key={md.month}
-                        className="p-4 rounded-xl border border-[#E4ECFC] bg-white hover:shadow-md hover:border-[#2563EB]/20 cursor-pointer transition-all group"
+                        className="p-5 rounded-xl border border-[#E4ECFC] bg-white hover:shadow-md hover:border-[#2563EB]/20 cursor-pointer transition-all group"
                         onClick={() => { setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
                       >
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-semibold text-[#0F172A]">{md.month}</span>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-lg font-bold text-[#0F172A]">{md.month}</span>
                           <ChevronRight className="w-4 h-4 text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
                         </div>
-                        <div className="flex items-center gap-3 mb-3">
-                          <span className="text-2xl font-bold text-[#2563EB]">{md.pct}%</span>
-                          <div className="flex-1">
-                            <div className="flex justify-between text-xs text-[#94A3B8] mb-1">
-                              <span>{md.completed}/{md.total}</span>
-                            </div>
-                            <div className="w-full h-2 bg-[#F1F5FD] rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-[#2563EB] transition-all duration-500" style={{ width: `${md.pct}%` }} />
-                            </div>
+                        {/* 核心指标 */}
+                        <div className="grid grid-cols-3 gap-3 mb-4">
+                          <div className="text-center p-2 rounded-lg bg-[#F1F5FD]">
+                            <p className="text-xs text-[#94A3B8]">需求总数</p>
+                            <p className="text-lg font-bold text-[#2563EB]">{md.total}</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-emerald-50">
+                            <p className="text-xs text-[#94A3B8]">已完成</p>
+                            <p className="text-lg font-bold text-[#059669]">{md.completed}</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-blue-50">
+                            <p className="text-xs text-[#94A3B8]">完成度</p>
+                            <p className="text-lg font-bold text-[#2563EB]">{md.pct}%</p>
                           </div>
                         </div>
+                        {/* 进度条 */}
+                        <div className="w-full h-2.5 bg-[#F1F5FD] rounded-full overflow-hidden mb-3">
+                          <div className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#059669] transition-all duration-500" style={{ width: `${md.pct}%` }} />
+                        </div>
+                        {/* 状态标签 */}
                         {md.topStatuses.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mb-3">
                             {md.topStatuses.map(s => (
@@ -524,16 +545,17 @@ export function DashboardPage() {
                             ))}
                           </div>
                         )}
+                        {/* 底部指标 */}
                         <div className="flex items-center gap-4 text-xs text-[#94A3B8]">
-                          <span className="flex items-center gap-1"><Milestone className="w-3 h-3" />里程碑 {md.milestoneCount}</span>
-                          <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" />风险 {md.riskCount}</span>
+                          <span className="flex items-center gap-1"><Milestone className="w-3 h-3" />里程碑 {md.milestoneCount} 项</span>
+                          <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" />风险 {md.riskCount} 项</span>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                );
+              })()}
+            </div>
           </TabsContent>
 
           {/* ============ TAB 3: 需求列表 ============ */}
@@ -790,40 +812,46 @@ function parseReqs(records: RawRec[]): ReqRow[] {
   });
 }
 
-/** sheet24 风险解析：强鲁棒的 ONES ID 提取 */
+/** sheet24 风险解析：强鲁棒 ONES ID — 超链接文本即为 ONES ID */
 function parseRisks(records: RawRec[]): RiskRow[] {
   return records.map((r, idx) => {
     const f = fld(r);
-    // 多策略提取 ONES ID
     let onesId = "";
     // 策略1：标准 ONES ID 数组字段
     const o1 = parseOnes(f);
     if (o1.id) onesId = o1.id;
-    // 策略2：尝试其他常见字段名
-    if (!onesId) { const o2 = parseOnesField(f, "ONES"); if (o2) onesId = o2; }
-    if (!onesId) { const o3 = parseOnesField(f, "ONES链接"); if (o3) onesId = o3; }
-    if (!onesId) { const o4 = parseOnesField(f, "关联需求"); if (o4) onesId = o4; }
-    // 策略3：遍历所有字段，找含 ONES 的 key
+    // 策略2：尝试常见字段名（ONES ID / ONES / ONES链接 / 链接 / 关联需求）
+    const fieldNames = ["ONES", "ONES链接", "链接", "关联需求", "ONES ID"];
+    if (!onesId) {
+      for (const fn of fieldNames) {
+        const v = parseOnesField(f, fn);
+        if (v) { onesId = v; break; }
+      }
+    }
+    // 策略3：遍历所有 key 含 ONES/ones 的字段
     if (!onesId) {
       for (const key of Object.keys(f)) {
-        if (key.includes("ONES") || key.includes("ones")) {
-          const o5 = parseOnesField(f, key);
-          if (o5) { onesId = o5; break; }
+        if (/ones/i.test(key)) {
+          const v = parseOnesField(f, key);
+          if (v) { onesId = v; break; }
         }
       }
     }
-    // 策略4：遍历所有字段值，找形如 ONES-xxx 或纯数字 ID（由 displayText 而来）
+    // 策略4：遍历所有字段值，提取任何超链接对象的 text/displayText/value
     if (!onesId) {
       for (const v of Object.values(f)) {
-        if (typeof v === "object" && v && "displayText" in v) {
-          const dt = String((v as Record<string,unknown>).displayText || "");
-          if (dt && /^[A-Z]+-\d+|^\d{3,}$/.test(dt)) { onesId = dt; break; }
-        }
+        const t = extractLinkText(v);
+        if (t) { onesId = t; break; }
       }
     }
-    // 控制台调试：打印风险记录的字段结构
+    // 调试：打印完整字段 key+值摘要
     if (idx < 5) {
-      console.log(`[Risk #${idx}] raw fields:`, JSON.stringify(Object.keys(f)), "onesId extracted:", onesId || "(none)");
+      const summary: Record<string, string> = {};
+      for (const [k, v] of Object.entries(f)) {
+        const vs = typeof v === "object" ? JSON.stringify(v).substring(0, 80) : String(v).substring(0, 80);
+        summary[k] = vs;
+      }
+      console.log(`[Risk #${idx}] onesId=「${onesId || "(none)"}」 fields:`, summary);
     }
     return {
       id: r.id || "", title: summary(f["事项"]), status: str(f["状态"]),
@@ -833,20 +861,37 @@ function parseRisks(records: RawRec[]): RiskRow[] {
   });
 }
 
-/** 从指定字段名解析 ONES ID（支持数组和单对象两种格式） */
+/** 从任意值中提取超链接文本（text/displayText/value 优先） */
+function extractLinkText(v: unknown): string {
+  if (!v || typeof v !== "object") return "";
+  const obj = v as Record<string, unknown>;
+  // 单个超链接对象
+  const display = String(obj.displayText || obj.text || obj.value || "");
+  if (display) return display;
+  // 数组格式
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      if (typeof item === "object" && item) {
+        const t = String((item as Record<string, unknown>).displayText || (item as Record<string, unknown>).text || (item as Record<string, unknown>).value || "");
+        if (t) return t;
+      }
+    }
+  }
+  return "";
+}
+
+/** 从指定字段名解析 ONES ID（数组 / 单对象 / 字符串） */
 function parseOnesField(f: Record<string, unknown>, key: string): string {
   const raw = f[key];
   if (!raw) return "";
-  // 数组格式：[{displayText: "xxx", address: "..."}]
-  if (Array.isArray(raw) && raw.length > 0) {
-    const first = raw[0] as Record<string, unknown>;
-    return String(first.displayText || "");
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const t = extractLinkText(item);
+      if (t) return t;
+    }
   }
-  // 单对象格式：{displayText: "xxx"}
-  if (typeof raw === "object" && raw && "displayText" in raw) {
-    return String((raw as Record<string, unknown>).displayText || "");
-  }
-  // 纯字符串
+  const t = extractLinkText(raw);
+  if (t) return t;
   if (typeof raw === "string") return raw;
   return "";
 }
