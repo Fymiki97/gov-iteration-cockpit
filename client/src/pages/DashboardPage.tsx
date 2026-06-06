@@ -5,15 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MultiSelect } from "@/components/ui/multi-select";
 import {
   Layers,
   CheckCircle2,
   AlertTriangle,
   TrendingUp,
   RefreshCw,
-  Target,
   ListChecks,
   Milestone,
   BarChart3,
@@ -35,6 +34,7 @@ interface ReqRow {
   status: string;
   level: string;
   project: string;
+  iteration: string;
   testDate: string;
   devOwner: string;
   testOwner: string;
@@ -47,9 +47,8 @@ interface ReqRow {
 interface MilestoneRow {
   id: string;
   name: string;
-  date: string;
-  actualDate: string;
-  involved: boolean;
+  month: string; //  从 sheet23 解析出的月份，如 "4月"
+  status: string;
 }
 
 interface RiskRow {
@@ -74,12 +73,12 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(TAB_OVERVIEW);
 
-  // 筛选状态
+  // 筛选状态 —— 多选
   const [filterTag, setFilterTag] = useState<FilterTag>(null);
   const [searchText, setSearchText] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [levelFilter, setLevelFilter] = useState("all");
-  const [projectFilter, setProjectFilter] = useState("all");
+  const [selectedIterations, setSelectedIterations] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [milestoneMonth, setMilestoneMonth] = useState("全部");
 
   /* === 初始化 SDK === */
@@ -108,8 +107,10 @@ export function DashboardPage() {
     setLoading(true);
     try {
       const [reqRes, milRes, riskRes] = await Promise.all([
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 600, page_size: 600 }),
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 14, prefer_id: false, max_records: 50 }),
+        // 不设上限，支持 1k~2k 条需求
+        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 2000, page_size: 1000 }),
+        // 里程碑从 sheet 23 获取
+        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 23, prefer_id: false, max_records: 200 }),
         wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 24, prefer_id: false, max_records: 50 }),
       ]);
       if (reqRes.data?.records) setRequirements(parseReqs(reqRes.data.records));
@@ -143,11 +144,18 @@ export function DashboardPage() {
   }, [requirements, risks]);
 
   const monthOrder = ["2&3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月", "未参与规划"];
-  const sortedMonths = useMemo(() =>
-    Object.entries(stats.byMonth).sort(([a], [b]) => {
-      const ai = monthOrder.indexOf(a), bi = monthOrder.indexOf(b);
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    }), [stats.byMonth]);
+
+  /*  月度迭代进展：只展示完成度 >0% 且 <100% 的最近 3 个月 */
+  const recentThreeMonths = useMemo(() => {
+    const entries = Object.entries(stats.byMonth)
+      .map(([m, { total, completed }]) => ({ month: m, total, completed, pct: total > 0 ? Math.round((completed / total) * 100) : 0 }))
+      .filter(e => e.pct > 0 && e.pct < 100)
+      .sort((a, b) => {
+        const ai = monthOrder.indexOf(a.month), bi = monthOrder.indexOf(b.month);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+    return entries.slice(-3);
+  }, [stats.byMonth]);
 
   /* === 饼图 === */
   const pieSegments = useMemo(() => {
@@ -170,8 +178,9 @@ export function DashboardPage() {
     if (filterTag === "completed") {
       list = list.filter(r => isComplete(r.status));
     } else if (filterTag === "risk") {
-      const riskTitles = risks.map(r => extractRiskKeyword(r.title));
-      list = list.filter(r => riskTitles.some(kw => kw && r.title.includes(kw)));
+      //  风险关联需求 = 和风险项共享同一「迭代」的需求
+      const riskIterations = new Set(risks.map(r => r.iteration).filter(Boolean));
+      list = list.filter(r => riskIterations.has(r.iteration));
     }
 
     // 文本搜索
@@ -183,78 +192,79 @@ export function DashboardPage() {
         r.project.toLowerCase().includes(q) ||
         r.devOwner.toLowerCase().includes(q) ||
         r.testOwner.toLowerCase().includes(q) ||
-        r.onesId.includes(q)
+        r.onesId.includes(q) ||
+        r.iteration.toLowerCase().includes(q)
       );
     }
 
-    // 状态筛选
-    if (statusFilter !== "all") {
-      list = list.filter(r => r.status === statusFilter);
+    // 迭代多选
+    if (selectedIterations.length > 0) {
+      list = list.filter(r => selectedIterations.includes(r.iteration));
     }
 
-    // 优先级筛选
-    if (levelFilter !== "all") {
-      list = list.filter(r => r.level === levelFilter);
+    // 状态多选
+    if (selectedStatuses.length > 0) {
+      list = list.filter(r => selectedStatuses.includes(r.status));
     }
 
-    // 所属项目筛选
-    if (projectFilter !== "all") {
-      list = list.filter(r => r.project === projectFilter);
+    // 负责人多选（开发负责人 或 测试负责人）
+    if (selectedOwners.length > 0) {
+      list = list.filter(r =>
+        selectedOwners.some(o => r.devOwner === o || r.testOwner === o)
+      );
     }
 
     return list;
-  }, [requirements, filterTag, searchText, statusFilter, levelFilter, projectFilter, risks]);
+  }, [requirements, filterTag, searchText, selectedIterations, selectedStatuses, selectedOwners, risks]);
+
+  const allIterations = useMemo(() => {
+    const set = new Set(requirements.map(r => r.iteration).filter(Boolean));
+    return Array.from(set).sort();
+  }, [requirements]);
 
   const allStatuses = useMemo(() => {
     const set = new Set(requirements.map(r => r.status));
     return Array.from(set).sort();
   }, [requirements]);
 
-  const allLevels = useMemo(() => {
-    const set = new Set(requirements.map(r => r.level).filter(Boolean));
-    return Array.from(set).sort();
-  }, [requirements]);
-
-  const allProjects = useMemo(() => {
-    const set = new Set(requirements.map(r => r.project).filter(Boolean));
-    return Array.from(set).sort();
-  }, [requirements]);
-
-  function extractMonthFromStr(s: string): string {
-    // 先尝试匹配 N月 格式
-    const mm = s.match(/(\d+)月/);
-    if (mm) return mm[1] + "月";
-    // 再尝试标准日期格式
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) return `${d.getMonth() + 1}月`;
-    return "";
-  }
-
-  const filteredMilestones = useMemo(() => {
-    if (milestoneMonth === "全部") return milestones;
-    return milestones.filter(m => {
-      const m1 = extractMonthFromStr(m.date);
-      const m2 = extractMonthFromStr(m.name);
-      return m1 === milestoneMonth || m2 === milestoneMonth;
+  const allOwners = useMemo(() => {
+    const set = new Set<string>();
+    requirements.forEach(r => {
+      if (r.devOwner) set.add(r.devOwner);
+      if (r.testOwner) set.add(r.testOwner);
     });
-  }, [milestones, milestoneMonth]);
+    return Array.from(set).sort();
+  }, [requirements]);
+
+  /* === 里程碑按 sheet23 数据 === */
+  function extractMonth(s: string): string {
+    const m = s.match(/(\d+)月/);
+    return m ? m[1] + "月" : "";
+  }
 
   const milestoneMonths = useMemo(() => {
     const set = new Set<string>();
-    milestones.forEach(m => {
-      const m1 = extractMonthFromStr(m.date);
-      const m2 = extractMonthFromStr(m.name);
-      if (m1) set.add(m1);
-      if (m2) set.add(m2);
-    });
+    milestones.forEach(m => { if (m.month) set.add(m.month); });
     return Array.from(set).sort((a, b) => parseInt(a) - parseInt(b));
   }, [milestones]);
 
+  const filteredMilestones = useMemo(() => {
+    if (milestoneMonth === "全部") return milestones;
+    return milestones.filter(m => m.month === milestoneMonth);
+  }, [milestones, milestoneMonth]);
+
   /* === 点击卡片跳转 === */
   const goToList = (tag: FilterTag) => {
-    setFilterTag(tag);
+    setSelectedIterations([]);
+    setSelectedStatuses([]);
+    setSelectedOwners([]);
     setSearchText("");
-    setStatusFilter("all");
+    setFilterTag(tag);
+    if (tag === "risk") {
+      // 预填风险关联迭代
+      const riskIterations = [...new Set(risks.map(r => r.iteration).filter(Boolean))];
+      setSelectedIterations(riskIterations);
+    }
     setTab(TAB_LIST);
   };
 
@@ -325,7 +335,7 @@ export function DashboardPage() {
           {/* ============ TAB 1: 迭代概览 ============ */}
           <TabsContent value={TAB_OVERVIEW}>
             <div className="space-y-6">
-              {/* 4 卡片 - 可点击 */}
+              {/* 4 卡片 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {loading ? [...Array(4)].map((_, i) => <Card key={i}><CardContent className="p-6"><Skeleton className="h-16" /></CardContent></Card>) : (
                   <>
@@ -381,28 +391,29 @@ export function DashboardPage() {
                 )}
               </div>
 
-              {/* 月度进展 + 饼图 */}
+              {/*  月度进展：最近 3 个 0%<进度<100% 的月份 */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 <Card className="lg:col-span-3 shadow-sm border-[#E4ECFC]">
-                  <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-[#0F172A]">月度迭代进展</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-[#0F172A]">月度迭代进展 <span className="text-xs font-normal text-[#94A3B8] ml-1">(进行中的月份)</span></CardTitle></CardHeader>
                   <CardContent>
-                    {loading ? <div className="space-y-4">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div> : (
-                      <div className="space-y-4">
-                        {sortedMonths.map(([month, { total, completed }], idx) => {
-                          const p = total > 0 ? Math.round((completed / total) * 100) : 0;
-                          return (
+                    {loading ? <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div> : (
+                      recentThreeMonths.length === 0 ? (
+                        <p className="text-sm text-[#94A3B8] py-4 text-center">暂无进行中的迭代月份</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {recentThreeMonths.map(({ month, total, completed, pct }, idx) => (
                             <div key={month} className="cursor-pointer hover:bg-[#F8FAFC] rounded-lg p-2 -mx-2 transition-colors" onClick={() => goToList(null)}>
                               <div className="flex items-center justify-between mb-1.5">
                                 <span className="text-sm font-medium text-[#0F172A]">{month}</span>
-                                <span className="text-xs text-[#94A3B8]">{completed}/{total} · {p}%</span>
+                                <span className="text-xs text-[#94A3B8]">{completed}/{total} · {pct}%</span>
                               </div>
                               <div className="w-full h-2 bg-[#F1F5FD] rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${p}%`, background: idx % 2 === 0 ? "#2563EB" : "#059669" }} />
+                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: idx % 2 === 0 ? "#2563EB" : "#059669" }} />
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
+                          ))}
+                        </div>
+                      )
                     )}
                   </CardContent>
                 </Card>
@@ -446,7 +457,7 @@ export function DashboardPage() {
                   <CardContent>
                     <div className="space-y-2">
                       {risks.map((r) => (
-                        <div key={r.id} className="flex items-center justify-between py-3 px-4 bg-red-50/50 rounded-lg border border-red-100 cursor-pointer hover:bg-red-50 transition-colors" onClick={() => goToList("risk")}>
+                        <div key={r.id} className="flex items-center justify-between py-3 px-4 bg-red-50/50 rounded-lg border border-red-100 cursor-pointer hover:bg-red-50 transition-colors" onClick={() => { setSelectedIterations(r.iteration ? [r.iteration] : []); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}>
                           <div className="flex-1 min-w-0 mr-4">
                             <p className="text-sm text-[#0F172A] line-clamp-1">{r.title}</p>
                             <p className="text-xs text-[#94A3B8] mt-0.5">{r.date} · {r.product} · {r.iteration}</p>
@@ -473,12 +484,30 @@ export function DashboardPage() {
                     </Badge>
                   </CardTitle>
                 </div>
-                {/* 筛选栏 */}
+                {/*  筛选栏：迭代 → 状态 → 负责人 → 搜索框(最后) */}
                 <div className="flex items-center gap-3 mt-3 flex-wrap">
-                  <div className="relative flex-1 min-w-[200px] max-w-xs">
+                  <MultiSelect
+                    allLabel="全部迭代"
+                    options={allIterations.map(v => ({ value: v, label: v }))}
+                    value={selectedIterations}
+                    onChange={setSelectedIterations}
+                  />
+                  <MultiSelect
+                    allLabel="全部状态"
+                    options={allStatuses.map(v => ({ value: v, label: v }))}
+                    value={selectedStatuses}
+                    onChange={setSelectedStatuses}
+                  />
+                  <MultiSelect
+                    allLabel="全部负责人"
+                    options={allOwners.map(v => ({ value: v, label: v }))}
+                    value={selectedOwners}
+                    onChange={setSelectedOwners}
+                  />
+                  <div className="relative flex-1 min-w-[180px] max-w-[240px] ml-auto">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
                     <Input
-                      placeholder="搜索标题、项目、负责人..."
+                      placeholder="搜索..."
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
                       className="pl-9 h-9 text-sm border-[#E4ECFC]"
@@ -489,41 +518,8 @@ export function DashboardPage() {
                       </button>
                     )}
                   </div>
-                  <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v || "all"); setFilterTag(null); }}>
-                    <SelectTrigger className="h-9 w-[130px] text-sm border-[#E4ECFC]">
-                      <SelectValue placeholder="状态" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部状态</SelectItem>
-                      {allStatuses.map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={levelFilter} onValueChange={(v) => setLevelFilter(v || "all")}>
-                    <SelectTrigger className="h-9 w-[120px] text-sm border-[#E4ECFC]">
-                      <SelectValue placeholder="优先级" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部优先级</SelectItem>
-                      {allLevels.map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={projectFilter} onValueChange={(v) => setProjectFilter(v || "all")}>
-                    <SelectTrigger className="h-9 w-[160px] text-sm border-[#E4ECFC]">
-                      <SelectValue placeholder="所属项目" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部项目</SelectItem>
-                      {allProjects.map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   {filterTag && (
-                    <Badge className="h-8 gap-1 cursor-pointer bg-[#F1F5FD] text-[#2563EB] border-[#2563EB]/20" onClick={() => { setFilterTag(null); setStatusFilter("all"); }}>
+                    <Badge className="h-8 gap-1 cursor-pointer bg-[#F1F5FD] text-[#2563EB] border-[#2563EB]/20" onClick={() => { setFilterTag(null); setSelectedIterations([]); setSelectedStatuses([]); }}>
                       {filterTag === "completed" ? "已完成" : filterTag === "risk" ? "风险关联" : ""}
                       <X className="w-3 h-3" />
                     </Badge>
@@ -588,23 +584,37 @@ export function DashboardPage() {
               {/* 月份选择器 */}
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium text-[#0F172A]">选择月份：</span>
-                <Select value={milestoneMonth} onValueChange={(v) => setMilestoneMonth(v || "全部")}>
-                  <SelectTrigger className="h-9 w-[140px] text-sm border-[#E4ECFC]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="全部">全部</SelectItem>
-                    {milestoneMonths.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Badge className="bg-[#F1F5FD] text-[#2563EB] border-none font-normal">
-                  {filteredMilestones.filter(m => m.involved).length} 项活跃
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => setMilestoneMonth("全部")}
+                    className={`h-9 px-4 text-sm rounded-lg border transition-colors ${
+                      milestoneMonth === "全部"
+                        ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]"
+                        : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"
+                    }`}
+                  >
+                    全部
+                  </button>
+                  {milestoneMonths.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setMilestoneMonth(m)}
+                      className={`h-9 px-4 text-sm rounded-lg border transition-colors ${
+                        milestoneMonth === m
+                          ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]"
+                          : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <Badge className="bg-[#F1F5FD] text-[#2563EB] border-none font-normal ml-auto">
+                  {filteredMilestones.length} 项
                 </Badge>
               </div>
 
-              {/* 里程碑时间线 */}
+              {/* 里程碑列表 */}
               <Card className="shadow-sm border-[#E4ECFC]">
                 <CardContent className="p-6">
                   {loading ? <div className="space-y-4">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div> : (
@@ -614,21 +624,20 @@ export function DashboardPage() {
                         {filteredMilestones.map((m) => (
                           <div key={m.id} className="relative group">
                             <div className={`absolute -left-[23px] top-3 w-4 h-4 rounded-full border-2 z-10 ${
-                              m.actualDate ? "bg-[#059669] border-[#059669]" : m.involved ? "bg-white border-[#2563EB] group-hover:border-[#1D4ED8]" : "bg-white border-[#D1D5DB]"
+                              m.status === "已完成" ? "bg-[#059669] border-[#059669]"
+                              : m.status === "进行中" ? "bg-white border-[#2563EB] group-hover:border-[#1D4ED8]"
+                              : "bg-white border-[#D1D5DB]"
                             }`} />
-                            <div className={`p-4 rounded-xl border transition-all ${m.involved ? "bg-white border-[#E4ECFC] hover:shadow-md" : "bg-[#F8FAFC] border-[#E4ECFC]/50"}`}>
+                            <div className="p-4 rounded-xl border bg-white border-[#E4ECFC] hover:shadow-md transition-all">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex-1 min-w-0">
-                                  <h4 className={`text-sm font-medium ${m.involved ? "text-[#0F172A]" : "text-[#94A3B8]"}`}>{m.name}</h4>
-                                  <div className="flex items-center gap-4 mt-1.5 text-xs text-[#94A3B8]">
-                                    {m.date && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />计划: {m.date}</span>}
-                                    {m.actualDate && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#059669]" />实际: {m.actualDate}</span>}
-                                  </div>
+                                  <h4 className="text-sm font-medium text-[#0F172A]">{m.name}</h4>
+                                  {m.month && <p className="text-xs text-[#94A3B8] mt-1">归属月份：{m.month}</p>}
                                 </div>
                                 <div className="flex-shrink-0">
-                                  {m.actualDate ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">已完成</Badge>
-                                    : m.involved ? <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-normal">进行中</Badge>
-                                    : <Badge className="bg-slate-100 text-slate-400 border-slate-200 text-xs font-normal">未涉及</Badge>}
+                                  {m.status === "已完成" ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 text-xs font-normal">已完成</Badge>
+                                    : m.status === "进行中" ? <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-normal">进行中</Badge>
+                                    : <Badge className="bg-slate-100 text-slate-400 border-slate-200 text-xs font-normal">未开始</Badge>}
                                 </div>
                               </div>
                             </div>
@@ -679,9 +688,19 @@ function parseOnes(f: Record<string, unknown>): { id: string; url: string } {
   return { id: "", url: "" };
 }
 
-function extractRiskKeyword(title: string): string {
-  const m = title.match(/标签|格式校对|治理|改造/);
-  return m ? m[0] : title.split("】")[0]?.replace("【", "") || title.substring(0, 6);
+/** sheet23 解析：匹配字段中的"x月"作为月份归属 */
+function parseMils(records: RawRec[]): MilestoneRow[] {
+  return records.map(r => {
+    const f = fld(r);
+    const allText = [str(f["文本"]), str(f["里程碑"]), str(f["名称"]), str(f["标题"]), str(f["内容"])].filter(Boolean).join(" ");
+    const monthMatch = allText.match(/(\d+月|\d+[-/]\d+)/);
+    return {
+      id: r.id || "",
+      name: str(f["文本"]) || str(f["名称"]) || str(f["标题"]) || str(f["里程碑"]) || allText.substring(0, 30),
+      month: monthMatch ? monthMatch[1].replace(/[-/]\d+/, "月").replace(/(\d)月/, (_, d) => d + "月") : "",
+      status: str(f["状态"]) || (Boolean(f["实际完成日期"]) ? "已完成" : ""),
+    };
+  });
 }
 
 function parseReqs(records: RawRec[]): ReqRow[] {
@@ -694,6 +713,7 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       status: str(f["状态"]),
       level: str(f["需求级别"]),
       project: str(f["所属项目"]),
+      iteration: str(f["迭代"]),
       testDate: str(f["计划提测时间"]),
       devOwner: str(f["开发负责人"]),
       testOwner: str(f["测试负责人"]),
@@ -701,19 +721,6 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       onesUrl: o.url,
       modTime: r.last_modified_time || "",
       month: str(f["规划月度"]),
-    };
-  });
-}
-
-function parseMils(records: RawRec[]): MilestoneRow[] {
-  return records.map(r => {
-    const f = fld(r);
-    return {
-      id: r.id || "",
-      name: str(f["文本"]),
-      date: str(f["计划完成日期"]),
-      actualDate: str(f["实际完成日期"]),
-      involved: Boolean(f["本期迭代是否涉及"]),
     };
   });
 }
