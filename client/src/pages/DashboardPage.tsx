@@ -160,7 +160,21 @@ export function DashboardPage() {
         }
         console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
       }
-      if (milRes.data?.records) setMilestones(parseMils(milRes.data.records));
+      if (milRes.data?.records) {
+        const mils = parseMils(milRes.data.records);
+        setMilestones(mils);
+        // 诊断：里程碑月份分布 + 原始字段
+        const monthDist: Record<string, number> = {};
+        mils.forEach(m => { const k = m.month || "(空)"; monthDist[k] = (monthDist[k] || 0) + 1; });
+        console.log("[里程碑-月份分布]", monthDist, "| 规则: 全字段扫描, 匹配 \"x月\" 格式");
+        if (milRes.data.records.length > 0) {
+          const raw = milRes.data.records.slice(0, 5).map(r => {
+            const f = fld(r as RawRec);
+            return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
+          });
+          console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
+        }
+      }
       if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
     } catch (err) {
       console.error("加载失败:", err);
@@ -409,8 +423,11 @@ export function DashboardPage() {
                                 </p>}
                               />
                               <TooltipContent className="bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg p-0 min-w-[340px]">
-                                <p className="text-xs font-semibold px-3 pt-3 pb-1">公式：Σ(各需求状态进度) ÷ 需求总数</p>
-                                <table className="w-full text-xs mt-1">
+                                <div className="px-3 pt-3 pb-2 border-b border-[#E4ECFC]">
+                                  <p className="text-xs font-semibold">进度权重说明</p>
+                                  <p className="text-[11px] text-[#94A3B8] mt-0.5">完成进度 = 所有需求按状态加权平均</p>
+                                </div>
+                                <table className="w-full text-xs">
                                   <thead>
                                     <tr className="border-y border-[#E4ECFC] bg-[#F8FAFC]">
                                       <th className="py-1.5 px-3 text-left font-medium text-[#64748B]">阶段</th>
@@ -639,7 +656,7 @@ export function DashboardPage() {
                   <MultiSelect allLabel="全部迭代" options={allIterations.map(v => ({ value: v, label: v }))} value={selectedIterations} onChange={setSelectedIterations} />
                   <MultiSelect allLabel="全部状态" options={allStatuses.map(v => ({ value: v, label: v }))} value={selectedStatuses} onChange={setSelectedStatuses} />
                   <MultiSelect allLabel="全部负责人" options={allOwners.map(v => ({ value: v, label: v }))} value={selectedOwners} onChange={setSelectedOwners} />
-                  <div className="relative flex-1 min-w-[200px] max-w-[280px] ml-auto">
+                  <div className="relative flex-1 min-w-[220px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
                     <Input
                       placeholder="搜标题/ONES ID/状态/项目/负责人/迭代/优先级"
