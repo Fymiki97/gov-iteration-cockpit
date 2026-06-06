@@ -4,6 +4,7 @@ import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -607,15 +608,20 @@ export function DashboardPage() {
           {/* ============ TAB 2: 月度迭代情况 ============ */}
           <TabsContent value={TAB_MONTHLY}>
             <div className="space-y-6">
-              {/* 月份选择器 */}
+              {/* 月份筛选器 */}
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium text-[#0F172A]">选择迭代月份：</span>
-                <button onClick={() => setMonthlyMonthFilter("全部")}
-                  className={`h-9 px-4 text-sm rounded-lg border transition-colors ${monthlyMonthFilter === "全部" ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]" : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"}`}>全部</button>
-                {monthDetails.map(md => (
-                  <button key={md.month} onClick={() => setMonthlyMonthFilter(md.month)}
-                    className={`h-9 px-4 text-sm rounded-lg border transition-colors ${monthlyMonthFilter === md.month ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]" : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"}`}>{md.month}</button>
-                ))}
+                <span className="text-sm font-medium text-[#0F172A]">迭代月份：</span>
+                <Select value={monthlyMonthFilter} onValueChange={(val) => setMonthlyMonthFilter(val as string)}>
+                  <SelectTrigger className="w-[140px] border-[#E4ECFC]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="全部">全部</SelectItem>
+                    {monthDetails.map(md => (
+                      <SelectItem key={md.month} value={md.month}>{md.month}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* 月份详情卡片 */}
@@ -786,13 +792,18 @@ export function DashboardPage() {
           <TabsContent value={TAB_MILESTONE} keepMounted>
             <div className="space-y-6">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium text-[#0F172A]">选择迭代月份：</span>
-                <button onClick={() => setMilestoneMonth("全部")}
-                  className={`h-9 px-4 text-sm rounded-lg border transition-colors ${milestoneMonth === "全部" ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]" : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"}`}>全部</button>
-                {milestoneMonths.map(m => (
-                  <button key={m} onClick={() => setMilestoneMonth(m)}
-                    className={`h-9 px-4 text-sm rounded-lg border transition-colors ${milestoneMonth === m ? "border-[#2563EB] bg-[#F1F5FD] text-[#2563EB]" : "border-[#E4ECFC] text-[#64748B] hover:border-[#CBD5E1]"}`}>{m}</button>
-                ))}
+                <span className="text-sm font-medium text-[#0F172A]">迭代月份：</span>
+                <Select value={milestoneMonth} onValueChange={(val) => setMilestoneMonth(val as string)}>
+                  <SelectTrigger className="w-[140px] border-[#E4ECFC]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="全部">全部</SelectItem>
+                    {milestoneMonths.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Badge className="bg-[#F1F5FD] text-[#2563EB] border-none font-normal ml-auto">{filteredMilestones.length} 项</Badge>
               </div>
 
