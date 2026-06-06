@@ -3,6 +3,7 @@ import { createWps365 } from "@ks-open/capability/client/wps365";
 import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,7 @@ import {
   CalendarDays,
   Clock,
   ChevronRight,
+  Info,
 } from "lucide-react";
 
 /* ==================== 常量 ==================== */
@@ -141,6 +143,21 @@ export function DashboardPage() {
       if (reqRes.data?.records) {
         const reqs = parseReqs(reqRes.data.records);
         setRequirements(reqs);
+        // 月份分布诊断
+        const monthDist: Record<string, number> = {};
+        reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
+        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「规划月度」字段, 空值→「未参与规划」");
+        // 打印前3条记录的原始字段 keys 和 month 相关值
+        if (reqRes.data.records.length > 0) {
+          const raw = reqRes.data.records.slice(0, 3).map(r => {
+            const f = fld(r as RawRec);
+            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("规划") || k.includes("迭代"));
+            const vals: Record<string, string> = {};
+            monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
+            return { id: r.id, monthKeys: vals };
+          });
+          console.log("[需求-含月的字段]", JSON.stringify(raw));
+        }
         console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
       }
       if (milRes.data?.records) setMilestones(parseMils(milRes.data.records));
@@ -379,7 +396,20 @@ export function DashboardPage() {
                     <Card className="shadow-sm border-[#E4ECFC] hover:shadow-md hover:border-blue-300 cursor-pointer transition-all" onClick={() => goToList("completed")}>
                       <CardContent className="p-5 flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">完成进度</p>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={<p className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider inline-flex items-center gap-1 cursor-help">
+                                  完成进度
+                                  <Info className="w-3 h-3 text-[#CBD5E1]" />
+                                </p>}
+                              />
+                              <TooltipContent>
+                                <p className="text-xs">公式：已完成数 ÷ 需求总数 × 100%</p>
+                                <p className="text-xs text-[#94A3B8]">无权重，所有需求等值计算</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <p className="text-3xl font-bold text-[#2563EB] mt-1">{stats.pct}%</p>
                           <p className="text-xs text-[#94A3B8] mt-0.5">{stats.completed}/{stats.total}</p>
                         </div>
