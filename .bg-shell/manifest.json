@@ -1,16 +1,16 @@
 [
   {
-    "id": "ed3955b8",
+    "id": "47bcafe1",
     "label": "dev-server",
     "command": "cd C:/Users/17153/.wpscomate/workspace/760386581358207 && pnpm run dev",
     "cwd": "C:\\Users\\17153\\.wpscomate\\workspace\\760386581358207",
     "ownerSessionFile": "1690533110-a738ab8f-a79d-4018-83d6-2638454df91e",
     "persistAcrossSessions": false,
-    "startedAt": 1780731361935,
+    "startedAt": 1780734776638,
     "processType": "server",
     "group": null,
     "readyPattern": null,
     "readyPort": 5917,
-    "pid": 32580
+    "pid": 22744
   }
 ]

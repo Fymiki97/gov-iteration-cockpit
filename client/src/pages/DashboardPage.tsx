@@ -73,6 +73,7 @@ interface RiskRow {
   product: string;
   iteration: string;
   onesId: string;      // 关联的 ONES ID
+  strategy: string;    // 应对策略
 }
 
 interface MonthDetail {
@@ -106,6 +107,8 @@ export function DashboardPage() {
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [milestoneMonth, setMilestoneMonth] = useState("全部");
   const [monthlyMonthFilter, setMonthlyMonthFilter] = useState("全部");
+  const [reqPage, setReqPage] = useState(0);
+  const REQ_PAGE_SIZE = 20;
 
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
@@ -274,6 +277,14 @@ export function DashboardPage() {
 
     return list;
   }, [requirements, filterTag, searchText, selectedIterations, selectedStatuses, selectedOwners, risks]);
+
+  // 筛选条件变化时重置分页
+  useEffect(() => { setReqPage(0); }, [filterTag, searchText, selectedIterations, selectedStatuses, selectedOwners]);
+
+  // 需求列表分页
+  const reqTotalPages = Math.max(1, Math.ceil(filteredReqs.length / REQ_PAGE_SIZE));
+  const safeReqPage = Math.min(reqPage, reqTotalPages - 1);
+  const paginatedReqs = filteredReqs.slice(safeReqPage * REQ_PAGE_SIZE, (safeReqPage + 1) * REQ_PAGE_SIZE);
 
   const allIterations = useMemo(() => uniqSorted(requirements.map(r => getMonth(r))), [requirements]);
   const allStatuses = useMemo(() => uniqSorted(requirements.map(r => r.status)), [requirements]);
@@ -510,16 +521,45 @@ export function DashboardPage() {
               </Card>
 
               {/* 风险跟踪 */}
-              {risks.length > 0 && (
+              {risks.length > 0 && (() => {
+                const activeRisks = risks.filter(r => !r.status.includes("解除") && !r.status.includes("关闭") && !r.status.includes("已关闭"));
+                const closedRisks = risks.filter(r => r.status.includes("解除") || r.status.includes("关闭") || r.status.includes("已关闭"));
+                // 按应对策略分组统计
+                const strategyMap: Record<string, { total: number; statuses: Record<string, number> }> = {};
+                activeRisks.forEach(r => {
+                  const key = r.strategy || "未填写策略";
+                  if (!strategyMap[key]) strategyMap[key] = { total: 0, statuses: {} };
+                  strategyMap[key].total++;
+                  strategyMap[key].statuses[r.status] = (strategyMap[key].statuses[r.status] || 0) + 1;
+                });
+                return (
                 <Card className="shadow-sm border-[#E4ECFC]">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-[#DC2626]" />风险跟踪
+                      <Badge className="bg-red-50 text-red-600 border-red-200 text-xs font-normal">{activeRisks.length} 项活跃</Badge>
+                      {closedRisks.length > 0 && <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-xs font-normal">{closedRisks.length} 项已解除</Badge>}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
+                    {/* 按策略汇总 */}
+                    {Object.keys(strategyMap).length > 0 && (
+                      <div className="mb-4 p-3 bg-[#FFFBEB] rounded-lg border border-[#FDE68A]">
+                        <p className="text-xs font-semibold text-[#92400E] mb-2">按应对策略汇总</p>
+                        <div className="space-y-1.5">
+                          {Object.entries(strategyMap).map(([strategy, data]) => (
+                            <div key={strategy} className="flex items-start gap-2 text-xs">
+                              <span className="font-medium text-[#92400E] min-w-[120px] shrink-0">{strategy}</span>
+                              <span className="text-[#78716C]">{data.total} 项</span>
+                              <span className="text-[#94A3B8]">— {Object.entries(data.statuses).map(([s, c]) => `${s}×${c}`).join("，")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* 风险列表 */}
                     <div className="space-y-2">
-                      {risks.map((r) => {
+                      {activeRisks.map((r) => {
                         const matchCount = r.onesId ? requirements.filter(req => req.onesId === r.onesId).length : 0;
                         return (
                         <div key={r.id} className="flex items-center justify-between py-3 px-4 bg-red-50/50 rounded-lg border border-red-100 cursor-pointer hover:bg-red-50 transition-colors"
@@ -536,6 +576,7 @@ export function DashboardPage() {
                             <p className="text-sm text-[#0F172A] line-clamp-1">{r.title}</p>
                             <p className="text-xs text-[#94A3B8] mt-0.5">
                               {r.date} · {r.product} · {r.iteration}
+                              {r.strategy && <span className="ml-2 text-[#92400E]">策略: {r.strategy}</span>}
                               {r.onesId ? (
                                 <span className="ml-2 inline-flex items-center gap-1">
                                   <span className="text-[#2563EB] font-medium">ONES: {r.onesId}</span>
@@ -556,7 +597,8 @@ export function DashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
-              )}
+                );
+              })()}
             </div>
           </TabsContent>
 
@@ -684,6 +726,7 @@ export function DashboardPage() {
                     <p className="text-sm">没有匹配的需求</p>
                   </div>
                 ) : (
+                  <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -694,7 +737,7 @@ export function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredReqs.map((r, i) => (
+                        {paginatedReqs.map((r, i) => (
                           <tr key={r.id} className={`border-b border-[#F1F5FD] hover:bg-[#F8FAFC] transition-colors ${i % 2 === 0 ? "" : "bg-[#FAFBFF]"}`}>
                             <td className="py-3 px-4 whitespace-nowrap">
                               {r.onesUrl ? (
@@ -720,6 +763,18 @@ export function DashboardPage() {
                       </tbody>
                     </table>
                   </div>
+                  {reqTotalPages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-[#F1F5FD]">
+                      <span className="text-xs text-[#94A3B8]">共 {filteredReqs.length} 条，第 {safeReqPage + 1}/{reqTotalPages} 页</span>
+                      <div className="flex items-center gap-1">
+                        <button disabled={safeReqPage === 0} onClick={() => setReqPage(0)} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">首页</button>
+                        <button disabled={safeReqPage === 0} onClick={() => setReqPage(p => Math.max(0, p - 1))} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
+                        <button disabled={safeReqPage >= reqTotalPages - 1} onClick={() => setReqPage(p => Math.min(reqTotalPages - 1, p + 1))} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+                        <button disabled={safeReqPage >= reqTotalPages - 1} onClick={() => setReqPage(reqTotalPages - 1)} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">末页</button>
+                      </div>
+                    </div>
+                  )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -752,7 +807,7 @@ export function DashboardPage() {
                         <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-[#2563EB] via-[#94A3B8] to-[#E4ECFC]" />
                         <div className="space-y-3">
                           {filteredMilestones.map((m) => {
-                            const isDone = m.status === "已完成" || m.status.includes("正常");
+                            const isDone = m.status === "已完成" || m.status.includes("已完成") || m.status.includes("正常");
                             const isOverdue = m.delayDays > 0;
                             const isActive = !isDone && !isOverdue;
                             return (
@@ -862,11 +917,11 @@ function parseOnes(f: Record<string, unknown>): { id: string; url: string } {
   return { id: "", url: "" };
 }
 
-/** 解析日期字符串为 Date */
+/** 解析日期字符串为本地时间 Date（避免 UTC 偏移） */
 function parseDate(s: string): Date | null {
-  const m = s.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
+  const m = s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (!m) return null;
-  const d = new Date(m[1].replace(/\//g, "-"));
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -913,6 +968,8 @@ function workingDaysBetween(from: Date, to: Date): number {
   end.setHours(0, 0, 0, 0);
   const endTime = end.getTime();
   const step = cur.getTime() <= endTime ? 1 : -1;
+  // 先跳过起始日，只计两端之间的天数
+  cur.setDate(cur.getDate() + step);
   while (cur.getTime() !== endTime) {
     if (isWorkday(cur)) count += step;
     cur.setDate(cur.getDate() + step);
@@ -957,14 +1014,13 @@ function parseMils(records: RawRec[]): MilestoneRow[] {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         daysLeft = workingDaysBetween(today, planDate);
         const isNormal = status.includes("正常");
-        const isCompleted = status === "已完成";
+        const isDone = status === "已完成" || status.includes("已完成");
         if (isNormal) {
-          // 正常完成：不显示任何延期
           delayDays = 0;
-        } else if (isCompleted && d.actual) {
+        } else if (isDone && d.actual) {
           const actualDate = parseDate(d.actual.replace(/\//g, "-"));
           if (actualDate) delayDays = workingDaysBetween(planDate, actualDate);
-        } else if (!isNormal && !isCompleted) {
+        } else if (!isNormal && !isDone) {
           delayDays = workingDaysBetween(planDate, today);
         }
       }
@@ -1033,6 +1089,7 @@ function parseRisks(records: RawRec[]): RiskRow[] {
       id: r.id || "", title: summary(f["事项"]), status: str(f["状态"]),
       date: str(f["提报日期"]), product: str(f["归属产品"]), iteration: str(f["迭代"]),
       onesId,
+      strategy: str(f["应对策略"]),
     };
   });
 }
