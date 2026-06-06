@@ -76,6 +76,8 @@ interface ReqRow {
   modTime: string;
   month: string;
   workload: number;
+  devWorkload: number;
+  testWorkload: number;
   noTest: boolean;
 }
 
@@ -111,6 +113,8 @@ interface MonthDetail {
   milestoneCount: number;
   riskCount: number;
   totalWorkload: number;
+  devWorkload: number;
+  testWorkload: number;
   noTestCount: number;
   noTestRatio: number;
   terminatedCount: number;
@@ -254,7 +258,7 @@ export function DashboardPage() {
   const stats = useMemo(() => {
     let sumProgress = 0;
     let completed = 0;
-    const byMonth: Record<string, { total: number; sumProgress: number; completed: number; statuses: Record<string, number>; totalWorkload: number; noTestCount: number; terminatedCount: number }> = {};
+    const byMonth: Record<string, { total: number; sumProgress: number; completed: number; statuses: Record<string, number>; totalWorkload: number; devWorkload: number; testWorkload: number; noTestCount: number; terminatedCount: number }> = {};
     const statusCounts: Record<string, number> = {};
     requirements.forEach((r) => {
       const prog = getStatusProgress(r.status);
@@ -262,12 +266,14 @@ export function DashboardPage() {
       if (prog >= 100) completed++;
       sumProgress += prog;
       const m = getMonth(r);
-      if (!byMonth[m]) byMonth[m] = { total: 0, sumProgress: 0, completed: 0, statuses: {}, totalWorkload: 0, noTestCount: 0, terminatedCount: 0 };
+      if (!byMonth[m]) byMonth[m] = { total: 0, sumProgress: 0, completed: 0, statuses: {}, totalWorkload: 0, devWorkload: 0, testWorkload: 0, noTestCount: 0, terminatedCount: 0 };
       byMonth[m].total++;
       byMonth[m].sumProgress += prog;
       if (prog >= 100) byMonth[m].completed++;
       byMonth[m].statuses[r.status] = (byMonth[m].statuses[r.status] || 0) + 1;
       byMonth[m].totalWorkload += r.workload;
+      byMonth[m].devWorkload += r.devWorkload;
+      byMonth[m].testWorkload += r.testWorkload;
       if (r.noTest) byMonth[m].noTestCount++;
       if (isTerminated(r.status)) byMonth[m].terminatedCount++;
     });
@@ -299,6 +305,8 @@ export function DashboardPage() {
           milestoneCount: stats.msByMonth[month] || 0,
           riskCount: stats.riskByMonth[month] || 0,
           totalWorkload: d.totalWorkload,
+          devWorkload: d.devWorkload,
+          testWorkload: d.testWorkload,
           noTestCount: d.noTestCount,
           noTestRatio: ntRatio,
           terminatedCount: d.terminatedCount,
@@ -733,12 +741,12 @@ export function DashboardPage() {
                 monthDetails.length === 0 ? <p className="text-sm text-[#94A3B8] py-4 text-center">暂无迭代数据</p> : (() => {
                   const CHART_COLORS = { total: "#2563EB", completed: "#059669", rate: "#F59E0B", workload: "#8B5CF6", noTest: "#EC4899" };
                   const chartData = monthDetails.filter(d => d.month !== "未参与排期");
-                  const totalAll = monthDetails.reduce((s, d) => s + d.total, 0);
-                  const completedAll = monthDetails.reduce((s, d) => s + d.completed, 0);
+                  const totalAll = chartData.reduce((s, d) => s + d.total, 0);
+                  const completedAll = chartData.reduce((s, d) => s + d.completed, 0);
                   const workloadAll = chartData.reduce((s, d) => s + d.totalWorkload, 0);
                   const noTestAll = chartData.reduce((s, d) => s + d.noTestCount, 0);
-                  const terminatedAll = monthDetails.reduce((s, d) => s + d.terminatedCount, 0);
-                  const sorted = [...monthDetails].sort((a, b) => {
+                  const terminatedAll = chartData.reduce((s, d) => s + d.terminatedCount, 0);
+                  const sorted = [...chartData].sort((a, b) => {
                     const key = monthTableSortCol as keyof MonthDetail;
                     const va = a[key] ?? 0, vb = b[key] ?? 0;
                     const cmp = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb));
@@ -808,57 +816,126 @@ export function DashboardPage() {
                     </Card>
 
                     {/* 组合图表：需求总数/已完成（柱状）+ 完成率（折线） — 排除"未参与排期" */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                      <Card className="lg:col-span-2 shadow-sm border-[#E4ECFC]">
-                        <CardHeader className="pb-1">
-                          <CardTitle className="text-sm font-semibold text-[#0F172A]">需求规模与产出对比</CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-2">
-                          <RechartResponsive width="100%" height={300}>
-                            <RechartComposed data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                              <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
-                              <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
-                              <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
-                              <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
-                              <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
-                              <RechartLegend wrapperStyle={{ fontSize: 12 }} />
-                              <RechartBar yAxisId="left" dataKey="total" name="需求总数" fill={CHART_COLORS.total} radius={[3, 3, 0, 0]} barSize={28} />
-                              <RechartBar yAxisId="left" dataKey="completed" name="已完成" fill={CHART_COLORS.completed} radius={[3, 3, 0, 0]} barSize={28} />
-                              <RechartLine yAxisId="right" type="monotone" dataKey="completionRate" name="完成率(%)" stroke={CHART_COLORS.rate} strokeWidth={2} dot={{ r: 4 }} label={{ position: "top", fontSize: 11, fill: CHART_COLORS.rate }} />
-                            </RechartComposed>
-                          </RechartResponsive>
-                        </CardContent>
-                      </Card>
+                    <Card className="shadow-sm border-[#E4ECFC]">
+                      <CardHeader className="pb-1">
+                        <CardTitle className="text-sm font-semibold text-[#0F172A]">需求规模与产出对比</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-2">
+                        <RechartResponsive width="100%" height={300}>
+                          <RechartComposed data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                            <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
+                            <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
+                            <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                            <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
+                            <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
+                            <RechartLegend wrapperStyle={{ fontSize: 12 }} />
+                            <RechartBar yAxisId="left" dataKey="total" name="需求总数" fill={CHART_COLORS.total} radius={[3, 3, 0, 0]} barSize={28} />
+                            <RechartBar yAxisId="left" dataKey="completed" name="已完成" fill={CHART_COLORS.completed} radius={[3, 3, 0, 0]} barSize={28} />
+                            <RechartLine yAxisId="right" type="monotone" dataKey="completionRate" name="完成率(%)" stroke={CHART_COLORS.rate} strokeWidth={2} dot={{ r: 4 }} label={{ position: "top", fontSize: 11, fill: CHART_COLORS.rate }} />
+                          </RechartComposed>
+                        </RechartResponsive>
+                      </CardContent>
+                    </Card>
 
-                      {/* 饼图：工作量占比 */}
-                      <Card className="shadow-sm border-[#E4ECFC]">
-                        <CardHeader className="pb-1">
-                          <CardTitle className="text-sm font-semibold text-[#0F172A]">工作量分布</CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-2">
-                          {workloadAll > 0 ? (
-                            <RechartResponsive width="100%" height={250}>
-                              <RechartPie>
-                                <RechartPieShape data={chartData.filter(d => d.totalWorkload > 0).map(d => ({ name: d.month, value: d.totalWorkload }))}
-                                  cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={2} dataKey="value"
-                                  label={({ name, percent }: PieLabelRenderProps) => `${name ?? ""} ${((Number(percent) || 0) * 100).toFixed(0)}%`} labelLine={false}>
-                                  {chartData.filter(d => d.totalWorkload > 0).map((_, i) => (
-                                    <RechartCell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />
-                                  ))}
-                                </RechartPieShape>
-                                <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
-                              </RechartPie>
-                            </RechartResponsive>
-                          ) : (
-                            <div className="h-[250px] flex flex-col items-center justify-center text-[#94A3B8]">
-                              <Layers className="w-8 h-8 mb-2 opacity-40" />
-                              <p className="text-xs">暂无工作量数据</p>
-                              <p className="text-[11px] mt-1">多维表格中添加"工作量"字段后自动展示</p>
+                    {/* 工作量分布：柱状图（按总工作量降序）+ 环形图占比 */}
+                    {(() => {
+                      const wlData = [...chartData].filter(d => d.totalWorkload > 0).sort((a, b) => b.totalWorkload - a.totalWorkload);
+                      const devAll = chartData.reduce((s, d) => s + d.devWorkload, 0);
+                      const testAll = chartData.reduce((s, d) => s + d.testWorkload, 0);
+                      return (
+                      <div className="space-y-5">
+                        {/* 柱状图：开发/测试并列 */}
+                        <Card className="shadow-sm border-[#E4ECFC]">
+                          <CardHeader className="pb-1">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <CardTitle className="text-sm font-semibold text-[#0F172A]">工作量对比（人/天）</CardTitle>
+                              {workloadAll > 0 && <span className="text-xs text-[#94A3B8]">合计 {workloadAll.toFixed(1)} 人天（开发 {devAll.toFixed(1)} + 测试 {testAll.toFixed(1)}）</span>}
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </div>
+                          </CardHeader>
+                          <CardContent className="pt-2">
+                            {workloadAll > 0 ? (
+                              <RechartResponsive width="100%" height={300}>
+                                <RechartComposed data={wlData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                                  <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
+                                  <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
+                                  <RechartYAxisLeft tick={{ fontSize: 11, fill: "#94A3B8" }} unit=" 天" />
+                                  <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                  <RechartLegend wrapperStyle={{ fontSize: 12 }} />
+                                  <RechartBar dataKey="devWorkload" name="开发工作量" fill="#2563EB" radius={[3, 3, 0, 0]} barSize={28} label={{ position: "top", fontSize: 10, fill: "#2563EB", formatter: (v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : "" }} />
+                                  <RechartBar dataKey="testWorkload" name="测试工作量" fill="#8B5CF6" radius={[3, 3, 0, 0]} barSize={28} label={{ position: "top", fontSize: 10, fill: "#8B5CF6", formatter: (v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : "" }} />
+                                </RechartComposed>
+                              </RechartResponsive>
+                            ) : (
+                              <div className="h-[300px] flex flex-col items-center justify-center text-[#94A3B8]">
+                                <Layers className="w-8 h-8 mb-2 opacity-40" />
+                                <p className="text-xs">暂无工作量数据</p>
+                                <p className="text-[11px] mt-1">多维表格中添加"实际工作量"字段后自动展示</p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+
+                        {/* 开发/测试工作量占比：两个独立环形图 */}
+                        {workloadAll > 0 && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <Card className="shadow-sm border-[#E4ECFC]">
+                              <CardHeader className="pb-1">
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-sm font-semibold text-[#2563EB]">开发工作量占比</CardTitle>
+                                  <span className="text-xs text-[#94A3B8]">合计 {devAll.toFixed(1)} 人天</span>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="pt-2">
+                                {devAll > 0 ? (
+                                  <RechartResponsive width="100%" height={220}>
+                                    <RechartPie>
+                                      <RechartPieShape data={wlData.filter(d => d.devWorkload > 0).map(d => ({ name: d.month, value: d.devWorkload }))}
+                                        cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
+                                        label={({ name, percent }: PieLabelRenderProps) => { const p = ((Number(percent) || 0) * 100); return p >= 5 ? `${name ?? ""} ${p.toFixed(0)}%` : ""; }} labelLine={false}>
+                                        {wlData.filter(d => d.devWorkload > 0).map((_, i) => (
+                                          <RechartCell key={i} fill={["#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#1D4ED8"][i % 6]} />
+                                        ))}
+                                      </RechartPieShape>
+                                      <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                    </RechartPie>
+                                  </RechartResponsive>
+                                ) : (
+                                  <div className="h-[220px] flex items-center justify-center text-xs text-[#94A3B8]">暂无开发工作量</div>
+                                )}
+                              </CardContent>
+                            </Card>
+
+                            <Card className="shadow-sm border-[#E4ECFC]">
+                              <CardHeader className="pb-1">
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-sm font-semibold text-[#8B5CF6]">测试工作量占比</CardTitle>
+                                  <span className="text-xs text-[#94A3B8]">合计 {testAll.toFixed(1)} 人天</span>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="pt-2">
+                                {testAll > 0 ? (
+                                  <RechartResponsive width="100%" height={220}>
+                                    <RechartPie>
+                                      <RechartPieShape data={wlData.filter(d => d.testWorkload > 0).map(d => ({ name: d.month, value: d.testWorkload }))}
+                                        cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
+                                        label={({ name, percent }: PieLabelRenderProps) => { const p = ((Number(percent) || 0) * 100); return p >= 5 ? `${name ?? ""} ${p.toFixed(0)}%` : ""; }} labelLine={false}>
+                                        {wlData.filter(d => d.testWorkload > 0).map((_, i) => (
+                                          <RechartCell key={i} fill={["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE", "#7C3AED", "#6D28D9"][i % 6]} />
+                                        ))}
+                                      </RechartPieShape>
+                                      <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                    </RechartPie>
+                                  </RechartResponsive>
+                                ) : (
+                                  <div className="h-[220px] flex items-center justify-center text-xs text-[#94A3B8]">暂无测试工作量</div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
+                      </div>
+                      );
+                    })()}
 
                     {/* 免测需求对比 — 排除"未参与排期" */}
                     <Card className="shadow-sm border-[#E4ECFC]">
@@ -903,6 +980,8 @@ export function DashboardPage() {
                                   { key: "completed", label: "已完成" },
                                   { key: "pct", label: "完成率" },
                                   { key: "totalWorkload", label: "总工作量" },
+                                  { key: "devWorkload", label: "开发工作量" },
+                                  { key: "testWorkload", label: "测试工作量" },
                                   { key: "noTestCount", label: "免测数" },
                                   { key: "terminatedCount", label: "终止数" },
                                   { key: "milestoneCount", label: "里程碑" },
@@ -930,7 +1009,9 @@ export function DashboardPage() {
                                       <span className="text-[#2563EB] font-medium">{cRate}%</span>
                                     </div>
                                   </td>
-                                  <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.totalWorkload > 0 ? d.totalWorkload : "—"}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.totalWorkload > 0 ? d.totalWorkload.toFixed(1) : "—"}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#2563EB]">{d.devWorkload > 0 ? d.devWorkload.toFixed(1) : "—"}</td>
+                                  <td className="py-2.5 px-3 text-xs text-[#8B5CF6]">{d.testWorkload > 0 ? d.testWorkload.toFixed(1) : "—"}</td>
                                   <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.noTestCount || "—"}</td>
                                   <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.terminatedCount || "—"}</td>
                                   <td className="py-2.5 px-3 text-xs text-[#64748B]">{d.milestoneCount}</td>
@@ -950,11 +1031,13 @@ export function DashboardPage() {
                                     <span className="text-[#2563EB]">{totalAll > 0 ? Math.round(completedAll / totalAll * 100) : 0}%</span>
                                   </div>
                                 </td>
-                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{workloadAll > 0 ? workloadAll : "—"}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{workloadAll > 0 ? workloadAll.toFixed(1) : "—"}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#2563EB]">{chartData.reduce((s, d) => s + d.devWorkload, 0) > 0 ? chartData.reduce((s, d) => s + d.devWorkload, 0).toFixed(1) : "—"}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#8B5CF6]">{chartData.reduce((s, d) => s + d.testWorkload, 0) > 0 ? chartData.reduce((s, d) => s + d.testWorkload, 0).toFixed(1) : "—"}</td>
                                 <td className="py-2.5 px-3 text-xs text-[#64748B]">{noTestAll || "—"}</td>
                                 <td className="py-2.5 px-3 text-xs text-[#64748B]">{terminatedAll || "—"}</td>
-                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{monthDetails.reduce((s, d) => s + d.milestoneCount, 0)}</td>
-                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{monthDetails.reduce((s, d) => s + d.riskCount, 0)}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{chartData.reduce((s, d) => s + d.milestoneCount, 0)}</td>
+                                <td className="py-2.5 px-3 text-xs text-[#64748B]">{chartData.reduce((s, d) => s + d.riskCount, 0)}</td>
                               </tr>
                             </tbody>
                           </table>
@@ -1898,8 +1981,15 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       level: str(f["需求级别"]), project: str(f["所属项目"]), iteration: str(f["迭代"]),
       testDate: str(f["计划提测时间"]), devOwner: str(f["开发负责人"]), testOwner: str(f["测试负责人"]),
       onesId: o.id, onesUrl: o.url, modTime: r.last_modified_time || "", month: str(f["排期月度"]),
-      workload: parseFloat(str(f["工作量"] || f["人天"] || f["故事点"])) || 0,
-      noTest: /免测|无需测试|不测试/i.test(str(f["是否免测"] || f["免测"])),
+      ...(() => {
+        const keys = Object.keys(f);
+        const devKey = keys.find(k => /开发.*实际工作量/.test(k));
+        const testKey = keys.find(k => /测试.*实际工作量/.test(k));
+        const devWl = devKey ? (parseFloat(str(f[devKey])) || 0) : 0;
+        const testWl = testKey ? (parseFloat(str(f[testKey])) || 0) : 0;
+        return { devWorkload: devWl, testWorkload: testWl, workload: devWl + testWl };
+      })(),
+      noTest: str(f["是否免测"]) === "是",
     };
   });
   // 调试：打印前5条的modTime格式
