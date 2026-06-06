@@ -1,0 +1,1103 @@
+=====Input Params=====
+numThread(8),padding(50),maxSideLen(1024),boxScoreThresh(0.500000),boxThresh(0.300000),unClipRatio(1.600000),doAngle(1),mostAngle(1),GPU(-1)
+=====Init Models=====
+--- Init DbNet ---
+--- Init AngleNet ---
+--- Init CrnnNet ---
+Init Models Success!
+=====Start detect=====
+ScaleParam(sw:1351,sh:1051,dw:1120,dh:864,0.829016,0.822074)
+---------- step: dbNet getTextBoxes ----------
+dbNetTime(406.870400ms)
+TextBox[0](+padding)[score(0.747584),[x: 66, y: 60], [x: 174, y: 60], [x: 174, y: 98], [x: 66, y: 98]]
+TextBox[1](+padding)[score(0.845850),[x: 68, y: 97], [x: 156, y: 97], [x: 156, y: 117], [x: 68, y: 117]]
+TextBox[2](+padding)[score(0.677046),[x: 79, y: 141], [x: 161, y: 141], [x: 161, y: 165], [x: 79, y: 165]]
+TextBox[3](+padding)[score(0.714371),[x: 232, y: 141], [x: 314, y: 141], [x: 314, y: 165], [x: 232, y: 165]]
+TextBox[4](+padding)[score(0.822566),[x: 365, y: 142], [x: 459, y: 142], [x: 459, y: 163], [x: 365, y: 163]]
+TextBox[5](+padding)[score(0.720679),[x: 505, y: 142], [x: 572, y: 142], [x: 572, y: 164], [x: 505, y: 164]]
+TextBox[6](+padding)[score(0.762989),[x: 708, y: 142], [x: 792, y: 142], [x: 792, y: 163], [x: 708, y: 163]]
+TextBox[7](+padding)[score(0.731473),[x: 610, y: 197], [x: 641, y: 197], [x: 641, y: 216], [x: 610, y: 216]]
+TextBox[8](+padding)[score(0.682694),[x: 705, y: 195], [x: 739, y: 195], [x: 739, y: 218], [x: 705, y: 218]]
+TextBox[9](+padding)[score(0.740968),[x: 770, y: 195], [x: 814, y: 195], [x: 814, y: 217], [x: 770, y: 217]]
+TextBox[10](+padding)[score(0.701667),[x: 866, y: 195], [x: 899, y: 195], [x: 899, y: 218], [x: 866, y: 218]]
+TextBox[11](+padding)[score(0.717250),[x: 946, y: 197], [x: 978, y: 197], [x: 978, y: 216], [x: 946, y: 216]]
+TextBox[12](+padding)[score(0.785530),[x: 77, y: 197], [x: 136, y: 197], [x: 136, y: 217], [x: 77, y: 217]]
+TextBox[13](+padding)[score(0.811067),[x: 156, y: 197], [x: 213, y: 197], [x: 213, y: 217], [x: 156, y: 217]]
+TextBox[14](+padding)[score(0.826796),[x: 1026, y: 197], [x: 1082, y: 197], [x: 1082, y: 217], [x: 1026, y: 217]]
+TextBox[15](+padding)[score(0.796375),[x: 1123, y: 198], [x: 1153, y: 198], [x: 1153, y: 216], [x: 1123, y: 216]]
+TextBox[16](+padding)[score(0.773760),[x: 705, y: 234], [x: 737, y: 234], [x: 737, y: 257], [x: 705, y: 257]]
+TextBox[17](+padding)[score(0.780055),[x: 867, y: 234], [x: 903, y: 234], [x: 903, y: 257], [x: 867, y: 257]]
+TextBox[18](+padding)[score(0.749696),[x: 77, y: 235], [x: 137, y: 235], [x: 137, y: 256], [x: 77, y: 256]]
+TextBox[19](+padding)[score(0.809633),[x: 617, y: 235], [x: 664, y: 235], [x: 664, y: 257], [x: 617, y: 257]]
+TextBox[20](+padding)[score(0.778102),[x: 946, y: 235], [x: 997, y: 235], [x: 997, y: 257], [x: 946, y: 257]]
+TextBox[21](+padding)[score(0.852542),[x: 1027, y: 235], [x: 1110, y: 235], [x: 1110, y: 256], [x: 1027, y: 256]]
+TextBox[22](+padding)[score(0.853186),[x: 165, y: 237], [x: 562, y: 237], [x: 562, y: 256], [x: 165, y: 256]]
+TextBox[23](+padding)[score(0.796453),[x: 708, y: 273], [x: 737, y: 273], [x: 737, y: 295], [x: 708, y: 295]]
+TextBox[24](+padding)[score(0.749786),[x: 867, y: 272], [x: 903, y: 272], [x: 903, y: 295], [x: 867, y: 295]]
+TextBox[25](+padding)[score(0.696475),[x: 78, y: 273], [x: 138, y: 273], [x: 138, y: 295], [x: 78, y: 295]]
+TextBox[26](+padding)[score(0.779541),[x: 618, y: 273], [x: 664, y: 273], [x: 664, y: 295], [x: 618, y: 295]]
+TextBox[27](+padding)[score(0.758227),[x: 948, y: 273], [x: 997, y: 273], [x: 997, y: 295], [x: 948, y: 295]]
+TextBox[28](+padding)[score(0.835936),[x: 1027, y: 273], [x: 1110, y: 273], [x: 1110, y: 294], [x: 1027, y: 294]]
+TextBox[29](+padding)[score(0.793673),[x: 1123, y: 273], [x: 1159, y: 273], [x: 1159, y: 295], [x: 1123, y: 295]]
+TextBox[30](+padding)[score(0.743745),[x: 164, y: 274], [x: 463, y: 274], [x: 463, y: 295], [x: 164, y: 295]]
+TextBox[31](+padding)[score(0.569121),[x: 774, y: 279], [x: 788, y: 279], [x: 788, y: 290], [x: 774, y: 290]]
+TextBox[32](+padding)[score(0.737208),[x: 708, y: 311], [x: 737, y: 311], [x: 737, y: 333], [x: 708, y: 333]]
+TextBox[33](+padding)[score(0.739757),[x: 867, y: 311], [x: 916, y: 311], [x: 916, y: 333], [x: 867, y: 333]]
+TextBox[34](+padding)[score(0.731927),[x: 948, y: 311], [x: 997, y: 311], [x: 997, y: 333], [x: 948, y: 333]]
+TextBox[35](+padding)[score(0.776577),[x: 1123, y: 312], [x: 1149, y: 312], [x: 1149, y: 332], [x: 1123, y: 332]]
+TextBox[36](+padding)[score(0.830725),[x: 78, y: 312], [x: 137, y: 312], [x: 137, y: 333], [x: 78, y: 333]]
+TextBox[37](+padding)[score(0.734454),[x: 165, y: 312], [x: 469, y: 312], [x: 469, y: 333], [x: 165, y: 333]]
+TextBox[38](+padding)[score(0.769398),[x: 618, y: 312], [x: 664, y: 312], [x: 664, y: 334], [x: 618, y: 334]]
+TextBox[39](+padding)[score(0.847976),[x: 1027, y: 311], [x: 1110, y: 311], [x: 1110, y: 332], [x: 1027, y: 332]]
+TextBox[40](+padding)[score(0.720808),[x: 705, y: 349], [x: 738, y: 349], [x: 738, y: 372], [x: 705, y: 372]]
+TextBox[41](+padding)[score(0.738629),[x: 867, y: 349], [x: 903, y: 349], [x: 903, y: 372], [x: 867, y: 372]]
+TextBox[42](+padding)[score(0.722108),[x: 1123, y: 350], [x: 1150, y: 350], [x: 1150, y: 369], [x: 1123, y: 369]]
+TextBox[43](+padding)[score(0.774757),[x: 78, y: 350], [x: 137, y: 350], [x: 137, y: 371], [x: 78, y: 371]]
+TextBox[44](+padding)[score(0.777476),[x: 618, y: 350], [x: 663, y: 350], [x: 663, y: 372], [x: 618, y: 372]]
+TextBox[45](+padding)[score(0.729580),[x: 948, y: 350], [x: 997, y: 350], [x: 997, y: 372], [x: 948, y: 372]]
+TextBox[46](+padding)[score(0.820475),[x: 1026, y: 350], [x: 1112, y: 350], [x: 1112, y: 371], [x: 1026, y: 371]]
+TextBox[47](+padding)[score(0.835966),[x: 164, y: 351], [x: 598, y: 351], [x: 598, y: 371], [x: 164, y: 371]]
+TextBox[48](+padding)[score(0.702372),[x: 705, y: 386], [x: 738, y: 386], [x: 738, y: 409], [x: 705, y: 409]]
+TextBox[49](+padding)[score(0.698536),[x: 1123, y: 388], [x: 1150, y: 388], [x: 1150, y: 407], [x: 1123, y: 407]]
+TextBox[50](+padding)[score(0.718876),[x: 77, y: 388], [x: 138, y: 388], [x: 138, y: 408], [x: 77, y: 408]]
+TextBox[51](+padding)[score(0.794959),[x: 618, y: 388], [x: 664, y: 388], [x: 664, y: 409], [x: 618, y: 409]]
+TextBox[52](+padding)[score(0.742364),[x: 867, y: 388], [x: 916, y: 388], [x: 916, y: 409], [x: 867, y: 409]]
+TextBox[53](+padding)[score(0.819330),[x: 946, y: 388], [x: 997, y: 388], [x: 997, y: 408], [x: 946, y: 408]]
+TextBox[54](+padding)[score(0.847419),[x: 1027, y: 388], [x: 1112, y: 388], [x: 1112, y: 408], [x: 1027, y: 408]]
+TextBox[55](+padding)[score(0.845805),[x: 164, y: 389], [x: 525, y: 389], [x: 525, y: 408], [x: 164, y: 408]]
+TextBox[56](+padding)[score(0.688781),[x: 705, y: 424], [x: 738, y: 424], [x: 738, y: 447], [x: 705, y: 447]]
+TextBox[57](+padding)[score(0.732535),[x: 617, y: 425], [x: 664, y: 425], [x: 664, y: 447], [x: 617, y: 447]]
+TextBox[58](+padding)[score(0.748349),[x: 867, y: 425], [x: 916, y: 425], [x: 916, y: 447], [x: 867, y: 447]]
+TextBox[59](+padding)[score(0.764079),[x: 946, y: 425], [x: 996, y: 425], [x: 996, y: 447], [x: 946, y: 447]]
+TextBox[60](+padding)[score(0.790535),[x: 1027, y: 425], [x: 1112, y: 425], [x: 1112, y: 446], [x: 1027, y: 446]]
+TextBox[61](+padding)[score(0.733399),[x: 1123, y: 425], [x: 1159, y: 425], [x: 1159, y: 447], [x: 1123, y: 447]]
+TextBox[62](+padding)[score(0.726812),[x: 78, y: 426], [x: 138, y: 426], [x: 138, y: 447], [x: 78, y: 447]]
+TextBox[63](+padding)[score(0.717545),[x: 164, y: 426], [x: 469, y: 426], [x: 469, y: 447], [x: 164, y: 447]]
+TextBox[64](+padding)[score(0.685134),[x: 617, y: 463], [x: 664, y: 463], [x: 664, y: 486], [x: 617, y: 486]]
+TextBox[65](+padding)[score(0.796873),[x: 708, y: 464], [x: 737, y: 464], [x: 737, y: 484], [x: 708, y: 484]]
+TextBox[66](+padding)[score(0.698718),[x: 866, y: 463], [x: 903, y: 463], [x: 903, y: 486], [x: 866, y: 486]]
+TextBox[67](+padding)[score(0.754553),[x: 946, y: 463], [x: 996, y: 463], [x: 996, y: 485], [x: 946, y: 485]]
+TextBox[68](+padding)[score(0.778286),[x: 1124, y: 464], [x: 1150, y: 464], [x: 1150, y: 484], [x: 1124, y: 484]]
+TextBox[69](+padding)[score(0.783503),[x: 78, y: 464], [x: 137, y: 464], [x: 137, y: 485], [x: 78, y: 485]]
+TextBox[70](+padding)[score(0.740405),[x: 165, y: 464], [x: 377, y: 464], [x: 377, y: 485], [x: 165, y: 485]]
+TextBox[71](+padding)[score(0.811294),[x: 1027, y: 464], [x: 1110, y: 464], [x: 1110, y: 485], [x: 1027, y: 485]]
+TextBox[72](+padding)[score(0.745417),[x: 706, y: 501], [x: 738, y: 501], [x: 738, y: 524], [x: 706, y: 524]]
+TextBox[73](+padding)[score(0.751381),[x: 867, y: 501], [x: 916, y: 501], [x: 916, y: 523], [x: 867, y: 523]]
+TextBox[74](+padding)[score(0.706720),[x: 1123, y: 501], [x: 1160, y: 501], [x: 1160, y: 523], [x: 1123, y: 523]]
+TextBox[75](+padding)[score(0.818033),[x: 78, y: 502], [x: 137, y: 502], [x: 137, y: 523], [x: 78, y: 523]]
+TextBox[76](+padding)[score(0.749329),[x: 618, y: 502], [x: 664, y: 502], [x: 664, y: 524], [x: 618, y: 524]]
+TextBox[77](+padding)[score(0.836897),[x: 946, y: 502], [x: 996, y: 502], [x: 996, y: 523], [x: 946, y: 523]]
+TextBox[78](+padding)[score(0.825194),[x: 1026, y: 502], [x: 1113, y: 502], [x: 1113, y: 523], [x: 1026, y: 523]]
+TextBox[79](+padding)[score(0.849062),[x: 165, y: 503], [x: 597, y: 503], [x: 597, y: 523], [x: 165, y: 523]]
+TextBox[80](+padding)[score(0.525945),[x: 774, y: 508], [x: 788, y: 508], [x: 788, y: 518], [x: 774, y: 518]]
+TextBox[81](+padding)[score(0.768685),[x: 706, y: 538], [x: 738, y: 538], [x: 738, y: 561], [x: 706, y: 561]]
+TextBox[82](+padding)[score(0.650115),[x: 1123, y: 538], [x: 1160, y: 538], [x: 1160, y: 561], [x: 1123, y: 561]]
+TextBox[83](+padding)[score(0.764295),[x: 78, y: 540], [x: 137, y: 540], [x: 137, y: 560], [x: 78, y: 560]]
+TextBox[84](+padding)[score(0.775291),[x: 618, y: 540], [x: 663, y: 540], [x: 663, y: 561], [x: 618, y: 561]]
+TextBox[85](+padding)[score(0.806316),[x: 867, y: 540], [x: 916, y: 540], [x: 916, y: 561], [x: 867, y: 561]]
+TextBox[86](+padding)[score(0.755213),[x: 946, y: 540], [x: 996, y: 540], [x: 996, y: 561], [x: 946, y: 561]]
+TextBox[87](+padding)[score(0.844945),[x: 1027, y: 540], [x: 1112, y: 540], [x: 1112, y: 560], [x: 1027, y: 560]]
+TextBox[88](+padding)[score(0.845060),[x: 165, y: 541], [x: 594, y: 541], [x: 594, y: 560], [x: 165, y: 560]]
+TextBox[89](+padding)[score(0.753852),[x: 705, y: 576], [x: 738, y: 576], [x: 738, y: 599], [x: 705, y: 599]]
+TextBox[90](+padding)[score(0.740745),[x: 866, y: 577], [x: 903, y: 577], [x: 903, y: 600], [x: 866, y: 600]]
+TextBox[91](+padding)[score(0.815548),[x: 946, y: 577], [x: 997, y: 577], [x: 997, y: 599], [x: 946, y: 599]]
+TextBox[92](+padding)[score(0.784075),[x: 1027, y: 577], [x: 1113, y: 577], [x: 1113, y: 598], [x: 1027, y: 598]]
+TextBox[93](+padding)[score(0.732557),[x: 1123, y: 577], [x: 1159, y: 577], [x: 1159, y: 599], [x: 1123, y: 599]]
+TextBox[94](+padding)[score(0.736372),[x: 77, y: 579], [x: 138, y: 579], [x: 138, y: 599], [x: 77, y: 599]]
+TextBox[95](+padding)[score(0.675331),[x: 164, y: 579], [x: 593, y: 579], [x: 593, y: 599], [x: 164, y: 599]]
+TextBox[96](+padding)[score(0.752585),[x: 618, y: 579], [x: 663, y: 579], [x: 663, y: 600], [x: 618, y: 600]]
+TextBox[97](+padding)[score(0.591383),[x: 774, y: 582], [x: 790, y: 582], [x: 790, y: 597], [x: 774, y: 597]]
+TextBox[98](+padding)[score(0.758437),[x: 865, y: 615], [x: 901, y: 612], [x: 904, y: 635], [x: 867, y: 639]]
+TextBox[99](+padding)[score(0.715814),[x: 706, y: 615], [x: 738, y: 615], [x: 738, y: 638], [x: 706, y: 638]]
+TextBox[100](+padding)[score(0.762492),[x: 946, y: 615], [x: 996, y: 615], [x: 996, y: 637], [x: 946, y: 637]]
+TextBox[101](+padding)[score(0.752330),[x: 1123, y: 616], [x: 1149, y: 616], [x: 1149, y: 636], [x: 1123, y: 636]]
+TextBox[102](+padding)[score(0.802751),[x: 77, y: 616], [x: 137, y: 616], [x: 137, y: 637], [x: 77, y: 637]]
+TextBox[103](+padding)[score(0.720000),[x: 164, y: 616], [x: 360, y: 616], [x: 360, y: 637], [x: 164, y: 637]]
+TextBox[104](+padding)[score(0.812737),[x: 618, y: 616], [x: 664, y: 616], [x: 664, y: 638], [x: 618, y: 638]]
+TextBox[105](+padding)[score(0.811905),[x: 1027, y: 616], [x: 1112, y: 616], [x: 1112, y: 637], [x: 1027, y: 637]]
+TextBox[106](+padding)[score(0.554363),[x: 773, y: 620], [x: 791, y: 620], [x: 791, y: 634], [x: 773, y: 634]]
+TextBox[107](+padding)[score(0.706436),[x: 865, y: 653], [x: 901, y: 650], [x: 904, y: 674], [x: 867, y: 678]]
+TextBox[108](+padding)[score(0.769726),[x: 706, y: 653], [x: 738, y: 653], [x: 738, y: 676], [x: 706, y: 676]]
+TextBox[109](+padding)[score(0.740633),[x: 1124, y: 654], [x: 1149, y: 654], [x: 1149, y: 673], [x: 1124, y: 673]]
+TextBox[110](+padding)[score(0.769452),[x: 78, y: 654], [x: 138, y: 654], [x: 138, y: 675], [x: 78, y: 675]]
+TextBox[111](+padding)[score(0.793739),[x: 618, y: 654], [x: 664, y: 654], [x: 664, y: 676], [x: 618, y: 676]]
+TextBox[112](+padding)[score(0.739831),[x: 946, y: 654], [x: 996, y: 654], [x: 996, y: 676], [x: 946, y: 676]]
+TextBox[113](+padding)[score(0.837372),[x: 1027, y: 654], [x: 1112, y: 654], [x: 1112, y: 675], [x: 1027, y: 675]]
+TextBox[114](+padding)[score(0.846796),[x: 164, y: 655], [x: 416, y: 655], [x: 416, y: 675], [x: 164, y: 675]]
+TextBox[115](+padding)[score(0.797266),[x: 706, y: 690], [x: 738, y: 690], [x: 738, y: 714], [x: 706, y: 714]]
+TextBox[116](+padding)[score(0.680081),[x: 1121, y: 692], [x: 1149, y: 692], [x: 1149, y: 711], [x: 1121, y: 711]]
+TextBox[117](+padding)[score(0.711167),[x: 77, y: 689], [x: 139, y: 692], [x: 137, y: 714], [x: 76, y: 711]]
+TextBox[118](+padding)[score(0.738161),[x: 164, y: 692], [x: 303, y: 692], [x: 303, y: 712], [x: 164, y: 712]]
+TextBox[119](+padding)[score(0.774590),[x: 618, y: 692], [x: 663, y: 692], [x: 663, y: 714], [x: 618, y: 714]]
+TextBox[120](+padding)[score(0.788147),[x: 867, y: 692], [x: 916, y: 692], [x: 916, y: 714], [x: 867, y: 714]]
+TextBox[121](+padding)[score(0.752283),[x: 946, y: 692], [x: 996, y: 692], [x: 996, y: 714], [x: 946, y: 714]]
+TextBox[122](+padding)[score(0.808077),[x: 1027, y: 692], [x: 1113, y: 692], [x: 1113, y: 712], [x: 1027, y: 712]]
+TextBox[123](+padding)[score(0.790916),[x: 706, y: 728], [x: 738, y: 728], [x: 738, y: 751], [x: 706, y: 751]]
+TextBox[124](+padding)[score(0.701796),[x: 617, y: 729], [x: 663, y: 729], [x: 663, y: 752], [x: 617, y: 752]]
+TextBox[125](+padding)[score(0.839660),[x: 867, y: 729], [x: 916, y: 729], [x: 916, y: 751], [x: 867, y: 751]]
+TextBox[126](+padding)[score(0.802587),[x: 946, y: 729], [x: 997, y: 729], [x: 997, y: 751], [x: 946, y: 751]]
+TextBox[127](+padding)[score(0.688161),[x: 1026, y: 728], [x: 1114, y: 728], [x: 1114, y: 752], [x: 1026, y: 752]]
+TextBox[128](+padding)[score(0.784060),[x: 1123, y: 729], [x: 1159, y: 729], [x: 1159, y: 751], [x: 1123, y: 751]]
+TextBox[129](+padding)[score(0.811545),[x: 78, y: 731], [x: 137, y: 731], [x: 137, y: 751], [x: 78, y: 751]]
+TextBox[130](+padding)[score(0.752329),[x: 165, y: 731], [x: 417, y: 731], [x: 417, y: 751], [x: 165, y: 751]]
+TextBox[131](+padding)[score(0.748181),[x: 618, y: 767], [x: 664, y: 767], [x: 664, y: 790], [x: 618, y: 790]]
+TextBox[132](+padding)[score(0.783301),[x: 706, y: 767], [x: 738, y: 767], [x: 738, y: 790], [x: 706, y: 790]]
+TextBox[133](+padding)[score(0.743464),[x: 1123, y: 768], [x: 1149, y: 768], [x: 1149, y: 788], [x: 1123, y: 788]]
+TextBox[134](+padding)[score(0.788484),[x: 78, y: 768], [x: 138, y: 768], [x: 138, y: 789], [x: 78, y: 789]]
+TextBox[135](+padding)[score(0.711074),[x: 165, y: 768], [x: 531, y: 768], [x: 531, y: 789], [x: 165, y: 789]]
+TextBox[136](+padding)[score(0.727240),[x: 866, y: 768], [x: 916, y: 768], [x: 916, y: 790], [x: 866, y: 790]]
+TextBox[137](+padding)[score(0.774570),[x: 946, y: 768], [x: 996, y: 768], [x: 996, y: 790], [x: 946, y: 790]]
+TextBox[138](+padding)[score(0.839426),[x: 1027, y: 768], [x: 1112, y: 768], [x: 1112, y: 789], [x: 1027, y: 789]]
+TextBox[139](+padding)[score(0.789620),[x: 706, y: 805], [x: 738, y: 805], [x: 738, y: 828], [x: 706, y: 828]]
+TextBox[140](+padding)[score(0.742120),[x: 78, y: 806], [x: 138, y: 806], [x: 138, y: 827], [x: 78, y: 827]]
+TextBox[141](+padding)[score(0.807250),[x: 618, y: 806], [x: 664, y: 806], [x: 664, y: 828], [x: 618, y: 828]]
+TextBox[142](+padding)[score(0.829524),[x: 867, y: 806], [x: 916, y: 806], [x: 916, y: 828], [x: 867, y: 828]]
+TextBox[143](+padding)[score(0.774200),[x: 946, y: 806], [x: 997, y: 806], [x: 997, y: 828], [x: 946, y: 828]]
+TextBox[144](+padding)[score(0.824898),[x: 1027, y: 806], [x: 1112, y: 806], [x: 1112, y: 827], [x: 1027, y: 827]]
+TextBox[145](+padding)[score(0.799362),[x: 1124, y: 807], [x: 1158, y: 807], [x: 1158, y: 825], [x: 1124, y: 825]]
+TextBox[146](+padding)[score(0.836308),[x: 164, y: 807], [x: 463, y: 807], [x: 463, y: 827], [x: 164, y: 827]]
+TextBox[147](+padding)[score(0.653104),[x: 774, y: 811], [x: 790, y: 811], [x: 790, y: 825], [x: 774, y: 825]]
+TextBox[148](+padding)[score(0.766092),[x: 706, y: 842], [x: 738, y: 842], [x: 738, y: 866], [x: 706, y: 866]]
+TextBox[149](+padding)[score(0.745685),[x: 867, y: 842], [x: 903, y: 842], [x: 903, y: 866], [x: 867, y: 866]]
+TextBox[150](+padding)[score(0.701378),[x: 78, y: 844], [x: 138, y: 844], [x: 138, y: 864], [x: 78, y: 864]]
+TextBox[151](+padding)[score(0.727868),[x: 617, y: 844], [x: 664, y: 844], [x: 664, y: 866], [x: 617, y: 866]]
+TextBox[152](+padding)[score(0.754950),[x: 946, y: 844], [x: 996, y: 844], [x: 996, y: 866], [x: 946, y: 866]]
+TextBox[153](+padding)[score(0.841650),[x: 1027, y: 844], [x: 1112, y: 844], [x: 1112, y: 864], [x: 1027, y: 864]]
+TextBox[154](+padding)[score(0.720966),[x: 1123, y: 844], [x: 1159, y: 844], [x: 1159, y: 866], [x: 1123, y: 866]]
+TextBox[155](+padding)[score(0.846589),[x: 165, y: 845], [x: 418, y: 845], [x: 418, y: 864], [x: 165, y: 864]]
+TextBox[156](+padding)[score(0.764898),[x: 706, y: 880], [x: 738, y: 880], [x: 738, y: 903], [x: 706, y: 903]]
+TextBox[157](+padding)[score(0.712756),[x: 76, y: 879], [x: 139, y: 882], [x: 137, y: 904], [x: 75, y: 901]]
+TextBox[158](+padding)[score(0.736553),[x: 617, y: 881], [x: 664, y: 881], [x: 664, y: 903], [x: 617, y: 903]]
+TextBox[159](+padding)[score(0.826916),[x: 867, y: 881], [x: 916, y: 881], [x: 916, y: 903], [x: 867, y: 903]]
+TextBox[160](+padding)[score(0.829710),[x: 946, y: 881], [x: 996, y: 881], [x: 996, y: 903], [x: 946, y: 903]]
+TextBox[161](+padding)[score(0.733344),[x: 1026, y: 880], [x: 1113, y: 880], [x: 1113, y: 905], [x: 1026, y: 905]]
+TextBox[162](+padding)[score(0.786921),[x: 1123, y: 881], [x: 1159, y: 881], [x: 1159, y: 903], [x: 1123, y: 903]]
+TextBox[163](+padding)[score(0.847902),[x: 165, y: 883], [x: 477, y: 883], [x: 477, y: 902], [x: 165, y: 902]]
+TextBox[164](+padding)[score(0.687861),[x: 706, y: 918], [x: 738, y: 918], [x: 738, y: 942], [x: 706, y: 942]]
+TextBox[165](+padding)[score(0.748308),[x: 866, y: 919], [x: 916, y: 919], [x: 916, y: 941], [x: 866, y: 941]]
+TextBox[166](+padding)[score(0.703170),[x: 1123, y: 920], [x: 1149, y: 920], [x: 1149, y: 940], [x: 1123, y: 940]]
+TextBox[167](+padding)[score(0.797948),[x: 77, y: 920], [x: 138, y: 920], [x: 138, y: 941], [x: 77, y: 941]]
+TextBox[168](+padding)[score(0.711743),[x: 164, y: 920], [x: 600, y: 920], [x: 600, y: 941], [x: 164, y: 941]]
+TextBox[169](+padding)[score(0.738383),[x: 617, y: 920], [x: 664, y: 920], [x: 664, y: 942], [x: 617, y: 942]]
+TextBox[170](+padding)[score(0.833128),[x: 948, y: 920], [x: 997, y: 920], [x: 997, y: 941], [x: 948, y: 941]]
+TextBox[171](+padding)[score(0.838128),[x: 1027, y: 919], [x: 1113, y: 919], [x: 1113, y: 940], [x: 1027, y: 940]]
+TextBox[172](+padding)[score(0.527424),[x: 774, y: 925], [x: 788, y: 925], [x: 788, y: 936], [x: 774, y: 936]]
+TextBox[173](+padding)[score(0.755212),[x: 705, y: 957], [x: 738, y: 957], [x: 738, y: 980], [x: 705, y: 980]]
+TextBox[174](+padding)[score(0.810245),[x: 78, y: 958], [x: 137, y: 958], [x: 137, y: 979], [x: 78, y: 979]]
+TextBox[175](+padding)[score(0.781929),[x: 618, y: 958], [x: 664, y: 958], [x: 664, y: 980], [x: 618, y: 980]]
+TextBox[176](+padding)[score(0.816323),[x: 867, y: 958], [x: 916, y: 958], [x: 916, y: 980], [x: 867, y: 980]]
+TextBox[177](+padding)[score(0.808529),[x: 946, y: 958], [x: 996, y: 958], [x: 996, y: 980], [x: 946, y: 980]]
+TextBox[178](+padding)[score(0.835171),[x: 1027, y: 958], [x: 1113, y: 958], [x: 1113, y: 979], [x: 1027, y: 979]]
+TextBox[179](+padding)[score(0.713292),[x: 1123, y: 959], [x: 1149, y: 959], [x: 1149, y: 978], [x: 1123, y: 978]]
+TextBox[180](+padding)[score(0.844942),[x: 164, y: 959], [x: 506, y: 959], [x: 506, y: 979], [x: 164, y: 979]]
+---------- step: drawTextBoxes ----------
+---------- step: angleNet getAngles ----------
+angle[0][index(0), score(0.999966), time(5.177300ms)]
+angle[1][index(0), score(0.999987), time(5.364800ms)]
+angle[2][index(0), score(0.996436), time(5.178500ms)]
+angle[3][index(0), score(0.999151), time(5.693600ms)]
+angle[4][index(0), score(1.000000), time(5.904300ms)]
+angle[5][index(0), score(0.996640), time(7.901600ms)]
+angle[6][index(0), score(0.997418), time(7.783100ms)]
+angle[7][index(0), score(0.514391), time(7.639600ms)]
+angle[8][index(0), score(0.749767), time(8.408600ms)]
+angle[9][index(0), score(0.525615), time(14.676100ms)]
+angle[10][index(0), score(0.594433), time(8.846700ms)]
+angle[11][index(0), score(0.624631), time(9.353300ms)]
+angle[12][index(0), score(0.995767), time(10.142000ms)]
+angle[13][index(0), score(0.848899), time(9.530000ms)]
+angle[14][index(0), score(0.959944), time(9.051800ms)]
+angle[15][index(0), score(0.681305), time(10.331600ms)]
+angle[16][index(0), score(0.653691), time(8.283300ms)]
+angle[17][index(0), score(0.724554), time(5.388400ms)]
+angle[18][index(0), score(1.000000), time(2.312500ms)]
+angle[19][index(0), score(0.553654), time(2.299500ms)]
+angle[20][index(0), score(0.687554), time(2.297800ms)]
+angle[21][index(0), score(1.000000), time(2.319700ms)]
+angle[22][index(0), score(0.995013), time(2.340100ms)]
+angle[23][index(0), score(0.575204), time(2.611800ms)]
+angle[24][index(0), score(0.907555), time(2.369700ms)]
+angle[25][index(0), score(0.999977), time(2.052400ms)]
+angle[26][index(0), score(0.593850), time(2.039400ms)]
+angle[27][index(0), score(0.581625), time(1.980800ms)]
+angle[28][index(0), score(1.000000), time(1.974100ms)]
+angle[29][index(0), score(0.984284), time(1.985400ms)]
+angle[30][index(0), score(0.999860), time(2.677300ms)]
+angle[31][index(0), score(0.556675), time(2.829600ms)]
+angle[32][index(0), score(0.575204), time(2.491900ms)]
+angle[33][index(0), score(0.998963), time(2.367100ms)]
+angle[34][index(0), score(0.581625), time(2.320400ms)]
+angle[35][index(0), score(0.860853), time(2.327300ms)]
+angle[36][index(0), score(1.000000), time(2.328600ms)]
+angle[37][index(0), score(0.995475), time(2.349900ms)]
+angle[38][index(0), score(0.523914), time(2.296100ms)]
+angle[39][index(0), score(1.000000), time(2.319500ms)]
+angle[40][index(0), score(0.753639), time(2.307500ms)]
+angle[41][index(0), score(0.676969), time(2.279400ms)]
+angle[42][index(0), score(0.549219), time(2.298500ms)]
+angle[43][index(0), score(0.999999), time(2.306700ms)]
+angle[44][index(0), score(0.638902), time(2.320100ms)]
+angle[45][index(0), score(0.938924), time(2.311700ms)]
+angle[46][index(0), score(1.000000), time(2.317200ms)]
+angle[47][index(0), score(0.992622), time(2.282400ms)]
+angle[48][index(0), score(0.645756), time(2.303700ms)]
+angle[49][index(0), score(0.770523), time(2.276900ms)]
+angle[50][index(0), score(0.999996), time(2.395600ms)]
+angle[51][index(0), score(0.521848), time(2.332800ms)]
+angle[52][index(0), score(0.999935), time(2.344900ms)]
+angle[53][index(0), score(0.954754), time(2.292500ms)]
+angle[54][index(0), score(1.000000), time(2.258400ms)]
+angle[55][index(0), score(0.996660), time(2.274800ms)]
+angle[56][index(0), score(0.645756), time(2.284900ms)]
+angle[57][index(0), score(0.576138), time(2.301800ms)]
+angle[58][index(0), score(0.930558), time(2.289100ms)]
+angle[59][index(0), score(0.997295), time(2.383600ms)]
+angle[60][index(0), score(1.000000), time(2.291400ms)]
+angle[61][index(0), score(0.852490), time(2.303900ms)]
+angle[62][index(0), score(1.000000), time(2.270800ms)]
+angle[63][index(0), score(0.999346), time(2.296100ms)]
+angle[64][index(0), score(0.751159), time(2.342100ms)]
+angle[65][index(0), score(0.508235), time(2.439900ms)]
+angle[66][index(0), score(0.917340), time(2.530800ms)]
+angle[67][index(0), score(0.997503), time(2.389100ms)]
+angle[68][index(0), score(0.865652), time(2.280100ms)]
+angle[69][index(0), score(1.000000), time(2.273000ms)]
+angle[70][index(0), score(0.999922), time(2.278400ms)]
+angle[71][index(0), score(1.000000), time(2.283800ms)]
+angle[72][index(0), score(0.739653), time(2.293500ms)]
+angle[73][index(0), score(0.930558), time(2.381100ms)]
+angle[74][index(0), score(0.869888), time(2.292600ms)]
+angle[75][index(0), score(0.999652), time(2.277500ms)]
+angle[76][index(0), score(0.523914), time(2.301700ms)]
+angle[77][index(0), score(0.999353), time(2.307400ms)]
+angle[78][index(0), score(1.000000), time(2.288800ms)]
+angle[79][index(0), score(0.790413), time(2.283300ms)]
+angle[80][index(0), score(0.649880), time(2.316600ms)]
+angle[81][index(0), score(0.576004), time(2.307400ms)]
+angle[82][index(0), score(0.834482), time(2.288900ms)]
+angle[83][index(0), score(1.000000), time(2.561400ms)]
+angle[84][index(0), score(0.571419), time(2.740700ms)]
+angle[85][index(0), score(0.918355), time(2.427600ms)]
+angle[86][index(0), score(0.999353), time(2.361400ms)]
+angle[87][index(0), score(1.000000), time(2.679100ms)]
+angle[88][index(0), score(0.644108), time(2.322200ms)]
+angle[89][index(0), score(0.528252), time(2.397200ms)]
+angle[90][index(0), score(0.917340), time(2.850200ms)]
+angle[91][index(0), score(0.990521), time(2.569500ms)]
+angle[92][index(0), score(1.000000), time(2.544900ms)]
+angle[93][index(0), score(0.998807), time(2.072500ms)]
+angle[94][index(0), score(1.000000), time(2.801500ms)]
+angle[95][index(0), score(0.552186), time(2.444600ms)]
+angle[96][index(0), score(0.662148), time(2.421400ms)]
+angle[97][index(0), score(0.612865), time(2.287300ms)]
+angle[98][index(0), score(0.656752), time(2.306400ms)]
+angle[99][index(0), score(0.739653), time(2.257000ms)]
+angle[100][index(0), score(0.997292), time(2.298800ms)]
+angle[101][index(0), score(0.917314), time(2.382000ms)]
+angle[102][index(0), score(1.000000), time(2.714700ms)]
+angle[103][index(0), score(0.999872), time(2.713600ms)]
+angle[104][index(0), score(0.523914), time(2.410300ms)]
+angle[105][index(0), score(1.000000), time(2.300400ms)]
+angle[106][index(0), score(0.732616), time(2.242300ms)]
+angle[107][index(0), score(0.648017), time(3.456300ms)]
+angle[108][index(0), score(0.739653), time(2.945200ms)]
+angle[109][index(0), score(0.613866), time(2.520600ms)]
+angle[110][index(0), score(0.999989), time(2.356900ms)]
+angle[111][index(0), score(0.523914), time(2.316300ms)]
+angle[112][index(0), score(0.998496), time(2.258900ms)]
+angle[113][index(0), score(1.000000), time(2.251700ms)]
+angle[114][index(0), score(0.999996), time(2.794800ms)]
+angle[115][index(0), score(0.624591), time(2.759000ms)]
+angle[116][index(0), score(0.817675), time(2.416000ms)]
+angle[117][index(0), score(0.999764), time(2.301400ms)]
+angle[118][index(0), score(1.000000), time(2.263100ms)]
+angle[119][index(0), score(0.621455), time(2.241900ms)]
+angle[120][index(0), score(0.789386), time(2.229500ms)]
+angle[121][index(0), score(0.998496), time(3.167000ms)]
+angle[122][index(0), score(1.000000), time(2.680500ms)]
+angle[123][index(0), score(0.576004), time(2.432100ms)]
+angle[124][index(0), score(0.892268), time(2.345000ms)]
+angle[125][index(0), score(0.930558), time(2.297500ms)]
+angle[126][index(0), score(0.990144), time(2.290900ms)]
+angle[127][index(0), score(0.999962), time(2.877000ms)]
+angle[128][index(0), score(0.852490), time(2.754600ms)]
+angle[129][index(0), score(0.999870), time(2.511200ms)]
+angle[130][index(0), score(0.999971), time(2.376800ms)]
+angle[131][index(0), score(0.541795), time(2.323400ms)]
+angle[132][index(0), score(0.748135), time(2.418900ms)]
+angle[133][index(0), score(0.902630), time(2.590200ms)]
+angle[134][index(0), score(0.999977), time(2.831200ms)]
+angle[135][index(0), score(0.715105), time(2.439400ms)]
+angle[136][index(0), score(0.996018), time(2.316100ms)]
+angle[137][index(0), score(0.994641), time(2.276300ms)]
+angle[138][index(0), score(1.000000), time(2.253300ms)]
+angle[139][index(0), score(0.748717), time(2.329800ms)]
+angle[140][index(0), score(0.999998), time(2.056400ms)]
+angle[141][index(0), score(0.538111), time(2.712900ms)]
+angle[142][index(0), score(0.971578), time(2.059000ms)]
+angle[143][index(0), score(0.995512), time(1.995900ms)]
+angle[144][index(0), score(1.000000), time(1.962100ms)]
+angle[145][index(0), score(0.999407), time(1.967700ms)]
+angle[146][index(0), score(0.998473), time(1.972000ms)]
+angle[147][index(0), score(0.560290), time(2.597000ms)]
+angle[148][index(0), score(0.624591), time(2.978400ms)]
+angle[149][index(0), score(0.738272), time(2.950800ms)]
+angle[150][index(0), score(0.999997), time(2.551700ms)]
+angle[151][index(0), score(0.514953), time(2.361500ms)]
+angle[152][index(0), score(0.998496), time(2.328600ms)]
+angle[153][index(0), score(1.000000), time(2.810900ms)]
+angle[154][index(0), score(0.617005), time(2.510700ms)]
+angle[155][index(0), score(0.999474), time(3.058000ms)]
+angle[156][index(0), score(0.576004), time(2.671900ms)]
+angle[157][index(0), score(0.999449), time(2.424000ms)]
+angle[158][index(0), score(0.553654), time(2.350400ms)]
+angle[159][index(0), score(0.995351), time(2.381100ms)]
+angle[160][index(0), score(0.997292), time(2.289400ms)]
+angle[161][index(0), score(0.999982), time(2.312200ms)]
+angle[162][index(0), score(0.852490), time(2.388200ms)]
+angle[163][index(0), score(0.997929), time(2.276400ms)]
+angle[164][index(0), score(0.624591), time(2.268800ms)]
+angle[165][index(0), score(0.950518), time(2.404000ms)]
+angle[166][index(0), score(0.860853), time(2.327600ms)]
+angle[167][index(0), score(1.000000), time(2.311600ms)]
+angle[168][index(0), score(0.909497), time(2.974000ms)]
+angle[169][index(0), score(0.514953), time(2.322500ms)]
+angle[170][index(0), score(0.592360), time(2.277900ms)]
+angle[171][index(0), score(1.000000), time(2.406600ms)]
+angle[172][index(0), score(0.556675), time(2.046400ms)]
+angle[173][index(0), score(0.701710), time(1.972700ms)]
+angle[174][index(0), score(1.000000), time(1.973500ms)]
+angle[175][index(0), score(0.530286), time(1.966500ms)]
+angle[176][index(0), score(0.913181), time(2.349100ms)]
+angle[177][index(0), score(0.998496), time(2.027200ms)]
+angle[178][index(0), score(1.000000), time(1.979200ms)]
+angle[179][index(0), score(0.711987), time(2.775000ms)]
+angle[180][index(0), score(0.977727), time(2.620900ms)]
+---------- step: crnnNet getTextLine ----------
+textLine[0](需求列表)
+textScores[0]{0.999873 ,0.999915 ,0.999741 ,0.999941}
+crnnTime[0](15.571300ms)
+textLine[1](共 56 条需求)
+textScores[1]{0.996196 ,0.782246 ,0.999967 ,0.999935 ,0.82511 ,0.999723 ,0.999964 ,0.999845}
+crnnTime[1](38.160400ms)
+textLine[2](全部迭代)
+textScores[2]{0.9973 ,0.999826 ,0.880674 ,0.998645}
+crnnTime[2](16.639900ms)
+textLine[3](全部状态)
+textScores[3]{0.998696 ,0.998715 ,0.999793 ,0.999403}
+crnnTime[3](48.950300ms)
+textLine[4](全部负责人)
+textScores[4]{0.998501 ,0.999892 ,0.997708 ,0.997992 ,0.99993}
+crnnTime[4](23.390600ms)
+textLine[5](Q 搜索...)
+textScores[5]{0.948067 ,0.89738 ,0.999192 ,0.907593 ,0.752069 ,0.856891 ,0.737478}
+crnnTime[5](16.222000ms)
+textLine[6](确认筛选)
+textScores[6]{0.999994 ,0.999807 ,0.999803 ,0.999573}
+crnnTime[6](19.960200ms)
+textLine[7](状态)
+textScores[7]{0.9997 ,0.999933}
+crnnTime[7](12.884400ms)
+textLine[8](级别)
+textScores[8]{0.999111 ,0.999668}
+crnnTime[8](11.814200ms)
+textLine[9](负责人)
+textScores[9]{0.999943 ,0.994261 ,0.999902}
+crnnTime[9](13.371300ms)
+textLine[10](开发)
+textScores[10]{0.999979 ,0.999617}
+crnnTime[10](10.679300ms)
+textLine[11](测试)
+textScores[11]{0.99146 ,0.999519}
+crnnTime[11](13.837600ms)
+textLine[12]( ONES ID)
+textScores[12]{0.560036 ,0.996866 ,0.999514 ,0.999179 ,0.9977 ,0.998123 ,0.994041 ,0.990524}
+crnnTime[12](16.715700ms)
+textLine[13](需求标题)
+textScores[13]{0.999116 ,0.999916 ,0.999827 ,0.993891}
+crnnTime[13](16.490000ms)
+textLine[14](计划提测)
+textScores[14]{0.999757 ,0.999666 ,0.998147 ,0.976812}
+crnnTime[14](17.295600ms)
+textLine[15](工时)
+textScores[15]{0.850851 ,0.980689}
+crnnTime[15](11.520900ms)
+textLine[16](S级)
+textScores[16]{0.99869 ,0.999941}
+crnnTime[16](10.197800ms)
+textLine[17](王帅)
+textScores[17]{0.998616 ,0.998217}
+crnnTime[17](11.095500ms)
+textLine[18](2299054)
+textScores[18]{0.999921 ,0.999956 ,0.999912 ,0.999542 ,0.998042 ,0.999898 ,0.999901}
+crnnTime[18](16.362400ms)
+textLine[19](已发布)
+textScores[19]{0.999312 ,0.999914 ,0.999864}
+crnnTime[19](12.498100ms)
+textLine[20](肖诗虎)
+textScores[20]{0.995458 ,0.998433 ,0.99949}
+crnnTime[20](15.832000ms)
+textLine[21](2026/03/23)
+textScores[21]{0.999974 ,0.999946 ,0.99997 ,0.999979 ,0.999942 ,0.999931 ,0.999895 ,0.999777 ,0.999941 ,0.999886}
+crnnTime[21](21.628000ms)
+textLine[22](【PC文字】－【WPS政务】-智能公文-团队文档/知识库组件更新)
+textScores[22]{0.960078 ,0.999338 ,0.999855 ,0.999793 ,0.998696 ,0.993553 ,0.927509 ,0.893718 ,0.999606 ,0.999652 ,0.999686 ,0.999389 ,0.998436 ,0.9929 ,0.994699 ,0.999147 ,0.999642 ,0.999646 ,0.999889 ,0.999422 ,0.99782 ,0.999871 ,0.999843 ,0.990821 ,0.997945 ,0.999847 ,0.999881 ,0.999641 ,0.999565 ,0.999486 ,0.999896 ,0.999236}
+crnnTime[22](76.449500ms)
+textLine[23](S级)
+textScores[23]{0.995794 ,0.999788}
+crnnTime[23](10.471700ms)
+textLine[24](昊哲)
+textScores[24]{0.566218 ,0.985758}
+crnnTime[24](10.778000ms)
+textLine[25](2299056)
+textScores[25]{0.99993 ,0.999945 ,0.999946 ,0.999905 ,0.999222 ,0.999928 ,0.999854}
+crnnTime[25](17.128700ms)
+textLine[26](已发布)
+textScores[26]{0.999372 ,0.999663 ,0.999905}
+crnnTime[26](14.818000ms)
+textLine[27](肖诗虎)
+textScores[27]{0.995868 ,0.998545 ,0.999485}
+crnnTime[27](23.746800ms)
+textLine[28](2026/04/27)
+textScores[28]{0.999967 ,0.999938 ,0.999966 ,0.999963 ,0.999936 ,0.999953 ,0.999837 ,0.999909 ,0.99991 ,0.999794}
+crnnTime[28](20.892300ms)
+textLine[29](25.0)
+textScores[29]{0.999943 ,0.999971 ,0.996186 ,0.999133}
+crnnTime[29](11.384200ms)
+textLine[30](【PC文字】－【WPS 政务】-智能公文-数据埋点)
+textScores[30]{0.949595 ,0.999414 ,0.999799 ,0.999689 ,0.998531 ,0.985579 ,0.871087 ,0.84883 ,0.997297 ,0.999604 ,0.999707 ,0.648587 ,0.999896 ,0.999123 ,0.991964 ,0.988058 ,0.998472 ,0.999779 ,0.999844 ,0.999794 ,0.999434 ,0.999846 ,0.999218 ,0.995006 ,0.999979}
+crnnTime[30](56.977600ms)
+textLine[31]()
+textScores[31]{}
+crnnTime[31](9.851600ms)
+textLine[32](S级)
+textScores[32]{0.995794 ,0.999788}
+crnnTime[32](9.447900ms)
+textLine[33](张阳阳)
+textScores[33]{0.999424 ,0.970054 ,0.994905}
+crnnTime[33](12.033700ms)
+textLine[34](肖诗虎)
+textScores[34]{0.995868 ,0.998545 ,0.999485}
+crnnTime[34](14.484900ms)
+textLine[35](5.0)
+textScores[35]{0.999797 ,0.996296 ,0.999681}
+crnnTime[35](11.172900ms)
+textLine[36](2299064)
+textScores[36]{0.999954 ,0.999834 ,0.999975 ,0.999748 ,0.986488 ,0.999947 ,0.999748}
+crnnTime[36](16.486700ms)
+textLine[37](【web文字】－【WPS 政务】-智能公文-数据埋点)
+textScores[37]{0.808815 ,0.999197 ,0.999839 ,0.999794 ,0.999698 ,0.999247 ,0.996197 ,0.789821 ,0.832415 ,0.997809 ,0.996855 ,0.998887 ,0.763266 ,0.999227 ,0.997664 ,0.994435 ,0.992582 ,0.994024 ,0.999677 ,0.999571 ,0.999876 ,0.999305 ,0.999918 ,0.999458 ,0.99545 ,0.999972}
+crnnTime[37](58.271400ms)
+textLine[38](已发布)
+textScores[38]{0.998267 ,0.999527 ,0.999874}
+crnnTime[38](13.482600ms)
+textLine[39](2026/04/27)
+textScores[39]{0.999967 ,0.999938 ,0.999966 ,0.999964 ,0.999936 ,0.999956 ,0.99984 ,0.999912 ,0.99991 ,0.999789}
+crnnTime[39](20.281600ms)
+textLine[40](B级)
+textScores[40]{0.998485 ,0.997822}
+crnnTime[40](11.711900ms)
+textLine[41](王帅)
+textScores[41]{0.998723 ,0.996642}
+crnnTime[41](10.644300ms)
+textLine[42](5.0)
+textScores[42]{0.999281 ,0.986104 ,0.999624}
+crnnTime[42](10.817100ms)
+textLine[43](2299395)
+textScores[43]{0.9999 ,0.999744 ,0.999938 ,0.999514 ,0.999675 ,0.999781 ,0.999005}
+crnnTime[43](19.729200ms)
+textLine[44](已发布)
+textScores[44]{0.998788 ,0.999388 ,0.999904}
+crnnTime[44](14.440900ms)
+textLine[45](肖诗虎)
+textScores[45]{0.990911 ,0.998764 ,0.999295}
+crnnTime[45](15.218100ms)
+textLine[46](2026/03/27)
+textScores[46]{0.999963 ,0.999941 ,0.999964 ,0.99996 ,0.99997 ,0.999961 ,0.999937 ,0.999871 ,0.999882 ,0.999896}
+crnnTime[46](20.764100ms)
+textLine[47](【客户端】【项目反馈】【公文模板】导入附件模板默认会刷新一遍..)
+textScores[47]{0.993641 ,0.994125 ,0.99889 ,0.999926 ,0.990191 ,0.991699 ,0.999003 ,0.999679 ,0.999927 ,0.995947 ,0.994063 ,0.992 ,0.999293 ,0.999298 ,0.996763 ,0.995776 ,0.990238 ,0.999214 ,0.999935 ,0.999841 ,0.99894 ,0.998191 ,0.997645 ,0.999973 ,0.99933 ,0.99952 ,0.994151 ,0.996564 ,0.992758 ,0.99969 ,0.813038 ,0.762814}
+crnnTime[47](74.162400ms)
+textLine[48](B级)
+textScores[48]{0.998809 ,0.998064}
+crnnTime[48](9.146200ms)
+textLine[49](3.0)
+textScores[49]{0.999616 ,0.996039 ,0.999433}
+crnnTime[49](10.850500ms)
+textLine[50](2315503)
+textScores[50]{0.999846 ,0.999911 ,0.99987 ,0.999954 ,0.999774 ,0.997181 ,0.999756}
+crnnTime[50](17.649600ms)
+textLine[51](已发布)
+textScores[51]{0.998385 ,0.999828 ,0.999697}
+crnnTime[51](15.421400ms)
+textLine[52](张阳阳)
+textScores[52]{0.993196 ,0.984345 ,0.96801}
+crnnTime[52](16.223600ms)
+textLine[53](别业创)
+textScores[53]{0.999902 ,0.999974 ,0.999886}
+crnnTime[53](15.422100ms)
+textLine[54](2026/03/23)
+textScores[54]{0.999968 ,0.999943 ,0.999964 ,0.999963 ,0.999968 ,0.999941 ,0.999918 ,0.999733 ,0.999938 ,0.99988}
+crnnTime[54](21.586200ms)
+textLine[55](【PC文字】【智能公文】写作素材-选择文件数量增加至20)
+textScores[55]{0.973097 ,0.999627 ,0.999204 ,0.999761 ,0.999241 ,0.992863 ,0.989011 ,0.995367 ,0.999468 ,0.999803 ,0.999681 ,0.990911 ,0.999659 ,0.999912 ,0.997814 ,0.998812 ,0.983279 ,0.999857 ,0.928967 ,0.999859 ,0.999398 ,0.999903 ,0.998349 ,0.999868 ,0.999265 ,0.99829 ,0.999686 ,0.999703}
+crnnTime[55](63.122100ms)
+textLine[56](B级)
+textScores[56]{0.998809 ,0.998064}
+crnnTime[56](12.198400ms)
+textLine[57](已发布)
+textScores[57]{0.99921 ,0.999903 ,0.999855}
+crnnTime[57](14.043300ms)
+textLine[58](温少邦)
+textScores[58]{0.998882 ,0.999762 ,0.998044}
+crnnTime[58](15.197200ms)
+textLine[59](别业创)
+textScores[59]{0.999956 ,0.999913 ,0.999863}
+crnnTime[59](14.875600ms)
+textLine[60](2026/05/06)
+textScores[60]{0.999968 ,0.999949 ,0.999974 ,0.999975 ,0.999886 ,0.999961 ,0.999919 ,0.999835 ,0.999959 ,0.999947}
+crnnTime[60](22.265900ms)
+textLine[61](10.0)
+textScores[61]{0.999788 ,0.999812 ,0.997741 ,0.999358}
+crnnTime[61](12.140500ms)
+textLine[62](2320058)
+textScores[62]{0.99993 ,0.999933 ,0.999867 ,0.993207 ,0.993284 ,0.999911 ,0.99989}
+crnnTime[62](18.058200ms)
+textLine[63](【系统后台】-导入记录-部分文件导入失败后处理)
+textScores[63]{0.977443 ,0.999777 ,0.992548 ,0.999805 ,0.999414 ,0.988774 ,0.933285 ,0.999727 ,0.999646 ,0.999866 ,0.999741 ,0.995709 ,0.999325 ,0.997795 ,0.999727 ,0.999501 ,0.999751 ,0.999267 ,0.999082 ,0.999689 ,0.999392 ,0.999904 ,0.999972}
+crnnTime[63](56.742800ms)
+textLine[64](开发中)
+textScores[64]{0.999967 ,0.999893 ,0.999538}
+crnnTime[64](14.324000ms)
+textLine[65](B级)
+textScores[65]{0.999189 ,0.997754}
+crnnTime[65](11.709700ms)
+textLine[66](张新)
+textScores[66]{0.999966 ,0.998119}
+crnnTime[66](12.501900ms)
+textLine[67](别业创)
+textScores[67]{0.999958 ,0.999909 ,0.999844}
+crnnTime[67](14.469100ms)
+textLine[68](5.0)
+textScores[68]{0.99972 ,0.995507 ,0.999725}
+crnnTime[68](10.756400ms)
+textLine[69](2320370)
+textScores[69]{0.999929 ,0.999918 ,0.999784 ,0.975554 ,0.999906 ,0.999361 ,0.954651}
+crnnTime[69](15.900200ms)
+textLine[70](【技术需求】政务AI接入DAO单侧)
+textScores[70]{0.98114 ,0.998793 ,0.999534 ,0.999942 ,0.999959 ,0.992174 ,0.999262 ,0.999392 ,0.999663 ,0.860718 ,0.999966 ,0.999947 ,0.999893 ,0.999619 ,0.997384 ,0.999995 ,0.979666}
+crnnTime[70](42.010100ms)
+textLine[71](2026/04/01)
+textScores[71]{0.999958 ,0.999939 ,0.999973 ,0.999963 ,0.999862 ,0.999957 ,0.999875 ,0.999855 ,0.999928 ,0.999936}
+crnnTime[71](19.747500ms)
+textLine[72](B级)
+textScores[72]{0.997128 ,0.999777}
+crnnTime[72](10.939600ms)
+textLine[73](温少邦)
+textScores[73]{0.998882 ,0.999762 ,0.998044}
+crnnTime[73](15.271700ms)
+textLine[74](10.0)
+textScores[74]{0.999811 ,0.999819 ,0.998048 ,0.999254}
+crnnTime[74](10.636800ms)
+textLine[75](2328283)
+textScores[75]{0.999944 ,0.999919 ,0.999846 ,0.999865 ,0.999943 ,0.999923 ,0.999929}
+crnnTime[75](15.851600ms)
+textLine[76](已发布)
+textScores[76]{0.998267 ,0.999527 ,0.999874}
+crnnTime[76](14.979700ms)
+textLine[77](别业创)
+textScores[77]{0.999827 ,0.999919 ,0.999948}
+crnnTime[77](14.537600ms)
+textLine[78](2026/05/06)
+textScores[78]{0.999982 ,0.999952 ,0.999978 ,0.999968 ,0.999964 ,0.999951 ,0.999959 ,0.999859 ,0.999951 ,0.999952}
+crnnTime[78](22.541100ms)
+textLine[79](【缺陷转需求】【v4.2】【系统后台】【导入记录】导入过程中不支..)
+textScores[79]{0.991157 ,0.999795 ,0.999204 ,0.999868 ,0.999916 ,0.999967 ,0.985989 ,0.980767 ,0.907033 ,0.999783 ,0.999737 ,0.999636 ,0.994661 ,0.993914 ,0.999429 ,0.994787 ,0.99988 ,0.998189 ,0.989614 ,0.986085 ,0.995777 ,0.999935 ,0.999858 ,0.998437 ,0.922395 ,0.999481 ,0.999926 ,0.999979 ,0.999665 ,0.999633 ,0.999936 ,0.999628 ,0.468016 ,0.594453}
+crnnTime[79](72.860600ms)
+textLine[80]()
+textScores[80]{}
+crnnTime[80](11.606600ms)
+textLine[81](B级)
+textScores[81]{0.998423 ,0.999697}
+crnnTime[81](11.413000ms)
+textLine[82](10.0)
+textScores[82]{0.999696 ,0.999842 ,0.996217 ,0.999012}
+crnnTime[82](12.057300ms)
+textLine[83](2329156)
+textScores[83]{0.999852 ,0.999875 ,0.999903 ,0.99986 ,0.999854 ,0.99994 ,0.99997}
+crnnTime[83](16.303500ms)
+textLine[84](已发布)
+textScores[84]{0.998811 ,0.999841 ,0.999801}
+crnnTime[84](14.778200ms)
+textLine[85](吴方瑞)
+textScores[85]{0.883483 ,0.999915 ,0.99991}
+crnnTime[85](15.091300ms)
+textLine[86](别业创)
+textScores[86]{0.999827 ,0.999919 ,0.999948}
+crnnTime[86](15.034500ms)
+textLine[87](2026/04/29)
+textScores[87]{0.999959 ,0.999933 ,0.999955 ,0.99995 ,0.999961 ,0.999932 ,0.999868 ,0.999804 ,0.999922 ,0.999908}
+crnnTime[87](22.967900ms)
+textLine[88](【缺陷转需求】【v4.3】【智能问答】上传中状态没有进度条&云文.)
+textScores[88]{0.987844 ,0.999767 ,0.998696 ,0.999952 ,0.999899 ,0.999775 ,0.987522 ,0.993723 ,0.753064 ,0.999676 ,0.997533 ,0.999301 ,0.989719 ,0.986713 ,0.99569 ,0.99797 ,0.999265 ,0.99565 ,0.97762 ,0.999281 ,0.999524 ,0.999746 ,0.999321 ,0.999649 ,0.999811 ,0.999955 ,0.998882 ,0.999518 ,0.994998 ,0.864973 ,0.998295 ,0.999091 ,0.474335}
+crnnTime[88](82.802100ms)
+textLine[89](B级)
+textScores[89]{0.999386 ,0.998092}
+crnnTime[89](11.896000ms)
+textLine[90](张新)
+textScores[90]{0.999966 ,0.998119}
+crnnTime[90](12.215900ms)
+textLine[91](别业创)
+textScores[91]{0.999948 ,0.999933 ,0.999802}
+crnnTime[91](15.170900ms)
+textLine[92](2026/05/06)
+textScores[92]{0.999903 ,0.999941 ,0.999971 ,0.99997 ,0.999854 ,0.999959 ,0.999915 ,0.999796 ,0.999956 ,0.999944}
+crnnTime[92](21.293200ms)
+textLine[93](15.0)
+textScores[93]{0.999903 ,0.999946 ,0.998446 ,0.999714}
+crnnTime[93](12.265300ms)
+textLine[94](2329345)
+textScores[94]{0.999759 ,0.999855 ,0.999876 ,0.999721 ,0.999852 ,0.999836 ,0.999549}
+crnnTime[94](15.765300ms)
+textLine[95](【缺陷转需求】【V4.3】【智能问答】当写作类型问题触发选择卡片..)
+textScores[95]{0.992104 ,0.999697 ,0.999775 ,0.999844 ,0.999884 ,0.99991 ,0.992453 ,0.978543 ,0.576695 ,0.999764 ,0.999022 ,0.999392 ,0.990165 ,0.985765 ,0.986598 ,0.999183 ,0.999393 ,0.997636 ,0.965187 ,0.999977 ,0.999838 ,0.999594 ,0.998897 ,0.999781 ,0.999207 ,0.999646 ,0.998131 ,0.999719 ,0.999815 ,0.986799 ,0.999934 ,0.999565 ,0.784994 ,0.889428}
+crnnTime[95](75.947800ms)
+textLine[96](已发布)
+textScores[96]{0.998891 ,0.999863 ,0.999637}
+crnnTime[96](14.029900ms)
+textLine[97](—)
+textScores[97]{0.489459}
+crnnTime[97](9.386400ms)
+textLine[98](温F)
+textScores[98]{0.159334 ,0.328291}
+crnnTime[98](12.459500ms)
+textLine[99](B级)
+textScores[99]{0.997128 ,0.999777}
+crnnTime[99](11.825000ms)
+textLine[100](别业创)
+textScores[100]{0.999956 ,0.999913 ,0.999856}
+crnnTime[100](14.795100ms)
+textLine[101](3.0)
+textScores[101]{0.999843 ,0.998678 ,0.999441}
+crnnTime[101](9.854100ms)
+textLine[102](2331601)
+textScores[102]{0.999822 ,0.999896 ,0.999806 ,0.999815 ,0.999904 ,0.998618 ,0.999685}
+crnnTime[102](16.220900ms)
+textLine[103](【智能查重】公文特征正则过滤)
+textScores[103]{0.989202 ,0.992843 ,0.999775 ,0.999286 ,0.999474 ,0.984616 ,0.999571 ,0.999772 ,0.999774 ,0.999966 ,0.999749 ,0.999894 ,0.999969 ,0.999171}
+crnnTime[103](44.694100ms)
+textLine[104](已发布)
+textScores[104]{0.998267 ,0.999527 ,0.999874}
+crnnTime[104](14.086000ms)
+textLine[105](2026/05/06)
+textScores[105]{0.999974 ,0.999953 ,0.999976 ,0.999978 ,0.999899 ,0.999961 ,0.999923 ,0.999872 ,0.999965 ,0.999951}
+crnnTime[105](21.094700ms)
+textLine[106](|)
+textScores[106]{0.279376}
+crnnTime[106](9.488100ms)
+textLine[107](温严)
+textScores[107]{0.990444 ,0.981252}
+crnnTime[107](10.688800ms)
+textLine[108](B级)
+textScores[108]{0.997128 ,0.999777}
+crnnTime[108](11.090600ms)
+textLine[109](3.0)
+textScores[109]{0.999691 ,0.992737 ,0.9984}
+crnnTime[109](10.164700ms)
+textLine[110](2331608)
+textScores[110]{0.999915 ,0.999967 ,0.999862 ,0.999766 ,0.999929 ,0.997952 ,0.99986}
+crnnTime[110](15.351700ms)
+textLine[111](已发布)
+textScores[111]{0.998267 ,0.999527 ,0.999874}
+crnnTime[111](14.502600ms)
+textLine[112](别业创)
+textScores[112]{0.999934 ,0.999888 ,0.999867}
+crnnTime[112](13.535400ms)
+textLine[113](2026/05/06)
+textScores[113]{0.999974 ,0.999953 ,0.999976 ,0.999978 ,0.999899 ,0.999961 ,0.999923 ,0.999872 ,0.999965 ,0.999951}
+crnnTime[113](22.822100ms)
+textLine[114](【智能查重】重复率计算加入语义相似度)
+textScores[114]{0.991105 ,0.983805 ,0.999793 ,0.999274 ,0.99864 ,0.976991 ,0.999435 ,0.999791 ,0.999843 ,0.999824 ,0.999995 ,0.999462 ,0.999871 ,0.998075 ,0.999641 ,0.988586 ,0.999771 ,0.999893}
+crnnTime[114](48.833200ms)
+textLine[115](B级)
+textScores[115]{0.994433 ,0.999432}
+crnnTime[115](11.159200ms)
+textLine[116](3.0)
+textScores[116]{0.99979 ,0.999015 ,0.999557}
+crnnTime[116](11.283800ms)
+textLine[117](2331806)
+textScores[117]{0.999495 ,0.999684 ,0.99967 ,0.999576 ,0.999787 ,0.985559 ,0.999431}
+crnnTime[117](15.835100ms)
+textLine[118](【智能查重】交互优化)
+textScores[118]{0.982794 ,0.994327 ,0.999731 ,0.998216 ,0.999424 ,0.943022 ,0.999553 ,0.999428 ,0.999746 ,0.999173}
+crnnTime[118](32.115900ms)
+textLine[119](已发布)
+textScores[119]{0.998805 ,0.999397 ,0.999902}
+crnnTime[119](13.673600ms)
+textLine[120](牟利平)
+textScores[120]{0.999992 ,0.99988 ,0.99972}
+crnnTime[120](21.747900ms)
+textLine[121](别业创)
+textScores[121]{0.999934 ,0.999888 ,0.999867}
+crnnTime[121](16.717200ms)
+textLine[122](2026/04/28)
+textScores[122]{0.999965 ,0.999949 ,0.999969 ,0.999958 ,0.999963 ,0.999942 ,0.999887 ,0.999759 ,0.999929 ,0.999904}
+crnnTime[122](25.423200ms)
+textLine[123](B级)
+textScores[123]{0.998423 ,0.999697}
+crnnTime[123](11.708200ms)
+textLine[124](开发中)
+textScores[124]{0.999965 ,0.999838 ,0.999393}
+crnnTime[124](13.274700ms)
+textLine[125](温少邦)
+textScores[125]{0.998882 ,0.999762 ,0.998044}
+crnnTime[125](14.805500ms)
+textLine[126](别业创)
+textScores[126]{0.999944 ,0.99993 ,0.99984}
+crnnTime[126](14.558600ms)
+textLine[127](2026/06/08)
+textScores[127]{0.999974 ,0.999977 ,0.999978 ,0.999955 ,0.999951 ,0.999983 ,0.999972 ,0.999932 ,0.999974 ,0.999979}
+crnnTime[127](20.601100ms)
+textLine[128](10.0)
+textScores[128]{0.999788 ,0.999812 ,0.997741 ,0.999358}
+crnnTime[128](12.770900ms)
+textLine[129](2332797)
+textScores[129]{0.999764 ,0.999862 ,0.999796 ,0.999738 ,0.999911 ,0.999802 ,0.99973}
+crnnTime[129](16.641500ms)
+textLine[130](【WPS政务】－【政务资源库】-数据优化)
+textScores[130]{0.953205 ,0.997753 ,0.99968 ,0.999705 ,0.995876 ,0.999092 ,0.990359 ,0.764689 ,0.974444 ,0.999689 ,0.999735 ,0.999123 ,0.99996 ,0.998809 ,0.971118 ,0.992781 ,0.999923 ,0.999576 ,0.999782 ,0.999757}
+crnnTime[130](55.033300ms)
+textLine[131](已发布)
+textScores[131]{0.999038 ,0.999756 ,0.999919}
+crnnTime[131](13.502600ms)
+textLine[132](B级)
+textScores[132]{0.998566 ,0.999863}
+crnnTime[132](9.979600ms)
+textLine[133](2.0)
+textScores[133]{0.999866 ,0.998335 ,0.999466}
+crnnTime[133](11.312100ms)
+textLine[134](2332822)
+textScores[134]{0.999885 ,0.99994 ,0.999857 ,0.999818 ,0.999774 ,0.999914 ,0.999892}
+crnnTime[134](15.439400ms)
+textLine[135](【PC】【前端】【智能公文】基于素材的标题成文前端需求)
+textScores[135]{0.968808 ,0.999448 ,0.998284 ,0.970195 ,0.996799 ,0.999913 ,0.999812 ,0.992373 ,0.993693 ,0.99642 ,0.999331 ,0.999604 ,0.999546 ,0.942028 ,0.980467 ,0.999833 ,0.994855 ,0.998832 ,0.99979 ,0.999976 ,0.999521 ,0.999039 ,0.999683 ,0.999893 ,0.999869 ,0.999931 ,0.999968}
+crnnTime[135](67.279600ms)
+textLine[136](张阳阳)
+textScores[136]{0.997465 ,0.995489 ,0.985763}
+crnnTime[136](16.046600ms)
+textLine[137](刘文泉)
+textScores[137]{0.99998 ,0.999661 ,0.999924}
+crnnTime[137](15.336400ms)
+textLine[138](2026/04/02)
+textScores[138]{0.999974 ,0.99994 ,0.99997 ,0.999965 ,0.999873 ,0.999939 ,0.999913 ,0.999915 ,0.999928 ,0.999961}
+crnnTime[138](21.565200ms)
+textLine[139](B级)
+textScores[139]{0.998357 ,0.999867}
+crnnTime[139](10.570600ms)
+textLine[140](2338209)
+textScores[140]{0.999933 ,0.999971 ,0.999894 ,0.999771 ,0.999917 ,0.978574 ,0.999762}
+crnnTime[140](16.223700ms)
+textLine[141](已发布)
+textScores[141]{0.998625 ,0.999597 ,0.999854}
+crnnTime[141](14.260200ms)
+textLine[142](吴方瑞)
+textScores[142]{0.797386 ,0.999643 ,0.999973}
+crnnTime[142](13.675600ms)
+textLine[143](别业创)
+textScores[143]{0.999907 ,0.999883 ,0.999767}
+crnnTime[143](15.196100ms)
+textLine[144](2026/04/29)
+textScores[144]{0.999967 ,0.999937 ,0.999966 ,0.999969 ,0.99992 ,0.999932 ,0.999894 ,0.999721 ,0.999944 ,0.999868}
+crnnTime[144](26.649400ms)
+textLine[145](10.0)
+textScores[145]{0.999467 ,0.999612 ,0.994188 ,0.999579}
+crnnTime[145](12.830800ms)
+textLine[146](【WPS政务】-支持修改【logo名称及主题介绍】)
+textScores[146]{0.916082 ,0.999449 ,0.995306 ,0.99743 ,0.998432 ,0.998177 ,0.988878 ,0.982304 ,0.999969 ,0.998547 ,0.999655 ,0.999722 ,0.987342 ,0.939096 ,0.999016 ,0.998522 ,0.997054 ,0.998586 ,0.999911 ,0.999976 ,0.999957 ,0.999936 ,0.998109 ,0.999855 ,0.978548}
+crnnTime[146](56.795500ms)
+textLine[147]()
+textScores[147]{}
+crnnTime[147](9.473100ms)
+textLine[148](B级)
+textScores[148]{0.994433 ,0.999432}
+crnnTime[148](10.564300ms)
+textLine[149](冯松)
+textScores[149]{0.999998 ,0.999954}
+crnnTime[149](11.103600ms)
+textLine[150](2339489)
+textScores[150]{0.999866 ,0.999899 ,0.99983 ,0.999838 ,0.999834 ,0.999732 ,0.999742}
+crnnTime[150](16.507500ms)
+textLine[151](已发布)
+textScores[151]{0.998455 ,0.999908 ,0.999823}
+crnnTime[151](15.089000ms)
+textLine[152](别业创)
+textScores[152]{0.999934 ,0.999888 ,0.999867}
+crnnTime[152](16.944300ms)
+textLine[153](2026/04/30)
+textScores[153]{0.999959 ,0.999936 ,0.99995 ,0.999944 ,0.999949 ,0.999931 ,0.999884 ,0.999848 ,0.999793 ,0.999937}
+crnnTime[153](21.524800ms)
+textLine[154](10.0)
+textScores[154]{0.999825 ,0.999806 ,0.998085 ,0.999581}
+crnnTime[154](13.163800ms)
+textLine[155](【WPS政务】－【政务资源库】-搜索优化)
+textScores[155]{0.920977 ,0.999711 ,0.999725 ,0.999847 ,0.999751 ,0.99916 ,0.99108 ,0.826101 ,0.970466 ,0.99938 ,0.999765 ,0.997475 ,0.999965 ,0.995818 ,0.984512 ,0.964967 ,0.999593 ,0.999631 ,0.999817 ,0.999366}
+crnnTime[155](52.681100ms)
+textLine[156](B级)
+textScores[156]{0.998423 ,0.999697}
+crnnTime[156](11.238300ms)
+textLine[157](2340420)
+textScores[157]{0.999796 ,0.999852 ,0.999851 ,0.95331 ,0.999796 ,0.999883 ,0.789652}
+crnnTime[157](16.589200ms)
+textLine[158](已发布)
+textScores[158]{0.999312 ,0.999914 ,0.999864}
+crnnTime[158](14.642200ms)
+textLine[159](闫栓柱)
+textScores[159]{0.999292 ,0.981309 ,0.99915}
+crnnTime[159](14.826900ms)
+textLine[160](别业创)
+textScores[160]{0.999956 ,0.999913 ,0.999856}
+crnnTime[160](14.763800ms)
+textLine[161](2026/05/06)
+textScores[161]{0.999986 ,0.99997 ,0.999993 ,0.999983 ,0.999962 ,0.999982 ,0.997482 ,0.99984 ,0.999982 ,0.999981}
+crnnTime[161](18.706500ms)
+textLine[162](10.0)
+textScores[162]{0.999788 ,0.999812 ,0.997741 ,0.999358}
+crnnTime[162](13.915000ms)
+textLine[163](【WPS政务】首页-在WPS365政务版内默认带出)
+textScores[163]{0.877852 ,0.999697 ,0.999358 ,0.99981 ,0.99654 ,0.998885 ,0.991603 ,0.999979 ,0.997571 ,0.999362 ,0.999863 ,0.999506 ,0.999366 ,0.999408 ,0.999745 ,0.999791 ,0.999858 ,0.999419 ,0.999517 ,0.9998 ,0.999485 ,0.999939 ,0.999678 ,0.998783 ,0.999989}
+crnnTime[163](60.943700ms)
+textLine[164](B级)
+textScores[164]{0.994433 ,0.999432}
+crnnTime[164](10.751700ms)
+textLine[165](张玉坤)
+textScores[165]{0.999947 ,0.999577 ,0.997854}
+crnnTime[165](15.815200ms)
+textLine[166](5.0)
+textScores[166]{0.999797 ,0.996296 ,0.999681}
+crnnTime[166](10.555400ms)
+textLine[167](2340428)
+textScores[167]{0.999865 ,0.999942 ,0.999823 ,0.944619 ,0.999876 ,0.999812 ,0.999719}
+crnnTime[167](16.917700ms)
+textLine[168](【PC文字】－【WPS政务】首页-支持修改【WPS政务logo名称及slo..)
+textScores[168]{0.957133 ,0.999096 ,0.999778 ,0.999661 ,0.997736 ,0.984078 ,0.798482 ,0.931463 ,0.99939 ,0.9989 ,0.998678 ,0.999689 ,0.998412 ,0.964473 ,0.999984 ,0.997824 ,0.999295 ,0.999983 ,0.995906 ,0.999069 ,0.999763 ,0.876623 ,0.999147 ,0.997693 ,0.998999 ,0.998998 ,0.999252 ,0.941843 ,0.998749 ,0.999049 ,0.996388 ,0.998025 ,0.999947 ,0.999981 ,0.999662 ,0.702763 ,0.986466 ,0.995568 ,0.769451}
+crnnTime[168](72.019600ms)
+textLine[169](已发布)
+textScores[169]{0.998455 ,0.999908 ,0.999823}
+crnnTime[169](16.253500ms)
+textLine[170](肖诗虎)
+textScores[170]{0.994996 ,0.998445 ,0.999564}
+crnnTime[170](16.159300ms)
+textLine[171](2026/04/30)
+textScores[171]{0.999967 ,0.999948 ,0.99997 ,0.999961 ,0.999913 ,0.999954 ,0.999897 ,0.999892 ,0.999723 ,0.999945}
+crnnTime[171](20.591300ms)
+textLine[172]()
+textScores[172]{}
+crnnTime[172](12.528400ms)
+textLine[173](B级)
+textScores[173]{0.998236 ,0.998537}
+crnnTime[173](11.064400ms)
+textLine[174](2341395)
+textScores[174]{0.999913 ,0.999947 ,0.999976 ,0.999688 ,0.999942 ,0.999887 ,0.999653}
+crnnTime[174](15.832900ms)
+textLine[175](已发布)
+textScores[175]{0.998255 ,0.999523 ,0.999874}
+crnnTime[175](15.536400ms)
+textLine[176](闫栓柱)
+textScores[176]{0.9995 ,0.976926 ,0.998574}
+crnnTime[176](15.069300ms)
+textLine[177](别业创)
+textScores[177]{0.999934 ,0.999888 ,0.999867}
+crnnTime[177](14.518100ms)
+textLine[178](2026/05/06)
+textScores[178]{0.999973 ,0.999956 ,0.999978 ,0.999978 ,0.999897 ,0.999964 ,0.999937 ,0.999884 ,0.999964 ,0.999952}
+crnnTime[178](21.415900ms)
+textLine[179](2.0)
+textScores[179]{0.999102 ,0.99403 ,0.999032}
+crnnTime[179](11.674400ms)
+textLine[180](【套红模板】-后台增加显示套红模板制作流程文档介绍)
+textScores[180]{0.992612 ,0.997577 ,0.999212 ,0.997633 ,0.997856 ,0.991207 ,0.906555 ,0.999696 ,0.999607 ,0.99967 ,0.999403 ,0.999516 ,0.99988 ,0.998001 ,0.999421 ,0.997765 ,0.998755 ,0.999392 ,0.999916 ,0.999961 ,0.999895 ,0.999762 ,0.991523 ,0.998741 ,0.999873}
+crnnTime[180](64.246400ms)
+=====End detect=====
+FullDetectTime(4928.898300ms)
+需求列表
+共 56 条需求
+全部迭代
+全部状态
+全部负责人
+Q 搜索...
+确认筛选
+状态
+级别
+负责人
+开发
+测试
+ ONES ID
+需求标题
+计划提测
+工时
+S级
+王帅
+2299054
+已发布
+肖诗虎
+2026/03/23
+【PC文字】－【WPS政务】-智能公文-团队文档/知识库组件更新
+S级
+昊哲
+2299056
+已发布
+肖诗虎
+2026/04/27
+25.0
+【PC文字】－【WPS 政务】-智能公文-数据埋点
+
+S级
+张阳阳
+肖诗虎
+5.0
+2299064
+【web文字】－【WPS 政务】-智能公文-数据埋点
+已发布
+2026/04/27
+B级
+王帅
+5.0
+2299395
+已发布
+肖诗虎
+2026/03/27
+【客户端】【项目反馈】【公文模板】导入附件模板默认会刷新一遍..
+B级
+3.0
+2315503
+已发布
+张阳阳
+别业创
+2026/03/23
+【PC文字】【智能公文】写作素材-选择文件数量增加至20
+B级
+已发布
+温少邦
+别业创
+2026/05/06
+10.0
+2320058
+【系统后台】-导入记录-部分文件导入失败后处理
+开发中
+B级
+张新
+别业创
+5.0
+2320370
+【技术需求】政务AI接入DAO单侧
+2026/04/01
+B级
+温少邦
+10.0
+2328283
+已发布
+别业创
+2026/05/06
+【缺陷转需求】【v4.2】【系统后台】【导入记录】导入过程中不支..
+
+B级
+10.0
+2329156
+已发布
+吴方瑞
+别业创
+2026/04/29
+【缺陷转需求】【v4.3】【智能问答】上传中状态没有进度条&云文.
+B级
+张新
+别业创
+2026/05/06
+15.0
+2329345
+【缺陷转需求】【V4.3】【智能问答】当写作类型问题触发选择卡片..
+已发布
+—
+温F
+B级
+别业创
+3.0
+2331601
+【智能查重】公文特征正则过滤
+已发布
+2026/05/06
+|
+温严
+B级
+3.0
+2331608
+已发布
+别业创
+2026/05/06
+【智能查重】重复率计算加入语义相似度
+B级
+3.0
+2331806
+【智能查重】交互优化
+已发布
+牟利平
+别业创
+2026/04/28
+B级
+开发中
+温少邦
+别业创
+2026/06/08
+10.0
+2332797
+【WPS政务】－【政务资源库】-数据优化
+已发布
+B级
+2.0
+2332822
+【PC】【前端】【智能公文】基于素材的标题成文前端需求
+张阳阳
+刘文泉
+2026/04/02
+B级
+2338209
+已发布
+吴方瑞
+别业创
+2026/04/29
+10.0
+【WPS政务】-支持修改【logo名称及主题介绍】
+
+B级
+冯松
+2339489
+已发布
+别业创
+2026/04/30
+10.0
+【WPS政务】－【政务资源库】-搜索优化
+B级
+2340420
+已发布
+闫栓柱
+别业创
+2026/05/06
+10.0
+【WPS政务】首页-在WPS365政务版内默认带出
+B级
+张玉坤
+5.0
+2340428
+【PC文字】－【WPS政务】首页-支持修改【WPS政务logo名称及slo..
+已发布
+肖诗虎
+2026/04/30
+
+B级
+2341395
+已发布
+闫栓柱
+别业创
+2026/05/06
+2.0
+【套红模板】-后台增加显示套红模板制作流程文档介绍
+

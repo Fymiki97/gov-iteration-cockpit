@@ -1,16 +1,16 @@
 [
   {
-    "id": "cbadf32d",
+    "id": "5413a744",
     "label": "dev-server",
-    "command": "cd C:/Users/17153/.wpscomate/workspace/760386581358207 && pnpm run dev",
+    "command": "cd \"C:/Users/17153/.wpscomate/workspace/760386581358207\" && pnpm run dev",
     "cwd": "C:\\Users\\17153\\.wpscomate\\workspace\\760386581358207",
     "ownerSessionFile": "1690533110-a738ab8f-a79d-4018-83d6-2638454df91e",
     "persistAcrossSessions": false,
-    "startedAt": 1780679809198,
+    "startedAt": 1780714019601,
     "processType": "server",
-    "group": "dashboard",
+    "group": null,
     "readyPattern": null,
     "readyPort": 5917,
-    "pid": 24572
+    "pid": 19544
   }
 ]
