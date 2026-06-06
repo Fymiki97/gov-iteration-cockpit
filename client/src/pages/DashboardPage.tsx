@@ -20,6 +20,7 @@ import {
   X,
   ExternalLink,
   Calendar,
+  CalendarDays,
   Clock,
   ChevronRight,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import {
 /* ==================== 常量 ==================== */
 const FILE_ID = "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF";
 const TAB_OVERVIEW = "overview";
+const TAB_MONTHLY = "monthly";
 const TAB_LIST = "list";
 const TAB_MILESTONE = "milestone";
 
@@ -135,7 +137,11 @@ export function DashboardPage() {
         wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 23, prefer_id: false, max_records: 200 }),
         wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 24, prefer_id: false, max_records: 50 }),
       ]);
-      if (reqRes.data?.records) setRequirements(parseReqs(reqRes.data.records));
+      if (reqRes.data?.records) {
+        const reqs = parseReqs(reqRes.data.records);
+        setRequirements(reqs);
+        console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
+      }
       if (milRes.data?.records) setMilestones(parseMils(milRes.data.records));
       if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
     } catch (err) {
@@ -327,6 +333,7 @@ export function DashboardPage() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
           <TabsList variant="line" className="mb-6">
             <TabsTrigger value={TAB_OVERVIEW}><BarChart3 className="w-4 h-4" />迭代概览</TabsTrigger>
+            <TabsTrigger value={TAB_MONTHLY}><CalendarDays className="w-4 h-4" />月度迭代情况</TabsTrigger>
             <TabsTrigger value={TAB_LIST}><ListChecks className="w-4 h-4" />需求列表</TabsTrigger>
             <TabsTrigger value={TAB_MILESTONE}><Milestone className="w-4 h-4" />里程碑</TabsTrigger>
           </TabsList>
@@ -382,65 +389,6 @@ export function DashboardPage() {
                 )}
               </div>
 
-              {/*  月度迭代情况 */}
-              <Card className="shadow-sm border-[#E4ECFC]">
-                <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-[#0F172A]">月度迭代情况</CardTitle></CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-32" />)}</div>
-                  ) : monthDetails.length === 0 ? (
-                    <p className="text-sm text-[#94A3B8] py-4 text-center">暂无迭代数据</p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {monthDetails.map((md) => (
-                        <div
-                          key={md.month}
-                          className="p-4 rounded-xl border border-[#E4ECFC] bg-white hover:shadow-md hover:border-[#2563EB]/20 cursor-pointer transition-all group"
-                          onClick={() => { setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
-                        >
-                          {/* 头部 */}
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-semibold text-[#0F172A]">{md.month}</span>
-                            <ChevronRight className="w-4 h-4 text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
-                          </div>
-
-                          {/* 进度条 */}
-                          <div className="flex items-center gap-3 mb-3">
-                            <span className="text-2xl font-bold text-[#2563EB]">{md.pct}%</span>
-                            <div className="flex-1">
-                              <div className="flex justify-between text-xs text-[#94A3B8] mb-1">
-                                <span>{md.completed}/{md.total}</span>
-                              </div>
-                              <div className="w-full h-2 bg-[#F1F5FD] rounded-full overflow-hidden">
-                                <div className="h-full rounded-full bg-[#2563EB] transition-all duration-500" style={{ width: `${md.pct}%` }} />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 状态标签 */}
-                          {md.topStatuses.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-3">
-                              {md.topStatuses.map(s => (
-                                <span key={s.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs"
-                                  style={{ background: s.color + "18", color: s.color, border: `1px solid ${s.color}30` }}>
-                                  {s.name} {s.count}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* 底部指标 */}
-                          <div className="flex items-center gap-4 text-xs text-[#94A3B8]">
-                            <span className="flex items-center gap-1"><Milestone className="w-3 h-3" />里程碑 {md.milestoneCount}</span>
-                            <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" />风险 {md.riskCount}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
               {/*  状态分布柱状图 */}
               <Card className="shadow-sm border-[#E4ECFC]">
                 <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-[#0F172A]">状态分布</CardTitle></CardHeader>
@@ -493,25 +441,40 @@ export function DashboardPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {risks.map((r) => (
+                      {risks.map((r) => {
+                        const matchCount = r.onesId ? requirements.filter(req => req.onesId === r.onesId).length : 0;
+                        return (
                         <div key={r.id} className="flex items-center justify-between py-3 px-4 bg-red-50/50 rounded-lg border border-red-100 cursor-pointer hover:bg-red-50 transition-colors"
                           onClick={() => {
-                            // 按 ONES ID 筛选关联需求
                             setFilterTag("risk");
                             setSelectedIterations([]);
                             setSelectedStatuses([]);
                             setSelectedOwners([]);
-                            setSearchText(r.onesId); // 搜索 ONES ID
+                            setSearchText(r.onesId);
                             setTab(TAB_LIST);
                           }}
                         >
                           <div className="flex-1 min-w-0 mr-4">
                             <p className="text-sm text-[#0F172A] line-clamp-1">{r.title}</p>
-                            <p className="text-xs text-[#94A3B8] mt-0.5">{r.date} · {r.product} · {r.iteration}{r.onesId ? ` · ONES: ${r.onesId}` : ""}</p>
+                            <p className="text-xs text-[#94A3B8] mt-0.5">
+                              {r.date} · {r.product} · {r.iteration}
+                              {r.onesId ? (
+                                <span className="ml-2 inline-flex items-center gap-1">
+                                  <span className="text-[#2563EB] font-medium">ONES: {r.onesId}</span>
+                                  {matchCount > 0 ? (
+                                    <span className="text-[#059669]">(关联 {matchCount} 条需求)</span>
+                                  ) : (
+                                    <span className="text-[#DC2626]">(未匹配到需求!)</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="ml-2 text-[#DC2626] font-medium">⚠ 未提取到 ONES ID</span>
+                              )}
+                            </p>
                           </div>
                           <Badge className={`text-xs font-normal border ${sc(r.status)}`}>{r.status}</Badge>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   </CardContent>
                 </Card>
@@ -519,7 +482,61 @@ export function DashboardPage() {
             </div>
           </TabsContent>
 
-          {/* ============ TAB 2: 需求列表 ============ */}
+          {/* ============ TAB 2: 月度迭代情况 ============ */}
+          <TabsContent value={TAB_MONTHLY}>
+            <Card className="shadow-sm border-[#E4ECFC]">
+              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-[#0F172A]">月度迭代情况</CardTitle></CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-32" />)}</div>
+                ) : monthDetails.length === 0 ? (
+                  <p className="text-sm text-[#94A3B8] py-4 text-center">暂无迭代数据</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {monthDetails.map((md) => (
+                      <div
+                        key={md.month}
+                        className="p-4 rounded-xl border border-[#E4ECFC] bg-white hover:shadow-md hover:border-[#2563EB]/20 cursor-pointer transition-all group"
+                        onClick={() => { setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-semibold text-[#0F172A]">{md.month}</span>
+                          <ChevronRight className="w-4 h-4 text-[#CBD5E1] group-hover:text-[#2563EB] transition-colors" />
+                        </div>
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-2xl font-bold text-[#2563EB]">{md.pct}%</span>
+                          <div className="flex-1">
+                            <div className="flex justify-between text-xs text-[#94A3B8] mb-1">
+                              <span>{md.completed}/{md.total}</span>
+                            </div>
+                            <div className="w-full h-2 bg-[#F1F5FD] rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-[#2563EB] transition-all duration-500" style={{ width: `${md.pct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                        {md.topStatuses.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {md.topStatuses.map(s => (
+                              <span key={s.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs"
+                                style={{ background: s.color + "18", color: s.color, border: `1px solid ${s.color}30` }}>
+                                {s.name} {s.count}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-4 text-xs text-[#94A3B8]">
+                          <span className="flex items-center gap-1"><Milestone className="w-3 h-3" />里程碑 {md.milestoneCount}</span>
+                          <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" />风险 {md.riskCount}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ============ TAB 3: 需求列表 ============ */}
           <TabsContent value={TAB_LIST}>
             <Card className="shadow-sm border-[#E4ECFC]">
               <CardHeader className="pb-3">
@@ -609,7 +626,7 @@ export function DashboardPage() {
             </Card>
           </TabsContent>
 
-          {/* ============ TAB 3: 里程碑 ============ */}
+          {/* ============ TAB 4: 里程碑 ============ */}
           <TabsContent value={TAB_MILESTONE}>
             <div className="space-y-6">
               <div className="flex items-center gap-3 flex-wrap">
@@ -773,15 +790,63 @@ function parseReqs(records: RawRec[]): ReqRow[] {
   });
 }
 
-/** sheet24 风险解析：增加 ONES ID */
+/** sheet24 风险解析：强鲁棒的 ONES ID 提取 */
 function parseRisks(records: RawRec[]): RiskRow[] {
-  return records.map(r => {
+  return records.map((r, idx) => {
     const f = fld(r);
-    const o = parseOnes(f);
+    // 多策略提取 ONES ID
+    let onesId = "";
+    // 策略1：标准 ONES ID 数组字段
+    const o1 = parseOnes(f);
+    if (o1.id) onesId = o1.id;
+    // 策略2：尝试其他常见字段名
+    if (!onesId) { const o2 = parseOnesField(f, "ONES"); if (o2) onesId = o2; }
+    if (!onesId) { const o3 = parseOnesField(f, "ONES链接"); if (o3) onesId = o3; }
+    if (!onesId) { const o4 = parseOnesField(f, "关联需求"); if (o4) onesId = o4; }
+    // 策略3：遍历所有字段，找含 ONES 的 key
+    if (!onesId) {
+      for (const key of Object.keys(f)) {
+        if (key.includes("ONES") || key.includes("ones")) {
+          const o5 = parseOnesField(f, key);
+          if (o5) { onesId = o5; break; }
+        }
+      }
+    }
+    // 策略4：遍历所有字段值，找形如 ONES-xxx 或纯数字 ID（由 displayText 而来）
+    if (!onesId) {
+      for (const v of Object.values(f)) {
+        if (typeof v === "object" && v && "displayText" in v) {
+          const dt = String((v as Record<string,unknown>).displayText || "");
+          if (dt && /^[A-Z]+-\d+|^\d{3,}$/.test(dt)) { onesId = dt; break; }
+        }
+      }
+    }
+    // 控制台调试：打印风险记录的字段结构
+    if (idx < 5) {
+      console.log(`[Risk #${idx}] raw fields:`, JSON.stringify(Object.keys(f)), "onesId extracted:", onesId || "(none)");
+    }
     return {
       id: r.id || "", title: summary(f["事项"]), status: str(f["状态"]),
       date: str(f["提报日期"]), product: str(f["归属产品"]), iteration: str(f["迭代"]),
-      onesId: o.id,
+      onesId,
     };
   });
+}
+
+/** 从指定字段名解析 ONES ID（支持数组和单对象两种格式） */
+function parseOnesField(f: Record<string, unknown>, key: string): string {
+  const raw = f[key];
+  if (!raw) return "";
+  // 数组格式：[{displayText: "xxx", address: "..."}]
+  if (Array.isArray(raw) && raw.length > 0) {
+    const first = raw[0] as Record<string, unknown>;
+    return String(first.displayText || "");
+  }
+  // 单对象格式：{displayText: "xxx"}
+  if (typeof raw === "object" && raw && "displayText" in raw) {
+    return String((raw as Record<string, unknown>).displayText || "");
+  }
+  // 纯字符串
+  if (typeof raw === "string") return raw;
+  return "";
 }
