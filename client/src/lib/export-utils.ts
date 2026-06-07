@@ -168,62 +168,77 @@ function fixModernColorsInCss(text: string): string {
  * 截取指定 DOM 区域为 PNG。
  *
  * 核心策略：
- *  1. 克隆文档中所有 oklch() → rgb()，解决 html2canvas 不支持 oklch 的问题
+ *  1. ⚠️ html2canvas 在 onclone 回调之前就已加载 CSS → 改克隆文档的 style 来不及。
+ *     必须先改原始文档的 <style> 标签（oklch/oklab → rgb），onclone 里还原。
  *  2. 根元素 overflow→visible / height→auto，让 html2canvas 看到完整内容
- *  3. 子元素只展开 overflow，**不改 height**，避免把 Recharts SVG 拍扁
+ *  3. 子元素只展开 overflow，不改 height，避免把 Recharts SVG 拍扁
  *  4. SVG 元素和 Recharts 容器完全跳过
  */
 export async function captureElementAsPng(element: HTMLElement, filename: string) {
   await waitForRender(600);
 
-  const canvas = await html2canvas(element, {
-    useCORS: true,
-    allowTaint: false,
-    backgroundColor: "#F8FAFC",
-    scale: Math.min(window.devicePixelRatio || 1, 2),
-    scrollX: 0,
-    scrollY: 0,
-    logging: false,
-    onclone: (clonedDoc, clonedEl) => {
-      // ── 1. 修复 oklch：html2canvas v1.4.1 不认识这个颜色函数 ──
-      //    必须在 CSS 被解析前把克隆文档中的 oklch() 全部转为 rgb()
-      clonedDoc.querySelectorAll("style").forEach((s) => {
-        s.textContent = fixModernColorsInCss(s.textContent || "");
-      });
-      clonedDoc.querySelectorAll("[style]").forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.cssText = fixModernColorsInCss(htmlEl.style.cssText);
-      });
+  // ── 提前改写原始文档中的 oklch/oklab，因为 html2canvas 在 onclone 前就加载了 CSS ──
+  const styleBackups: Array<{ el: HTMLStyleElement; text: string }> = [];
+  const inlineBackups: Array<{ el: HTMLElement; css: string }> = [];
 
-      // ── 2. 展开滚动容器 ──
-      const root = clonedEl as HTMLElement;
-      root.style.overflow = "visible";
-      root.style.maxHeight = "none";
-      root.style.height = "auto";
-
-      root.querySelectorAll("*").forEach((child) => {
-        if (child instanceof SVGElement) return;
-        const el = child as HTMLElement;
-        if (!el.style) return;
-
-        // Recharts 组件需要保持固定尺寸，完全跳过
-        if (
-          el.classList.contains("recharts-responsive-container") ||
-          el.classList.contains("recharts-wrapper") ||
-          el.classList.contains("recharts-surface") ||
-          el.closest(".recharts-responsive-container")
-        ) {
-          return;
-        }
-
-        // 仅展开 overflow，不触碰 height（保护图表容器的显式高度）
-        el.style.overflow = "visible";
-        el.style.overflowY = "visible";
-        el.style.overflowX = "visible";
-        el.style.maxHeight = "none";
-      });
-    },
+  document.querySelectorAll("style").forEach((s) => {
+    const el = s as HTMLStyleElement;
+    const original = el.textContent || "";
+    styleBackups.push({ el, text: original });
+    el.textContent = fixModernColorsInCss(original);
   });
+
+  const restoreOriginalStyles = () => {
+    styleBackups.forEach(({ el, text }) => {
+      el.textContent = text;
+    });
+    inlineBackups.forEach(({ el, css }) => {
+      el.style.cssText = css;
+    });
+  };
+
+  try {
+    const canvas = await html2canvas(element, {
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#F8FAFC",
+      scale: Math.min(window.devicePixelRatio || 1, 2),
+      scrollX: 0,
+      scrollY: 0,
+      logging: false,
+      onclone: (_clonedDoc, clonedEl) => {
+        // html2canvas 已从原始文档加载完 CSS，立即还原避免页面闪变
+        restoreOriginalStyles();
+
+        // ── 展开滚动容器 ──
+        const root = clonedEl as HTMLElement;
+        root.style.overflow = "visible";
+        root.style.maxHeight = "none";
+        root.style.height = "auto";
+
+        root.querySelectorAll("*").forEach((child) => {
+          if (child instanceof SVGElement) return;
+          const el = child as HTMLElement;
+          if (!el.style) return;
+
+          // Recharts 组件需要保持固定尺寸，完全跳过
+          if (
+            el.classList.contains("recharts-responsive-container") ||
+            el.classList.contains("recharts-wrapper") ||
+            el.classList.contains("recharts-surface") ||
+            el.closest(".recharts-responsive-container")
+          ) {
+            return;
+          }
+
+          // 仅展开 overflow，不触碰 height（保护图表容器的显式高度）
+          el.style.overflow = "visible";
+          el.style.overflowY = "visible";
+          el.style.overflowX = "visible";
+          el.style.maxHeight = "none";
+        });
+      },
+    });
 
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/png"),
@@ -236,6 +251,9 @@ export async function captureElementAsPng(element: HTMLElement, filename: string
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+  } finally {
+    restoreOriginalStyles();
+  }
 }
 
 /** Tab key 到中文名称 */
