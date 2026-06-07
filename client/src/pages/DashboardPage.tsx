@@ -16,8 +16,6 @@ import {
   Cell as RechartCell,
   LabelList,
 } from "recharts";
-import type { PieLabelRenderProps } from "recharts";
-
 const RechartYAxisRight = (props: React.ComponentProps<typeof RechartYAxisLeft>) => <RechartYAxisLeft orientation="right" {...props} />;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // Tabs 组件不再使用（已改为侧边栏导航）
@@ -57,7 +55,7 @@ import {
   captureElementAsPng,
   exportRequirementsToExcel,
 } from "@/lib/export-utils";
-import { BarTopLabel, LineTopLabel, PieSliceLabel } from "@/lib/chart-labels";
+import { BarTopLabel, LineTopLabel, PieOutsideLabel, PieLegendTable } from "@/lib/chart-labels";
 
 /* ==================== 常量 ==================== */
 const FILE_ID = "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF";
@@ -162,6 +160,7 @@ export function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reqPage, setReqPage] = useState(0);
+  const [reqPageJump, setReqPageJump] = useState("");
   const [monthTableSortCol, setMonthTableSortCol] = useState("month");
   const [monthTableSortAsc, setMonthTableSortAsc] = useState(true);
   const [monthCardsCollapsed, setMonthCardsCollapsed] = useState(false);
@@ -380,12 +379,19 @@ export function DashboardPage() {
   }, [requirements, filterTag, searchText, selectedIterations, selectedStatuses, selectedOwners, risks]);
 
   // 筛选条件变化时重置分页
-  useEffect(() => { setReqPage(0); }, [filterTag, searchText, selectedIterations, selectedStatuses, selectedOwners]);
+  useEffect(() => { setReqPage(0); setReqPageJump(""); }, [filterTag, searchText, selectedIterations, selectedStatuses, selectedOwners]);
 
   // 需求列表分页
   const reqTotalPages = Math.max(1, Math.ceil(filteredReqs.length / REQ_PAGE_SIZE));
   const safeReqPage = Math.min(reqPage, reqTotalPages - 1);
   const paginatedReqs = filteredReqs.slice(safeReqPage * REQ_PAGE_SIZE, (safeReqPage + 1) * REQ_PAGE_SIZE);
+
+  const handleReqPageJump = useCallback(() => {
+    const n = parseInt(reqPageJump.trim(), 10);
+    if (!Number.isFinite(n) || n < 1 || n > reqTotalPages) return;
+    setReqPage(n - 1);
+    setReqPageJump("");
+  }, [reqPageJump, reqTotalPages]);
 
   const allIterations = useMemo(() => uniqSorted(requirements.map(r => getMonth(r))), [requirements]);
   const allStatuses = useMemo(() => uniqSorted(requirements.map(r => r.status)), [requirements]);
@@ -1003,22 +1009,27 @@ export function DashboardPage() {
                                 </div>
                               </CardHeader>
                               <CardContent className="pt-2 overflow-visible">
-                                {devAll > 0 ? (
-                                  <div data-chart-wrap className="overflow-visible" style={{ minHeight: 240 }}>
-                                    <RechartResponsive width="100%" height={240}>
-                                      <RechartPie>
-                                        <RechartPieShape data={wlData.filter(d => d.devWorkload > 0).map(d => ({ name: d.month, value: d.devWorkload }))}
-                                          cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
-                                          label={PieSliceLabel} labelLine={false} isAnimationActive={false}>
-                                          {wlData.filter(d => d.devWorkload > 0).map((_, i) => (
-                                            <RechartCell key={i} fill={["#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#1D4ED8"][i % 6]} />
-                                          ))}
-                                        </RechartPieShape>
-                                        <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
-                                      </RechartPie>
-                                    </RechartResponsive>
-                                  </div>
-                                ) : (
+                                {devAll > 0 ? (() => {
+                                  const devPieData = wlData.filter(d => d.devWorkload > 0).map(d => ({ name: d.month, value: d.devWorkload }));
+                                  const devPieColors = ["#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#1D4ED8"];
+                                  return (
+                                    <div data-chart-wrap className="overflow-visible">
+                                      <RechartResponsive width="100%" height={280}>
+                                        <RechartPie margin={{ top: 8, right: 48, bottom: 8, left: 48 }}>
+                                          <RechartPieShape data={devPieData}
+                                            cx="50%" cy="50%" innerRadius={42} outerRadius={62} paddingAngle={2} dataKey="value"
+                                            label={PieOutsideLabel} labelLine={false} isAnimationActive={false}>
+                                            {devPieData.map((_, i) => (
+                                              <RechartCell key={i} fill={devPieColors[i % devPieColors.length]} />
+                                            ))}
+                                          </RechartPieShape>
+                                          <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                        </RechartPie>
+                                      </RechartResponsive>
+                                      <PieLegendTable data={devPieData} colors={devPieColors} />
+                                    </div>
+                                  );
+                                })() : (
                                   <div className="h-[220px] flex items-center justify-center text-xs text-[#94A3B8]">暂无开发工作量</div>
                                 )}
                               </CardContent>
@@ -1032,22 +1043,27 @@ export function DashboardPage() {
                                 </div>
                               </CardHeader>
                               <CardContent className="pt-2 overflow-visible">
-                                {testAll > 0 ? (
-                                  <div data-chart-wrap className="overflow-visible" style={{ minHeight: 240 }}>
-                                    <RechartResponsive width="100%" height={240}>
-                                      <RechartPie>
-                                        <RechartPieShape data={wlData.filter(d => d.testWorkload > 0).map(d => ({ name: d.month, value: d.testWorkload }))}
-                                          cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
-                                          label={PieSliceLabel} labelLine={false} isAnimationActive={false}>
-                                          {wlData.filter(d => d.testWorkload > 0).map((_, i) => (
-                                            <RechartCell key={i} fill={["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE", "#7C3AED", "#6D28D9"][i % 6]} />
-                                          ))}
-                                        </RechartPieShape>
-                                        <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
-                                      </RechartPie>
-                                    </RechartResponsive>
-                                  </div>
-                                ) : (
+                                {testAll > 0 ? (() => {
+                                  const testPieData = wlData.filter(d => d.testWorkload > 0).map(d => ({ name: d.month, value: d.testWorkload }));
+                                  const testPieColors = ["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE", "#7C3AED", "#6D28D9"];
+                                  return (
+                                    <div data-chart-wrap className="overflow-visible">
+                                      <RechartResponsive width="100%" height={280}>
+                                        <RechartPie margin={{ top: 8, right: 48, bottom: 8, left: 48 }}>
+                                          <RechartPieShape data={testPieData}
+                                            cx="50%" cy="50%" innerRadius={42} outerRadius={62} paddingAngle={2} dataKey="value"
+                                            label={PieOutsideLabel} labelLine={false} isAnimationActive={false}>
+                                            {testPieData.map((_, i) => (
+                                              <RechartCell key={i} fill={testPieColors[i % testPieColors.length]} />
+                                            ))}
+                                          </RechartPieShape>
+                                          <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                        </RechartPie>
+                                      </RechartResponsive>
+                                      <PieLegendTable data={testPieData} colors={testPieColors} />
+                                    </div>
+                                  );
+                                })() : (
                                   <div className="h-[220px] flex items-center justify-center text-xs text-[#94A3B8]">暂无测试工作量</div>
                                 )}
                               </CardContent>
@@ -1691,13 +1707,35 @@ export function DashboardPage() {
                     </table>
                   </div>
                   {reqTotalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-[#F1F5FD]">
+                    <div className="flex items-center justify-between flex-wrap gap-3 px-4 py-3 border-t border-[#F1F5FD]">
                       <span className="text-xs text-[#94A3B8]">共 {filteredReqs.length} 条，第 {safeReqPage + 1}/{reqTotalPages} 页</span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-wrap">
                         <button disabled={safeReqPage === 0} onClick={() => setReqPage(0)} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">首页</button>
                         <button disabled={safeReqPage === 0} onClick={() => setReqPage(p => Math.max(0, p - 1))} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
                         <button disabled={safeReqPage >= reqTotalPages - 1} onClick={() => setReqPage(p => Math.min(reqTotalPages - 1, p + 1))} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
                         <button disabled={safeReqPage >= reqTotalPages - 1} onClick={() => setReqPage(reqTotalPages - 1)} className="h-8 px-2 text-xs rounded border border-[#E4ECFC] text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:cursor-not-allowed">末页</button>
+                        <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-[#E4ECFC]">
+                          <span className="text-xs text-[#94A3B8]">跳至</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={reqTotalPages}
+                            value={reqPageJump}
+                            onChange={(e) => setReqPageJump(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleReqPageJump(); }}
+                            placeholder={`1-${reqTotalPages}`}
+                            className="h-8 w-16 text-xs text-center border-[#E4ECFC] px-1"
+                          />
+                          <span className="text-xs text-[#94A3B8]">页</span>
+                          <button
+                            type="button"
+                            onClick={handleReqPageJump}
+                            disabled={!reqPageJump.trim()}
+                            className="h-8 px-3 text-xs rounded border border-[#2563EB] text-[#2563EB] hover:bg-[#F1F5FD] disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            跳转
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
