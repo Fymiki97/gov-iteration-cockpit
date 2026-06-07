@@ -80,19 +80,24 @@ export function exportRequirementsToExcel(rows: ReqExportRow[], filename: string
   XLSX.writeFile(wb, filename);
 }
 
-/** 导出前解除 Recharts 裁剪，避免柱顶/折线标签被截断 */
+/** 导出前解除 Recharts 裁剪，避免柱顶/折线/环形图标签被截断 */
 function prepareChartsForCapture(root: HTMLElement) {
   const selectors = [
     ".recharts-responsive-container",
     ".recharts-wrapper",
     ".recharts-surface",
     ".recharts-legend-wrapper",
+    ".recharts-layer",
+    ".recharts-pie-labels",
+    ".pie-export-label",
     "[data-chart-wrap]",
+    "[data-chart-legend]",
   ];
   selectors.forEach((sel) => {
     root.querySelectorAll(sel).forEach((node) => {
-      const el = node as HTMLElement;
-      el.style.overflow = "visible";
+      const el = node as HTMLElement | SVGElement;
+      if ("style" in el) el.style.overflow = "visible";
+      el.removeAttribute?.("clip-path");
     });
   });
   root.querySelectorAll("svg").forEach((svg) => {
@@ -100,6 +105,11 @@ function prepareChartsForCapture(root: HTMLElement) {
     svg.removeAttribute("overflow");
     svg.querySelectorAll("[clip-path]").forEach((node) => {
       node.removeAttribute("clip-path");
+    });
+    svg.querySelectorAll("text, tspan").forEach((node) => {
+      const t = node as SVGTextElement;
+      if (!t.getAttribute("fill")) t.setAttribute("fill", "#0F172A");
+      if (!t.getAttribute("font-family")) t.setAttribute("font-family", "Microsoft YaHei, sans-serif");
     });
   });
 }
@@ -136,9 +146,14 @@ export async function captureElementAsPng(element: HTMLElement, filename: string
           node.classList.contains("recharts-responsive-container")
           || node.classList.contains("recharts-wrapper")
           || node.classList.contains("recharts-surface")
+          || node.classList.contains("recharts-layer")
+          || node.classList.contains("recharts-pie-labels")
+          || node.classList.contains("pie-export-label")
           || node.hasAttribute("data-chart-wrap")
+          || node.hasAttribute("data-chart-legend")
         ) {
           node.style.overflow = "visible";
+          node.removeAttribute("clip-path");
         }
         if (node instanceof SVGElement) {
           node.style.overflow = "visible";
