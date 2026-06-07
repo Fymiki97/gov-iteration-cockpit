@@ -600,15 +600,17 @@ export function DashboardPage() {
               {exportTip && (
                 <span className="text-xs text-[#64748B] hidden sm:inline">{exportTip}</span>
               )}
-              <button
-                type="button"
-                onClick={handleExportImage}
-                disabled={exportingImage || loading}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#1E3A5F] border border-[#CBD5E1] rounded-lg bg-white hover:bg-[#F8FAFC] hover:border-[#94A3B8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ImageDown className={`w-4 h-4 ${exportingImage ? "animate-pulse" : ""}`} />
-                {exportingImage ? "生成中..." : "导出图片"}
-              </button>
+              {tab !== TAB_LIST && (
+                <button
+                  type="button"
+                  onClick={handleExportImage}
+                  disabled={exportingImage || loading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#1E3A5F] border border-[#CBD5E1] rounded-lg bg-white hover:bg-[#F8FAFC] hover:border-[#94A3B8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ImageDown className={`w-4 h-4 ${exportingImage ? "animate-pulse" : ""}`} />
+                  {exportingImage ? "生成中..." : "导出图片"}
+                </button>
+              )}
             </div>
           </div>
           {exportTip && (
