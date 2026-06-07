@@ -90,23 +90,12 @@ function waitForRender(ms = 400): Promise<void> {
 }
 
 /**
- * 将 OKLCH 颜色转换为 sRGB。
+ * OKLab → sRGB 转换（共享路径）。
  *
- * html2canvas v1.4.1 不支持 oklch() 颜色函数，而 Tailwind CSS v4
- * 所有颜色都用 oklch() 表达。在 onclone 回调中必须把所有 oklch()
- * 实时转为 rgb()，否则 html2canvas 解析 CSS 时直接抛异常：
- *   "Attempting to parse an unsupported color function 'oklch'"
+ * html2canvas v1.4.1 不支持 oklch() / oklab() 颜色函数，
+ * 而 Tailwind CSS v4 两种都用。在 onclone 中必须全部转为 rgb()。
  */
-function oklchToRgb(l: number, c: number, h: number): [number, number, number] {
-  const hRad = (h * Math.PI) / 180;
-  const a = c * Math.cos(hRad);
-  const b = c * Math.sin(hRad);
-
-  // OKLab → LMS
-  const l_ = l + 0.3963377774 * a + 0.2158037573 * b;
-  const m_ = l - 0.1055613458 * a - 0.0638541728 * b;
-  const s_ = l - 0.0894841775 * a - 1.291485548 * b;
-
+function oklabLmsToSrgb(l_: number, m_: number, s_: number): [number, number, number] {
   const l3 = l_ * l_ * l_;
   const m3 = m_ * m_ * m_;
   const s3 = s_ * s_ * s_;
@@ -124,6 +113,27 @@ function oklchToRgb(l: number, c: number, h: number): [number, number, number] {
     Math.max(0, Math.min(255, Math.round(x * 255)));
 
   return [clamp(gamma(rLin)), clamp(gamma(gLin)), clamp(gamma(bLin))];
+}
+
+/** oklch(L C H) → sRGB：先极坐标→OKLab，再 LMS→sRGB */
+function oklchToRgb(l: number, c: number, h: number): [number, number, number] {
+  const hRad = (h * Math.PI) / 180;
+  const a = c * Math.cos(hRad);
+  const b = c * Math.sin(hRad);
+  return oklabLmsToSrgb(
+    l + 0.3963377774 * a + 0.2158037573 * b,
+    l - 0.1055613458 * a - 0.0638541728 * b,
+    l - 0.0894841775 * a - 1.291485548 * b,
+  );
+}
+
+/** oklab(L A B) → sRGB：直接走 LMS→sRGB */
+function oklabToSrgb(l: number, a: number, b: number): [number, number, number] {
+  return oklabLmsToSrgb(
+    l + 0.3963377774 * a + 0.2158037573 * b,
+    l - 0.1055613458 * a - 0.0638541728 * b,
+    l - 0.0894841775 * a - 1.291485548 * b,
+  );
 }
 
 /** 替换文本中所有 oklch() / oklab() 为 rgb()（html2canvas 两者都不支持） */
@@ -178,11 +188,11 @@ export async function captureElementAsPng(element: HTMLElement, filename: string
       // ── 1. 修复 oklch：html2canvas v1.4.1 不认识这个颜色函数 ──
       //    必须在 CSS 被解析前把克隆文档中的 oklch() 全部转为 rgb()
       clonedDoc.querySelectorAll("style").forEach((s) => {
-        s.textContent = fixOklchInCss(s.textContent || "");
+        s.textContent = fixModernColorsInCss(s.textContent || "");
       });
       clonedDoc.querySelectorAll("[style]").forEach((el) => {
         const htmlEl = el as HTMLElement;
-        htmlEl.style.cssText = fixOklchInCss(htmlEl.style.cssText);
+        htmlEl.style.cssText = fixModernColorsInCss(htmlEl.style.cssText);
       });
 
       // ── 2. 展开滚动容器 ──
