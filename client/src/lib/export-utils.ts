@@ -80,6 +80,30 @@ export function exportRequirementsToExcel(rows: ReqExportRow[], filename: string
   XLSX.writeFile(wb, filename);
 }
 
+/** 导出前解除 Recharts 裁剪，避免柱顶/折线标签被截断 */
+function prepareChartsForCapture(root: HTMLElement) {
+  const selectors = [
+    ".recharts-responsive-container",
+    ".recharts-wrapper",
+    ".recharts-surface",
+    ".recharts-legend-wrapper",
+    "[data-chart-wrap]",
+  ];
+  selectors.forEach((sel) => {
+    root.querySelectorAll(sel).forEach((node) => {
+      const el = node as HTMLElement;
+      el.style.overflow = "visible";
+    });
+  });
+  root.querySelectorAll("svg").forEach((svg) => {
+    svg.style.overflow = "visible";
+    svg.removeAttribute("overflow");
+    svg.querySelectorAll("[clip-path]").forEach((node) => {
+      node.removeAttribute("clip-path");
+    });
+  });
+}
+
 /**
  * 截取指定 DOM 区域为 PNG。
  *
@@ -94,6 +118,8 @@ export async function captureElementAsPng(element: HTMLElement, filename: string
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 600)));
   });
 
+  prepareChartsForCapture(element);
+
   const blob = await toBlob(element, {
     backgroundColor: "#F8FAFC",
     pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
@@ -102,6 +128,24 @@ export async function captureElementAsPng(element: HTMLElement, filename: string
       overflow: "visible",
       height: "auto",
       maxHeight: "none",
+    },
+    // 克隆 DOM 时再次解除图表裁剪
+    filter: (node) => {
+      if (node instanceof HTMLElement) {
+        if (
+          node.classList.contains("recharts-responsive-container")
+          || node.classList.contains("recharts-wrapper")
+          || node.classList.contains("recharts-surface")
+          || node.hasAttribute("data-chart-wrap")
+        ) {
+          node.style.overflow = "visible";
+        }
+        if (node instanceof SVGElement) {
+          node.style.overflow = "visible";
+          if (node.hasAttribute("clip-path")) node.removeAttribute("clip-path");
+        }
+      }
+      return true;
     },
   });
 

@@ -57,6 +57,7 @@ import {
   captureElementAsPng,
   exportRequirementsToExcel,
 } from "@/lib/export-utils";
+import { BarTopLabel, LineTopLabel, PieSliceLabel } from "@/lib/chart-labels";
 
 /* ==================== 常量 ==================== */
 const FILE_ID = "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF";
@@ -922,26 +923,28 @@ export function DashboardPage() {
                       <CardHeader className="pb-1">
                         <CardTitle className="text-sm font-semibold text-[#0F172A]">需求规模与产出对比</CardTitle>
                       </CardHeader>
-                      <CardContent className="pt-2">
-                        <RechartResponsive width="100%" height={300}>
-                          <RechartComposed data={chartData} margin={{ top: 24, right: 20, left: 0, bottom: 5 }}>
-                            <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
-                            <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
-                            <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
-                            <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
-                            <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
-                            <RechartLegend wrapperStyle={{ fontSize: 12 }} />
-                            <RechartBar yAxisId="left" dataKey="total" name="需求总数" fill={CHART_COLORS.total} radius={[3, 3, 0, 0]} barSize={28}>
-                              <LabelList dataKey="total" position="top" fontSize={10} fill={CHART_COLORS.total} formatter={(v: unknown) => Number(v) > 0 ? String(v) : ""} />
-                            </RechartBar>
-                            <RechartBar yAxisId="left" dataKey="completed" name="已完成" fill={CHART_COLORS.completed} radius={[3, 3, 0, 0]} barSize={28}>
-                              <LabelList dataKey="completed" position="top" fontSize={10} fill={CHART_COLORS.completed} formatter={(v: unknown) => Number(v) > 0 ? String(v) : ""} />
-                            </RechartBar>
-                            <RechartLine yAxisId="right" type="monotone" dataKey="completionRate" name="完成率(%)" stroke={CHART_COLORS.rate} strokeWidth={2} dot={{ r: 4 }}>
-                              <LabelList dataKey="completionRate" position="top" fontSize={10} fill={CHART_COLORS.rate} formatter={(v: unknown) => Number(v) > 0 ? `${Number(v)}%` : ""} />
-                            </RechartLine>
-                          </RechartComposed>
-                        </RechartResponsive>
+                      <CardContent className="pt-2 overflow-visible">
+                        <div data-chart-wrap className="overflow-visible" style={{ minHeight: 320 }}>
+                          <RechartResponsive width="100%" height={320}>
+                            <RechartComposed data={chartData} margin={{ top: 40, right: 24, left: 4, bottom: 5 }}>
+                              <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
+                              <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
+                              <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                              <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
+                              <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
+                              <RechartLegend wrapperStyle={{ fontSize: 12 }} />
+                              <RechartBar yAxisId="left" dataKey="total" name="需求总数" fill={CHART_COLORS.total} radius={[3, 3, 0, 0]} barSize={28} isAnimationActive={false}>
+                                <LabelList dataKey="total" content={(props) => <BarTopLabel {...props} fill={CHART_COLORS.total} />} />
+                              </RechartBar>
+                              <RechartBar yAxisId="left" dataKey="completed" name="已完成" fill={CHART_COLORS.completed} radius={[3, 3, 0, 0]} barSize={28} isAnimationActive={false}>
+                                <LabelList dataKey="completed" content={(props) => <BarTopLabel {...props} fill={CHART_COLORS.completed} />} />
+                              </RechartBar>
+                              <RechartLine yAxisId="right" type="monotone" dataKey="completionRate" name="完成率(%)" stroke={CHART_COLORS.rate} strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false}>
+                                <LabelList dataKey="completionRate" content={(props) => <LineTopLabel {...props} fill={CHART_COLORS.rate} valueFormat={(v) => `${v}%`} />} />
+                              </RechartLine>
+                            </RechartComposed>
+                          </RechartResponsive>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -960,23 +963,25 @@ export function DashboardPage() {
                               {workloadAll > 0 && <span className="text-xs text-[#94A3B8]">合计 {workloadAll.toFixed(1)} 人天（开发 {devAll.toFixed(1)} + 测试 {testAll.toFixed(1)}）</span>}
                             </div>
                           </CardHeader>
-                          <CardContent className="pt-2">
+                          <CardContent className="pt-2 overflow-visible">
                             {workloadAll > 0 ? (
-                              <RechartResponsive width="100%" height={300}>
-                                <RechartComposed data={wlData} margin={{ top: 24, right: 10, left: 0, bottom: 5 }}>
-                                  <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
-                                  <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
-                                  <RechartYAxisLeft tick={{ fontSize: 11, fill: "#94A3B8" }} unit=" 天" />
-                                  <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
-                                  <RechartLegend wrapperStyle={{ fontSize: 12 }} />
-                                  <RechartBar dataKey="devWorkload" name="开发工作量" fill="#2563EB" radius={[3, 3, 0, 0]} barSize={28}>
-                                    <LabelList dataKey="devWorkload" position="top" fontSize={10} fill="#2563EB" formatter={(v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : ""} />
-                                  </RechartBar>
-                                  <RechartBar dataKey="testWorkload" name="测试工作量" fill="#8B5CF6" radius={[3, 3, 0, 0]} barSize={28}>
-                                    <LabelList dataKey="testWorkload" position="top" fontSize={10} fill="#8B5CF6" formatter={(v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : ""} />
-                                  </RechartBar>
-                                </RechartComposed>
-                              </RechartResponsive>
+                              <div data-chart-wrap className="overflow-visible" style={{ minHeight: 320 }}>
+                                <RechartResponsive width="100%" height={320}>
+                                  <RechartComposed data={wlData} margin={{ top: 40, right: 10, left: 4, bottom: 5 }}>
+                                    <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
+                                    <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
+                                    <RechartYAxisLeft tick={{ fontSize: 11, fill: "#94A3B8" }} unit=" 天" />
+                                    <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                    <RechartLegend wrapperStyle={{ fontSize: 12 }} />
+                                    <RechartBar dataKey="devWorkload" name="开发工作量" fill="#2563EB" radius={[3, 3, 0, 0]} barSize={28} isAnimationActive={false}>
+                                      <LabelList dataKey="devWorkload" content={(props) => <BarTopLabel {...props} fill="#2563EB" valueFormat={(v) => v.toFixed(1)} />} />
+                                    </RechartBar>
+                                    <RechartBar dataKey="testWorkload" name="测试工作量" fill="#8B5CF6" radius={[3, 3, 0, 0]} barSize={28} isAnimationActive={false}>
+                                      <LabelList dataKey="testWorkload" content={(props) => <BarTopLabel {...props} fill="#8B5CF6" valueFormat={(v) => v.toFixed(1)} />} />
+                                    </RechartBar>
+                                  </RechartComposed>
+                                </RechartResponsive>
+                              </div>
                             ) : (
                               <div className="h-[300px] flex flex-col items-center justify-center text-[#94A3B8]">
                                 <Layers className="w-8 h-8 mb-2 opacity-40" />
@@ -997,25 +1002,22 @@ export function DashboardPage() {
                                   <span className="text-xs text-[#94A3B8]">合计 {devAll.toFixed(1)} 人天</span>
                                 </div>
                               </CardHeader>
-                              <CardContent className="pt-2">
+                              <CardContent className="pt-2 overflow-visible">
                                 {devAll > 0 ? (
-                                  <RechartResponsive width="100%" height={220}>
-                                    <RechartPie>
-                                      <RechartPieShape data={wlData.filter(d => d.devWorkload > 0).map(d => ({ name: d.month, value: d.devWorkload }))}
-                                        cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
-                                        label={({ name, value, percent }: PieLabelRenderProps) => {
-                                          const p = (Number(percent) || 0) * 100;
-                                          const val = Number(value) || 0;
-                                          if (p < 3 && val < 1) return "";
-                                          return `${name ?? ""}\n${val.toFixed(1)}(${p.toFixed(0)}%)`;
-                                        }} labelLine={{ stroke: "#94A3B8", strokeWidth: 1 }}>
-                                        {wlData.filter(d => d.devWorkload > 0).map((_, i) => (
-                                          <RechartCell key={i} fill={["#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#1D4ED8"][i % 6]} />
-                                        ))}
-                                      </RechartPieShape>
-                                      <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
-                                    </RechartPie>
-                                  </RechartResponsive>
+                                  <div data-chart-wrap className="overflow-visible" style={{ minHeight: 240 }}>
+                                    <RechartResponsive width="100%" height={240}>
+                                      <RechartPie>
+                                        <RechartPieShape data={wlData.filter(d => d.devWorkload > 0).map(d => ({ name: d.month, value: d.devWorkload }))}
+                                          cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
+                                          label={PieSliceLabel} labelLine={false} isAnimationActive={false}>
+                                          {wlData.filter(d => d.devWorkload > 0).map((_, i) => (
+                                            <RechartCell key={i} fill={["#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#1D4ED8"][i % 6]} />
+                                          ))}
+                                        </RechartPieShape>
+                                        <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                      </RechartPie>
+                                    </RechartResponsive>
+                                  </div>
                                 ) : (
                                   <div className="h-[220px] flex items-center justify-center text-xs text-[#94A3B8]">暂无开发工作量</div>
                                 )}
@@ -1029,25 +1031,22 @@ export function DashboardPage() {
                                   <span className="text-xs text-[#94A3B8]">合计 {testAll.toFixed(1)} 人天</span>
                                 </div>
                               </CardHeader>
-                              <CardContent className="pt-2">
+                              <CardContent className="pt-2 overflow-visible">
                                 {testAll > 0 ? (
-                                  <RechartResponsive width="100%" height={220}>
-                                    <RechartPie>
-                                      <RechartPieShape data={wlData.filter(d => d.testWorkload > 0).map(d => ({ name: d.month, value: d.testWorkload }))}
-                                        cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
-                                        label={({ name, value, percent }: PieLabelRenderProps) => {
-                                          const p = (Number(percent) || 0) * 100;
-                                          const val = Number(value) || 0;
-                                          if (p < 3 && val < 1) return "";
-                                          return `${name ?? ""}\n${val.toFixed(1)}(${p.toFixed(0)}%)`;
-                                        }} labelLine={{ stroke: "#94A3B8", strokeWidth: 1 }}>
-                                        {wlData.filter(d => d.testWorkload > 0).map((_, i) => (
-                                          <RechartCell key={i} fill={["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE", "#7C3AED", "#6D28D9"][i % 6]} />
-                                        ))}
-                                      </RechartPieShape>
-                                      <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
-                                    </RechartPie>
-                                  </RechartResponsive>
+                                  <div data-chart-wrap className="overflow-visible" style={{ minHeight: 240 }}>
+                                    <RechartResponsive width="100%" height={240}>
+                                      <RechartPie>
+                                        <RechartPieShape data={wlData.filter(d => d.testWorkload > 0).map(d => ({ name: d.month, value: d.testWorkload }))}
+                                          cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
+                                          label={PieSliceLabel} labelLine={false} isAnimationActive={false}>
+                                          {wlData.filter(d => d.testWorkload > 0).map((_, i) => (
+                                            <RechartCell key={i} fill={["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE", "#7C3AED", "#6D28D9"][i % 6]} />
+                                          ))}
+                                        </RechartPieShape>
+                                        <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
+                                      </RechartPie>
+                                    </RechartResponsive>
+                                  </div>
                                 ) : (
                                   <div className="h-[220px] flex items-center justify-center text-xs text-[#94A3B8]">暂无测试工作量</div>
                                 )}
@@ -1064,23 +1063,25 @@ export function DashboardPage() {
                       <CardHeader className="pb-1">
                         <CardTitle className="text-sm font-semibold text-[#0F172A]">免测需求对比</CardTitle>
                       </CardHeader>
-                      <CardContent className="pt-2">
+                      <CardContent className="pt-2 overflow-visible">
                         {noTestAll > 0 ? (
-                          <RechartResponsive width="100%" height={220}>
-                            <RechartComposed data={chartData} margin={{ top: 24, right: 20, left: 0, bottom: 5 }}>
-                              <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
-                              <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
-                              <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
-                              <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
-                              <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
-                              <RechartBar yAxisId="left" dataKey="noTestCount" name="免测需求数" fill={CHART_COLORS.noTest} radius={[3, 3, 0, 0]} barSize={32}>
-                                <LabelList dataKey="noTestCount" position="top" fontSize={10} fill={CHART_COLORS.noTest} formatter={(v: unknown) => Number(v) > 0 ? String(v) : ""} />
-                              </RechartBar>
-                              <RechartLine yAxisId="right" type="monotone" dataKey="noTestRatio" name="免测比例(%)" stroke="#6366F1" strokeWidth={2} dot={{ r: 4 }}>
-                                <LabelList dataKey="noTestRatio" position="top" fontSize={10} fill="#6366F1" formatter={(v: unknown) => Number(v) > 0 ? `${Number(v)}%` : ""} />
-                              </RechartLine>
-                            </RechartComposed>
-                          </RechartResponsive>
+                          <div data-chart-wrap className="overflow-visible" style={{ minHeight: 260 }}>
+                            <RechartResponsive width="100%" height={260}>
+                              <RechartComposed data={chartData} margin={{ top: 40, right: 24, left: 4, bottom: 5 }}>
+                                <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
+                                <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
+                                <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                                <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
+                                <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
+                                <RechartBar yAxisId="left" dataKey="noTestCount" name="免测需求数" fill={CHART_COLORS.noTest} radius={[3, 3, 0, 0]} barSize={32} isAnimationActive={false}>
+                                  <LabelList dataKey="noTestCount" content={(props) => <BarTopLabel {...props} fill={CHART_COLORS.noTest} />} />
+                                </RechartBar>
+                                <RechartLine yAxisId="right" type="monotone" dataKey="noTestRatio" name="免测比例(%)" stroke="#6366F1" strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false}>
+                                  <LabelList dataKey="noTestRatio" content={(props) => <LineTopLabel {...props} fill="#6366F1" valueFormat={(v) => `${v}%`} />} />
+                                </RechartLine>
+                              </RechartComposed>
+                            </RechartResponsive>
+                          </div>
                         ) : (
                           <div className="py-8 text-center text-[#94A3B8]">
                             <p className="text-xs">暂无免测数据</p>
