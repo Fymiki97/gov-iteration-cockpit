@@ -46,7 +46,15 @@ import {
   Info,
   Menu,
   PanelLeftClose,
+  Download,
+  ImageDown,
 } from "lucide-react";
+import {
+  buildExcelExportFilename,
+  buildImageExportFilename,
+  captureElementAsPng,
+  exportRequirementsToExcel,
+} from "@/lib/export-utils";
 
 /* ==================== 常量 ==================== */
 const FILE_ID = "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF";
@@ -71,6 +79,7 @@ interface ReqRow {
   testDate: string;
   devOwner: string;
   testOwner: string;
+  productOwner: string;
   onesId: string;
   onesUrl: string;
   modTime: string;
@@ -156,6 +165,10 @@ export function DashboardPage() {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [silentRefreshing, setSilentRefreshing] = useState(false);
   const autoRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tabContentRef = useRef<HTMLElement>(null);
+  const [exportingImage, setExportingImage] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportTip, setExportTip] = useState<string | null>(null);
 
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
@@ -402,6 +415,54 @@ export function DashboardPage() {
     setTab(TAB_LIST);
   };
 
+  /** 导出当前 Tab 内容为 PNG */
+  const handleExportImage = useCallback(async () => {
+    if (exportingImage || !tabContentRef.current) return;
+    setExportingImage(true);
+    setExportTip("正在生成图片，请稍候...");
+    try {
+      let extraSuffix: string | undefined;
+      if (tab === TAB_MONTHLY && monthlyMonthFilter !== "全部") extraSuffix = monthlyMonthFilter;
+      if (tab === TAB_MILESTONE && milestoneMonth !== "全部") extraSuffix = milestoneMonth;
+      const filename = buildImageExportFilename(tab, extraSuffix);
+      await captureElementAsPng(tabContentRef.current, filename);
+      setExportTip("图片已导出");
+      setTimeout(() => setExportTip(null), 2000);
+    } catch (err) {
+      console.error("[导出图片]", err);
+      setExportTip("图片导出失败，请重试");
+      setTimeout(() => setExportTip(null), 3000);
+    } finally {
+      setExportingImage(false);
+    }
+  }, [exportingImage, tab, monthlyMonthFilter, milestoneMonth]);
+
+  /** 导出需求列表 Excel（当前筛选全部数据） */
+  const handleExportExcel = useCallback(() => {
+    if (exportingExcel || filteredReqs.length === 0) return;
+    setExportingExcel(true);
+    try {
+      exportRequirementsToExcel(
+        filteredReqs.map(r => ({
+          onesId: r.onesId,
+          onesUrl: r.onesUrl,
+          title: r.title,
+          status: r.status,
+          level: r.level,
+          project: r.project,
+          productOwner: r.productOwner,
+          devOwner: r.devOwner,
+          testOwner: r.testOwner,
+        })),
+        buildExcelExportFilename(),
+      );
+    } catch (err) {
+      console.error("[导出Excel]", err);
+    } finally {
+      setExportingExcel(false);
+    }
+  }, [exportingExcel, filteredReqs]);
+
   /* === 状态色 === */
   const sc = (s: string) => {
     if (!s) return "bg-slate-100 text-slate-500 border-slate-200";
@@ -523,22 +584,39 @@ export function DashboardPage() {
       <div className="flex-1 min-w-0 flex flex-col">
         {/* 顶部栏 */}
         <header className="bg-white border-b border-[#E4ECFC] sticky top-0 z-20">
-          <div className="px-6 md:px-8 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="px-6 md:px-8 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <button className="md:hidden p-1.5 rounded-lg hover:bg-[#F1F5FD]" onClick={() => setSidebarOpen(true)}>
                 <Menu className="w-5 h-5 text-[#64748B]" />
               </button>
-              <div>
+              <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-[#0F172A] tracking-tight">
                   {NAV_ITEMS.find(n => n.key === tab)?.label || "政务产研迭代进度看板"}
                 </h1>
                 <p className="text-xs text-[#94A3B8] mt-0.5">2026政务产品研发迭代规划 · 实时追踪</p>
               </div>
             </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {exportTip && (
+                <span className="text-xs text-[#64748B] hidden sm:inline">{exportTip}</span>
+              )}
+              <button
+                type="button"
+                onClick={handleExportImage}
+                disabled={exportingImage || loading}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#1E3A5F] border border-[#CBD5E1] rounded-lg bg-white hover:bg-[#F8FAFC] hover:border-[#94A3B8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ImageDown className={`w-4 h-4 ${exportingImage ? "animate-pulse" : ""}`} />
+                {exportingImage ? "生成中..." : "导出图片"}
+              </button>
+            </div>
           </div>
+          {exportTip && (
+            <p className="px-6 md:px-8 pb-2 text-xs text-[#64748B] sm:hidden">{exportTip}</p>
+          )}
         </header>
 
-        <main className="flex-1 overflow-y-auto px-6 md:px-8 py-6">
+        <main ref={tabContentRef} data-export-root className="flex-1 overflow-y-auto px-6 md:px-8 py-6 bg-[#F8FAFC]">
           {/* ============ TAB 1: 迭代概览 ============ */}
           {tab === TAB_OVERVIEW && (
             <div className="space-y-6">
@@ -1483,6 +1561,15 @@ export function DashboardPage() {
                       <X className="w-3 h-3" />
                     </Badge>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    disabled={exportingExcel || loading || filteredReqs.length === 0}
+                    className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  >
+                    <Download className={`w-4 h-4 ${exportingExcel ? "animate-pulse" : ""}`} />
+                    {exportingExcel ? "导出中..." : "导出 Excel"}
+                  </button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1980,6 +2067,7 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       id: r.id || "", title: str(f["标题"]), status: str(f["状态"]),
       level: str(f["需求级别"]), project: str(f["所属项目"]), iteration: str(f["迭代"]),
       testDate: str(f["计划提测时间"]), devOwner: str(f["开发负责人"]), testOwner: str(f["测试负责人"]),
+      productOwner: str(f["产品负责人"]),
       onesId: o.id, onesUrl: o.url, modTime: r.last_modified_time || "", month: str(f["排期月度"]),
       ...(() => {
         const keys = Object.keys(f);
