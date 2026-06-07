@@ -18,6 +18,7 @@
     "@wps365-open/appbase-js": "catalog:",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",

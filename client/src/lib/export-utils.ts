@@ -1,4 +1,4 @@
-import html2canvas from "html2canvas";
+import { toBlob } from "html-to-image";
 import * as XLSX from "xlsx";
 
 /** 生成文件名时间戳：YYYYMMDD_HHMMSS */
@@ -80,170 +80,32 @@ export function exportRequirementsToExcel(rows: ReqExportRow[], filename: string
   XLSX.writeFile(wb, filename);
 }
 
-/** 等待图表等异步渲染完成 */
-function waitForRender(ms = 400): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setTimeout(resolve, ms));
-    });
-  });
-}
-
-/**
- * OKLab → sRGB 转换（共享路径）。
- *
- * html2canvas v1.4.1 不支持 oklch() / oklab() 颜色函数，
- * 而 Tailwind CSS v4 两种都用。在 onclone 中必须全部转为 rgb()。
- */
-function oklabLmsToSrgb(l_: number, m_: number, s_: number): [number, number, number] {
-  const l3 = l_ * l_ * l_;
-  const m3 = m_ * m_ * m_;
-  const s3 = s_ * s_ * s_;
-
-  // LMS → linear sRGB
-  const rLin = 4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
-  const gLin = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
-  const bLin = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3;
-
-  // sRGB transfer function
-  const gamma = (x: number) =>
-    x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
-
-  const clamp = (x: number) =>
-    Math.max(0, Math.min(255, Math.round(x * 255)));
-
-  return [clamp(gamma(rLin)), clamp(gamma(gLin)), clamp(gamma(bLin))];
-}
-
-/** oklch(L C H) → sRGB：先极坐标→OKLab，再 LMS→sRGB */
-function oklchToRgb(l: number, c: number, h: number): [number, number, number] {
-  const hRad = (h * Math.PI) / 180;
-  const a = c * Math.cos(hRad);
-  const b = c * Math.sin(hRad);
-  return oklabLmsToSrgb(
-    l + 0.3963377774 * a + 0.2158037573 * b,
-    l - 0.1055613458 * a - 0.0638541728 * b,
-    l - 0.0894841775 * a - 1.291485548 * b,
-  );
-}
-
-/** oklab(L A B) → sRGB：直接走 LMS→sRGB */
-function oklabToSrgb(l: number, a: number, b: number): [number, number, number] {
-  return oklabLmsToSrgb(
-    l + 0.3963377774 * a + 0.2158037573 * b,
-    l - 0.1055613458 * a - 0.0638541728 * b,
-    l - 0.0894841775 * a - 1.291485548 * b,
-  );
-}
-
-/** 替换文本中所有 oklch() / oklab() 为 rgb()（html2canvas 两者都不支持） */
-function fixModernColorsInCss(text: string): string {
-  return text
-    // oklch(L C H) / oklch(L C H / A)
-    .replace(/oklch\(([^)]+)\)/g, (_m, args: string) => {
-      const parts = args
-        .split(/[\s,/]+/)
-        .filter((p: string) => p !== "" && p !== "/")
-        .map(Number);
-      const [l, c, h] = parts;
-      if (isNaN(l) || isNaN(c) || isNaN(h)) return "#808080";
-      const [r, g, b] = oklchToRgb(l, c, h);
-      return `rgb(${r},${g},${b})`;
-    })
-    // oklab(L A B) / oklab(L A B / A)
-    .replace(/oklab\(([^)]+)\)/g, (_m, args: string) => {
-      const parts = args
-        .split(/[\s,/]+/)
-        .filter((p: string) => p !== "" && p !== "/")
-        .map(Number);
-      const [l, a, b] = parts;
-      if (isNaN(l) || isNaN(a) || isNaN(b)) return "#808080";
-      // oklab 直接走 OKLab→LMS→sRGB，不需要极坐标转换
-      const [r, g, bl] = oklabToSrgb(l, a, b);
-      return `rgb(${r},${g},${bl})`;
-    });
-}
-
 /**
  * 截取指定 DOM 区域为 PNG。
  *
- * 核心策略：
- *  1. ⚠️ html2canvas 在 onclone 回调之前就已加载 CSS → 改克隆文档的 style 来不及。
- *     必须先改原始文档的 <style> 标签（oklch/oklab → rgb），onclone 里还原。
- *  2. 根元素 overflow→visible / height→auto，让 html2canvas 看到完整内容
- *  3. 子元素只展开 overflow，不改 height，避免把 Recharts SVG 拍扁
- *  4. SVG 元素和 Recharts 容器完全跳过
+ * 使用 html-to-image（基于 SVG foreignObject），由浏览器原生渲染：
+ *  - 完整支持 oklab/oklch/color-mix 等现代 CSS 颜色
+ *  - currentColor 在 SVG 图标中正确继承（不会置灰）
+ *  - Recharts SVG 图表按原始尺寸渲染
  */
 export async function captureElementAsPng(element: HTMLElement, filename: string) {
-  await waitForRender(600);
-
-  // ── 提前改写原始文档中的 oklch/oklab，因为 html2canvas 在 onclone 前就加载了 CSS ──
-  const styleBackups: Array<{ el: HTMLStyleElement; text: string }> = [];
-  const inlineBackups: Array<{ el: HTMLElement; css: string }> = [];
-
-  document.querySelectorAll("style").forEach((s) => {
-    const el = s as HTMLStyleElement;
-    const original = el.textContent || "";
-    styleBackups.push({ el, text: original });
-    el.textContent = fixModernColorsInCss(original);
+  // 等待图表和异步内容渲染完成
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 600)));
   });
 
-  const restoreOriginalStyles = () => {
-    styleBackups.forEach(({ el, text }) => {
-      el.textContent = text;
-    });
-    inlineBackups.forEach(({ el, css }) => {
-      el.style.cssText = css;
-    });
-  };
+  const blob = await toBlob(element, {
+    backgroundColor: "#F8FAFC",
+    pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    // 根元素展开滚动裁剪，让完整内容可见
+    style: {
+      overflow: "visible",
+      height: "auto",
+      maxHeight: "none",
+    },
+  });
 
-  try {
-    const canvas = await html2canvas(element, {
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: "#F8FAFC",
-      scale: Math.min(window.devicePixelRatio || 1, 2),
-      scrollX: 0,
-      scrollY: 0,
-      logging: false,
-      onclone: (_clonedDoc, clonedEl) => {
-        // html2canvas 已从原始文档加载完 CSS，立即还原避免页面闪变
-        restoreOriginalStyles();
-
-        // ── 展开滚动容器 ──
-        const root = clonedEl as HTMLElement;
-        root.style.overflow = "visible";
-        root.style.maxHeight = "none";
-        root.style.height = "auto";
-
-        root.querySelectorAll("*").forEach((child) => {
-          if (child instanceof SVGElement) return;
-          const el = child as HTMLElement;
-          if (!el.style) return;
-
-          // Recharts 组件需要保持固定尺寸，完全跳过
-          if (
-            el.classList.contains("recharts-responsive-container") ||
-            el.classList.contains("recharts-wrapper") ||
-            el.classList.contains("recharts-surface") ||
-            el.closest(".recharts-responsive-container")
-          ) {
-            return;
-          }
-
-          // 仅展开 overflow，不触碰 height（保护图表容器的显式高度）
-          el.style.overflow = "visible";
-          el.style.overflowY = "visible";
-          el.style.overflowX = "visible";
-          el.style.maxHeight = "none";
-        });
-      },
-    });
-
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/png"),
-  );
-  if (!blob) throw new Error("canvas.toBlob 返回 null（可能超出浏览器 canvas 尺寸限制）");
+  if (!blob) throw new Error("图片生成失败");
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -251,9 +113,6 @@ export async function captureElementAsPng(element: HTMLElement, filename: string
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
-  } finally {
-    restoreOriginalStyles();
-  }
 }
 
 /** Tab key 到中文名称 */

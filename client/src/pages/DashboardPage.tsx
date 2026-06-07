@@ -14,6 +14,7 @@ import {
   PieChart as RechartPie,
   Pie as RechartPieShape,
   Cell as RechartCell,
+  LabelList,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
 
@@ -35,6 +36,7 @@ import {
   ListChecks,
   Milestone,
   BarChart3,
+  Building2,
   Search,
   X,
   ExternalLink,
@@ -106,6 +108,7 @@ interface RiskRow {
   title: string;
   status: string;
   date: string;
+  reporter: string;
   product: string;
   iteration: string;
   onesId: string;      // 关联的 ONES ID
@@ -165,7 +168,7 @@ export function DashboardPage() {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [silentRefreshing, setSilentRefreshing] = useState(false);
   const autoRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tabContentRef = useRef<HTMLElement>(null);
+  const tabContentRef = useRef<HTMLDivElement>(null);
   const [exportingImage, setExportingImage] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportTip, setExportTip] = useState<string | null>(null);
@@ -417,7 +420,7 @@ export function DashboardPage() {
 
   /** 导出当前 Tab 内容为 PNG */
   const handleExportImage = useCallback(async () => {
-    if (exportingImage || !tabContentRef.current) return;
+    if (exportingImage || !tabContentRef.current || tab === TAB_LIST) return;
     setExportingImage(true);
     setExportTip("正在生成图片，请稍候...");
     try {
@@ -505,6 +508,20 @@ export function DashboardPage() {
     { key: TAB_MILESTONE, label: "里程碑", icon: Milestone },
   ] as const;
 
+  const pageTitle = NAV_ITEMS.find(n => n.key === tab)?.label || "政务产研迭代进度看板";
+  const pageSubtitle = (() => {
+    const base = "2026政务产品研发迭代规划 · 实时追踪";
+    if (tab === TAB_MONTHLY) {
+      return monthlyMonthFilter === "全部" ? `${base} · 全部月份对比` : `${base} · 迭代月份：${monthlyMonthFilter}`;
+    }
+    if (tab === TAB_MILESTONE) {
+      if (milestoneMonth !== "全部") return `${base} · 迭代月份：${milestoneMonth}`;
+      const qf = milestoneQuickFilter !== "全部" ? ` · ${milestoneQuickFilter}` : "";
+      return `${base} · 时间视图${qf}`;
+    }
+    return base;
+  })();
+
   /* ==================== 渲染 ==================== */
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex">
@@ -520,7 +537,7 @@ export function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className={`flex items-center ${sidebarCollapsed ? "justify-center w-full" : "gap-3"}`}>
               <div className={`rounded-lg bg-[#1E3A5F] flex items-center justify-center shrink-0 ${sidebarCollapsed ? "w-9 h-9" : "w-10 h-10"}`}>
-                <BarChart3 className={`text-white ${sidebarCollapsed ? "w-4.5 h-4.5" : "w-5 h-5"}`} />
+                <Building2 className={`text-white ${sidebarCollapsed ? "w-4.5 h-4.5" : "w-5 h-5"}`} />
               </div>
               {!sidebarCollapsed && (
                 <div>
@@ -581,42 +598,49 @@ export function DashboardPage() {
       </aside>
 
       {/* 右侧主内容区 */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        {/* 顶部栏 */}
-        <header className="bg-white border-b border-[#E4ECFC] sticky top-0 z-20">
-          <div className="px-6 md:px-8 py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <button className="md:hidden p-1.5 rounded-lg hover:bg-[#F1F5FD]" onClick={() => setSidebarOpen(true)}>
+      <div className="flex-1 min-w-0 flex flex-col relative">
+        {/* 导出按钮浮层（不纳入截图） */}
+        {tab !== TAB_LIST && (
+          <div className="absolute top-4 right-6 md:right-8 z-30 flex items-center gap-3">
+            {exportTip && (
+              <span className="text-xs text-[#64748B] hidden sm:inline bg-white/90 px-2 py-1 rounded">{exportTip}</span>
+            )}
+            <button
+              type="button"
+              onClick={handleExportImage}
+              disabled={exportingImage || loading}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#1E3A5F] border border-[#CBD5E1] rounded-lg bg-white hover:bg-[#F8FAFC] hover:border-[#94A3B8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              <ImageDown className={`w-4 h-4 ${exportingImage ? "animate-pulse" : ""}`} />
+              {exportingImage ? "生成中..." : "导出图片"}
+            </button>
+          </div>
+        )}
+        {exportTip && tab === TAB_LIST && (
+          <p className="absolute top-4 right-6 z-30 text-xs text-[#64748B] bg-white/90 px-2 py-1 rounded sm:hidden">{exportTip}</p>
+        )}
+
+        {/* 截图区域：含页面标题栏 + 内容 */}
+        <div ref={tabContentRef} data-export-root className="flex-1 overflow-y-auto flex flex-col bg-[#F8FAFC]">
+          <header className="bg-white border-b border-[#E4ECFC] sticky top-0 z-20">
+            <div className="px-6 md:px-8 py-4 flex items-center gap-3 min-w-0 pr-36 md:pr-40">
+              <button className="md:hidden p-1.5 rounded-lg hover:bg-[#F1F5FD] shrink-0" onClick={() => setSidebarOpen(true)}>
                 <Menu className="w-5 h-5 text-[#64748B]" />
               </button>
               <div className="min-w-0">
-                <h1 className="text-lg font-semibold text-[#0F172A] tracking-tight">
-                  {NAV_ITEMS.find(n => n.key === tab)?.label || "政务产研迭代进度看板"}
-                </h1>
-                <p className="text-xs text-[#94A3B8] mt-0.5">2026政务产品研发迭代规划 · 实时追踪</p>
+                <h1 className="text-lg font-semibold text-[#0F172A] tracking-tight">{pageTitle}</h1>
+                <p className="text-xs text-[#94A3B8] mt-0.5">{pageSubtitle}</p>
+                {lastRefreshTime && (
+                  <p className="text-[11px] text-[#94A3B8] mt-1">
+                    数据更新于 {lastRefreshTime.getFullYear()}-{(lastRefreshTime.getMonth() + 1).toString().padStart(2, "0")}-{lastRefreshTime.getDate().toString().padStart(2, "0")}{" "}
+                    {lastRefreshTime.getHours().toString().padStart(2, "0")}:{lastRefreshTime.getMinutes().toString().padStart(2, "0")}
+                  </p>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              {exportTip && (
-                <span className="text-xs text-[#64748B] hidden sm:inline">{exportTip}</span>
-              )}
-              <button
-                type="button"
-                onClick={handleExportImage}
-                disabled={exportingImage || loading}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#1E3A5F] border border-[#CBD5E1] rounded-lg bg-white hover:bg-[#F8FAFC] hover:border-[#94A3B8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ImageDown className={`w-4 h-4 ${exportingImage ? "animate-pulse" : ""}`} />
-                {exportingImage ? "生成中..." : "导出图片"}
-              </button>
-            </div>
-          </div>
-          {exportTip && (
-            <p className="px-6 md:px-8 pb-2 text-xs text-[#64748B] sm:hidden">{exportTip}</p>
-          )}
-        </header>
+          </header>
 
-        <main ref={tabContentRef} data-export-root className="flex-1 overflow-y-auto px-6 md:px-8 py-6 bg-[#F8FAFC]">
+        <main className="flex-1 px-6 md:px-8 py-6">
           {/* ============ TAB 1: 迭代概览 ============ */}
           {tab === TAB_OVERVIEW && (
             <div className="space-y-6">
@@ -765,7 +789,7 @@ export function DashboardPage() {
                           <div className="flex-1 min-w-0 mr-4">
                             <p className="text-sm text-[#0F172A] line-clamp-1">{r.title}</p>
                             <p className="text-xs text-[#94A3B8] mt-0.5">
-                              {r.date} · {r.product} · {r.iteration}
+                              {r.date}{r.reporter && <> · 提报人: {r.reporter}</>} · {r.product} · {r.iteration}
                               {r.strategy && <span className="ml-2 text-[#92400E]">策略: {r.strategy}</span>}
                               {r.onesId ? (
                                 <span className="ml-2 inline-flex items-center gap-1">
@@ -900,16 +924,22 @@ export function DashboardPage() {
                       </CardHeader>
                       <CardContent className="pt-2">
                         <RechartResponsive width="100%" height={300}>
-                          <RechartComposed data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                          <RechartComposed data={chartData} margin={{ top: 24, right: 20, left: 0, bottom: 5 }}>
                             <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
                             <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
                             <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
                             <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
                             <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
                             <RechartLegend wrapperStyle={{ fontSize: 12 }} />
-                            <RechartBar yAxisId="left" dataKey="total" name="需求总数" fill={CHART_COLORS.total} radius={[3, 3, 0, 0]} barSize={28} />
-                            <RechartBar yAxisId="left" dataKey="completed" name="已完成" fill={CHART_COLORS.completed} radius={[3, 3, 0, 0]} barSize={28} />
-                            <RechartLine yAxisId="right" type="monotone" dataKey="completionRate" name="完成率(%)" stroke={CHART_COLORS.rate} strokeWidth={2} dot={{ r: 4 }} label={{ position: "top", fontSize: 11, fill: CHART_COLORS.rate }} />
+                            <RechartBar yAxisId="left" dataKey="total" name="需求总数" fill={CHART_COLORS.total} radius={[3, 3, 0, 0]} barSize={28}>
+                              <LabelList dataKey="total" position="top" fontSize={10} fill={CHART_COLORS.total} formatter={(v: unknown) => Number(v) > 0 ? String(v) : ""} />
+                            </RechartBar>
+                            <RechartBar yAxisId="left" dataKey="completed" name="已完成" fill={CHART_COLORS.completed} radius={[3, 3, 0, 0]} barSize={28}>
+                              <LabelList dataKey="completed" position="top" fontSize={10} fill={CHART_COLORS.completed} formatter={(v: unknown) => Number(v) > 0 ? String(v) : ""} />
+                            </RechartBar>
+                            <RechartLine yAxisId="right" type="monotone" dataKey="completionRate" name="完成率(%)" stroke={CHART_COLORS.rate} strokeWidth={2} dot={{ r: 4 }}>
+                              <LabelList dataKey="completionRate" position="top" fontSize={10} fill={CHART_COLORS.rate} formatter={(v: unknown) => Number(v) > 0 ? `${Number(v)}%` : ""} />
+                            </RechartLine>
                           </RechartComposed>
                         </RechartResponsive>
                       </CardContent>
@@ -933,14 +963,18 @@ export function DashboardPage() {
                           <CardContent className="pt-2">
                             {workloadAll > 0 ? (
                               <RechartResponsive width="100%" height={300}>
-                                <RechartComposed data={wlData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                                <RechartComposed data={wlData} margin={{ top: 24, right: 10, left: 0, bottom: 5 }}>
                                   <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
                                   <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
                                   <RechartYAxisLeft tick={{ fontSize: 11, fill: "#94A3B8" }} unit=" 天" />
                                   <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} formatter={(v) => `${Number(v).toFixed(1)} 人天`} />
                                   <RechartLegend wrapperStyle={{ fontSize: 12 }} />
-                                  <RechartBar dataKey="devWorkload" name="开发工作量" fill="#2563EB" radius={[3, 3, 0, 0]} barSize={28} label={{ position: "top", fontSize: 10, fill: "#2563EB", formatter: (v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : "" }} />
-                                  <RechartBar dataKey="testWorkload" name="测试工作量" fill="#8B5CF6" radius={[3, 3, 0, 0]} barSize={28} label={{ position: "top", fontSize: 10, fill: "#8B5CF6", formatter: (v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : "" }} />
+                                  <RechartBar dataKey="devWorkload" name="开发工作量" fill="#2563EB" radius={[3, 3, 0, 0]} barSize={28}>
+                                    <LabelList dataKey="devWorkload" position="top" fontSize={10} fill="#2563EB" formatter={(v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : ""} />
+                                  </RechartBar>
+                                  <RechartBar dataKey="testWorkload" name="测试工作量" fill="#8B5CF6" radius={[3, 3, 0, 0]} barSize={28}>
+                                    <LabelList dataKey="testWorkload" position="top" fontSize={10} fill="#8B5CF6" formatter={(v: unknown) => Number(v) > 0 ? Number(v).toFixed(1) : ""} />
+                                  </RechartBar>
                                 </RechartComposed>
                               </RechartResponsive>
                             ) : (
@@ -969,7 +1003,12 @@ export function DashboardPage() {
                                     <RechartPie>
                                       <RechartPieShape data={wlData.filter(d => d.devWorkload > 0).map(d => ({ name: d.month, value: d.devWorkload }))}
                                         cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
-                                        label={({ name, percent }: PieLabelRenderProps) => { const p = ((Number(percent) || 0) * 100); return p >= 5 ? `${name ?? ""} ${p.toFixed(0)}%` : ""; }} labelLine={false}>
+                                        label={({ name, value, percent }: PieLabelRenderProps) => {
+                                          const p = (Number(percent) || 0) * 100;
+                                          const val = Number(value) || 0;
+                                          if (p < 3 && val < 1) return "";
+                                          return `${name ?? ""}\n${val.toFixed(1)}(${p.toFixed(0)}%)`;
+                                        }} labelLine={{ stroke: "#94A3B8", strokeWidth: 1 }}>
                                         {wlData.filter(d => d.devWorkload > 0).map((_, i) => (
                                           <RechartCell key={i} fill={["#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#1D4ED8"][i % 6]} />
                                         ))}
@@ -996,7 +1035,12 @@ export function DashboardPage() {
                                     <RechartPie>
                                       <RechartPieShape data={wlData.filter(d => d.testWorkload > 0).map(d => ({ name: d.month, value: d.testWorkload }))}
                                         cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value"
-                                        label={({ name, percent }: PieLabelRenderProps) => { const p = ((Number(percent) || 0) * 100); return p >= 5 ? `${name ?? ""} ${p.toFixed(0)}%` : ""; }} labelLine={false}>
+                                        label={({ name, value, percent }: PieLabelRenderProps) => {
+                                          const p = (Number(percent) || 0) * 100;
+                                          const val = Number(value) || 0;
+                                          if (p < 3 && val < 1) return "";
+                                          return `${name ?? ""}\n${val.toFixed(1)}(${p.toFixed(0)}%)`;
+                                        }} labelLine={{ stroke: "#94A3B8", strokeWidth: 1 }}>
                                         {wlData.filter(d => d.testWorkload > 0).map((_, i) => (
                                           <RechartCell key={i} fill={["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE", "#7C3AED", "#6D28D9"][i % 6]} />
                                         ))}
@@ -1023,14 +1067,18 @@ export function DashboardPage() {
                       <CardContent className="pt-2">
                         {noTestAll > 0 ? (
                           <RechartResponsive width="100%" height={220}>
-                            <RechartComposed data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                            <RechartComposed data={chartData} margin={{ top: 24, right: 20, left: 0, bottom: 5 }}>
                               <RechartCartesianGrid strokeDasharray="3 3" stroke="#E4ECFC" />
                               <RechartXAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748B" }} />
                               <RechartYAxisLeft yAxisId="left" tick={{ fontSize: 11, fill: "#94A3B8" }} />
                               <RechartYAxisRight yAxisId="right" tick={{ fontSize: 11, fill: "#94A3B8" }} domain={[0, 100]} unit="%" />
                               <RechartTooltip contentStyle={{ fontSize: 12, borderColor: "#E4ECFC" }} />
-                              <RechartBar yAxisId="left" dataKey="noTestCount" name="免测需求数" fill={CHART_COLORS.noTest} radius={[3, 3, 0, 0]} barSize={32} />
-                              <RechartLine yAxisId="right" type="monotone" dataKey="noTestRatio" name="免测比例(%)" stroke="#6366F1" strokeWidth={2} dot={{ r: 4 }} />
+                              <RechartBar yAxisId="left" dataKey="noTestCount" name="免测需求数" fill={CHART_COLORS.noTest} radius={[3, 3, 0, 0]} barSize={32}>
+                                <LabelList dataKey="noTestCount" position="top" fontSize={10} fill={CHART_COLORS.noTest} formatter={(v: unknown) => Number(v) > 0 ? String(v) : ""} />
+                              </RechartBar>
+                              <RechartLine yAxisId="right" type="monotone" dataKey="noTestRatio" name="免测比例(%)" stroke="#6366F1" strokeWidth={2} dot={{ r: 4 }}>
+                                <LabelList dataKey="noTestRatio" position="top" fontSize={10} fill="#6366F1" formatter={(v: unknown) => Number(v) > 0 ? `${Number(v)}%` : ""} />
+                              </RechartLine>
                             </RechartComposed>
                           </RechartResponsive>
                         ) : (
@@ -1260,14 +1308,17 @@ export function DashboardPage() {
                                     const scale = isHovered ? 1.045 : 1;
                                     if (seg.angle >= 359.99) {
                                       return (
-                                        <circle key={seg.name} cx={pieCx} cy={pieCy} r={pieR} fill={seg.color}
-                                          opacity={hoveredPie && !isHovered ? 0.5 : 0.85}
-                                          className="transition-all duration-200 cursor-pointer"
-                                          style={{ transform: `scale(${scale})`, transformOrigin: `${pieCx}px ${pieCy}px` }}
-                                          onMouseEnter={() => setHoveredPie(seg.name)}
-                                          onMouseLeave={() => setHoveredPie(null)}
-                                          onClick={() => { setSelectedStatuses([seg.name]); setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
-                                        />
+                                        <g key={seg.name}>
+                                          <circle cx={pieCx} cy={pieCy} r={pieR} fill={seg.color}
+                                            opacity={hoveredPie && !isHovered ? 0.5 : 0.85}
+                                            className="transition-all duration-200 cursor-pointer"
+                                            style={{ transform: `scale(${scale})`, transformOrigin: `${pieCx}px ${pieCy}px` }}
+                                            onMouseEnter={() => setHoveredPie(seg.name)}
+                                            onMouseLeave={() => setHoveredPie(null)}
+                                            onClick={() => { setSelectedStatuses([seg.name]); setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
+                                          />
+                                          <text x={pieCx} y={pieCy} textAnchor="middle" dominantBaseline="middle" fontSize="14" fill="#fff" fontWeight="700" pointerEvents="none">{seg.count}</text>
+                                        </g>
                                       );
                                     }
                                     const s = pol(pieCx, pieCy, pieR, seg.startAngle);
@@ -1283,6 +1334,19 @@ export function DashboardPage() {
                                         onMouseLeave={() => setHoveredPie(null)}
                                         onClick={() => { setSelectedStatuses([seg.name]); setSelectedIterations([md.month]); setFilterTag(null); setSearchText(""); setTab(TAB_LIST); }}
                                       />
+                                    );
+                                  })}
+                                  {segments.map(seg => {
+                                    if (seg.angle <= 8 || seg.count <= 0) return null;
+                                    const mid = seg.startAngle + seg.angle / 2;
+                                    const lr = pieR * 0.62;
+                                    const lx = pieCx + lr * Math.cos(toRad(mid));
+                                    const ly = pieCy + lr * Math.sin(toRad(mid));
+                                    return (
+                                      <text key={`lbl-${seg.name}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
+                                        fontSize="10" fill="#fff" fontWeight="600" pointerEvents="none">
+                                        {seg.count}
+                                      </text>
                                     );
                                   })}
                                 </svg>
@@ -1446,6 +1510,7 @@ export function DashboardPage() {
                                       <p className="text-sm text-[#0F172A] line-clamp-2">{r.title}</p>
                                       <div className="flex items-center gap-2 mt-1 text-xs text-[#94A3B8] flex-wrap">
                                         {r.date && <span>{r.date}</span>}
+                                        {r.reporter && <span>· 提报人: {r.reporter}</span>}
                                         {r.product && <span>· {r.product}</span>}
                                         {r.strategy && <span className="text-[#92400E]">策略: {r.strategy}</span>}
                                       </div>
@@ -1481,7 +1546,7 @@ export function DashboardPage() {
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b-2 border-[#E4ECFC] bg-[#F8FAFC] text-left">
-                                {["ONES ID", "标题", "状态", "优先级", "提测时间", "开发负责人", "测试负责人"].map(h => (
+                                {["ONES ID", "标题", "状态", "优先级", "提测时间", "产品负责人", "开发负责人", "测试负责人"].map(h => (
                                   <th key={h} className="py-2.5 px-3 font-semibold text-[#0F172A] whitespace-nowrap text-xs">{h}</th>
                                 ))}
                               </tr>
@@ -1500,6 +1565,7 @@ export function DashboardPage() {
                                   <td className="py-2.5 px-3 whitespace-nowrap"><Badge className={`text-xs font-normal border ${sc(r.status)}`}>{r.status || "-"}</Badge></td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.level || "-"}</td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.testDate || "-"}</td>
+                                  <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.productOwner || "-"}</td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.devOwner || "-"}</td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.testOwner || "-"}</td>
                                 </tr>
@@ -1586,7 +1652,7 @@ export function DashboardPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b-2 border-[#E4ECFC] bg-[#F8FAFC] text-left">
-                          {["ONES ID","标题","状态","优先级","所属项目","提测时间","开发负责人","测试负责人"].map(h => (
+                          {["ONES ID","标题","状态","优先级","所属项目","提测时间","产品负责人","开发负责人","测试负责人"].map(h => (
                             <th key={h} className="py-3 px-4 font-semibold text-[#0F172A] whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -1613,6 +1679,7 @@ export function DashboardPage() {
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.level || "-"}</td>
                             <td className="py-3 px-4 text-[#0F172A] whitespace-nowrap text-xs max-w-[120px] truncate" title={r.project}>{r.project || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.testDate || "-"}</td>
+                            <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.productOwner || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.devOwner || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.testOwner || "-"}</td>
                             {isRiskRelated && <td className="py-3 px-1 whitespace-nowrap"><AlertTriangle className="w-3.5 h-3.5 text-[#DC2626]" /></td>}
@@ -1879,6 +1946,7 @@ export function DashboardPage() {
             </div>
           )}
         </main>
+        </div>
       </div>
     </div>
   );
@@ -2128,7 +2196,7 @@ function parseRisks(records: RawRec[]): RiskRow[] {
     }
     return {
       id: r.id || "", title: summary(f["事项"]), status: str(f["状态"]),
-      date: str(f["提报日期"]), product: str(f["归属产品"]), iteration: str(f["迭代"]),
+      date: str(f["提报日期"]), reporter: str(f["提报人"]), product: str(f["归属产品"]), iteration: str(f["迭代"]),
       onesId,
       strategy: str(f["应对策略"]),
     };
