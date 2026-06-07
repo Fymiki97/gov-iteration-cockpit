@@ -108,6 +108,8 @@ function prepareChartsForCapture(root: HTMLElement) {
     });
     svg.querySelectorAll("text, tspan").forEach((node) => {
       const t = node as SVGTextElement;
+      // 跳过环形图标签（已由 PieOutsideLabel 设定颜色）
+      if (t.closest(".pie-export-label")) return;
       if (!t.getAttribute("fill")) t.setAttribute("fill", "#0F172A");
       if (!t.getAttribute("font-family")) t.setAttribute("font-family", "Microsoft YaHei, sans-serif");
     });

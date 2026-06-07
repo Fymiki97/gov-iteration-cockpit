@@ -99,13 +99,21 @@ export function PieOutsideLabel(props: PieLabelRenderProps) {
 
   return (
     <g className="pie-export-label">
-      <polyline points={`${sx},${sy} ${mx},${my} ${ex},${ey}`} stroke={labelColor} fill="none" strokeWidth={1} opacity={0.6} />
+      <polyline
+        points={`${sx},${sy} ${mx},${my} ${ex},${ey}`}
+        stroke={labelColor}
+        style={{ stroke: labelColor }}
+        fill="none"
+        strokeWidth={1}
+        opacity={0.6}
+      />
       <text
         x={textX}
         y={ey}
         textAnchor={textAnchor}
         dominantBaseline="central"
         fill={labelColor}
+        style={{ fill: labelColor }}
         fontSize={11}
         fontWeight={600}
         fontFamily="Microsoft YaHei, sans-serif"
