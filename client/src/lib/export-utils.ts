@@ -81,7 +81,7 @@ export function exportRequirementsToExcel(rows: ReqExportRow[], filename: string
 }
 
 /** 等待图表等异步渲染完成 */
-export function waitForRender(ms = 400): Promise<void> {
+function waitForRender(ms = 400): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setTimeout(resolve, ms));
@@ -90,49 +90,58 @@ export function waitForRender(ms = 400): Promise<void> {
 }
 
 /**
- * 截取指定 DOM 区域为 PNG（支持超出视口高度的完整内容）。
+ * 截取指定 DOM 区域为 PNG。
  *
- * 原理：html2canvas 内部会克隆 DOM → 在克隆体上执行 onclone 回调展开滚动容器 →
- * 按克隆体的真实尺寸生成 canvas。我们不再手动操作原始 DOM，避免：
- *   - 操作原始 DOM 导致克隆体布局不同步
- *   - 显式传入 width/height 导致 canvas 按需求列表全量高度分配内存而 OOM
+ * 核心策略：
+ *  1. 根元素 overflow→visible / height→auto，让 html2canvas 看到完整内容
+ *  2. 子元素只展开 overflow，**不改 height**，避免把 Recharts SVG 拍扁
+ *  3. SVG 元素和 Recharts 容器完全跳过
  */
 export async function captureElementAsPng(element: HTMLElement, filename: string) {
-  await waitForRender(300);
+  await waitForRender(600);
 
   const canvas = await html2canvas(element, {
     useCORS: true,
     allowTaint: false,
     backgroundColor: "#F8FAFC",
-    scale: 1,
+    scale: Math.min(window.devicePixelRatio || 1, 2),
     scrollX: 0,
     scrollY: 0,
     logging: false,
-    onclone: (clonedDoc, clonedEl) => {
-      const cloned = clonedEl as HTMLElement;
-      // 展开克隆体：移除所有裁剪，让 html2canvas 按完整内容尺寸渲染
-      cloned.style.overflow = "visible";
-      cloned.style.maxHeight = "none";
-      cloned.style.height = "auto";
-      // 无条件展开所有子节点 —— 不用 getComputedStyle 判断，因为
-      // 克隆文档的 DOM 节点不在主文档中，window.getComputedStyle 会把
-      // overflowY 都解析为空/默认值，永远无法匹配 auto/scroll，导致
-      // 内部滚动容器没被展开 → html2canvas 只截取视口 → toBlob null → 失败。
-      // 改用 clonedDoc.defaultView.getComputedStyle 也没必要：展开所有
-      // 子节点不会带来副作用，只是让 html2canvas 测出真实内容高度。
-      cloned.querySelectorAll("*").forEach((child) => {
+    onclone: (_clonedDoc, clonedEl) => {
+      const root = clonedEl as HTMLElement;
+      root.style.overflow = "visible";
+      root.style.maxHeight = "none";
+      root.style.height = "auto";
+
+      root.querySelectorAll("*").forEach((child) => {
+        if (child instanceof SVGElement) return;
         const el = child as HTMLElement;
+        if (!el.style) return;
+
+        // Recharts 组件需要保持固定尺寸，完全跳过
+        if (
+          el.classList.contains("recharts-responsive-container") ||
+          el.classList.contains("recharts-wrapper") ||
+          el.classList.contains("recharts-surface") ||
+          el.closest(".recharts-responsive-container")
+        ) {
+          return;
+        }
+
+        // 仅展开 overflow，不触碰 height（保护图表容器的显式高度）
         el.style.overflow = "visible";
         el.style.overflowY = "visible";
         el.style.overflowX = "visible";
         el.style.maxHeight = "none";
-        el.style.height = "auto";
       });
     },
   });
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (!blob) throw new Error("canvas.toBlob 返回 null（内容可能超出浏览器 canvas 尺寸限制）");
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png"),
+  );
+  if (!blob) throw new Error("canvas.toBlob 返回 null（可能超出浏览器 canvas 尺寸限制）");
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
