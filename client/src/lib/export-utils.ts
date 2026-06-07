@@ -108,21 +108,25 @@ export async function captureElementAsPng(element: HTMLElement, filename: string
     scrollX: 0,
     scrollY: 0,
     logging: false,
-    onclone: (_doc, clonedEl) => {
+    onclone: (clonedDoc, clonedEl) => {
       const cloned = clonedEl as HTMLElement;
       // 展开克隆体：移除所有裁剪，让 html2canvas 按完整内容尺寸渲染
       cloned.style.overflow = "visible";
       cloned.style.maxHeight = "none";
       cloned.style.height = "auto";
-      // 递归展开子节点的滚动容器
+      // 无条件展开所有子节点 —— 不用 getComputedStyle 判断，因为
+      // 克隆文档的 DOM 节点不在主文档中，window.getComputedStyle 会把
+      // overflowY 都解析为空/默认值，永远无法匹配 auto/scroll，导致
+      // 内部滚动容器没被展开 → html2canvas 只截取视口 → toBlob null → 失败。
+      // 改用 clonedDoc.defaultView.getComputedStyle 也没必要：展开所有
+      // 子节点不会带来副作用，只是让 html2canvas 测出真实内容高度。
       cloned.querySelectorAll("*").forEach((child) => {
         const el = child as HTMLElement;
-        const cs = getComputedStyle(el);
-        if (/(auto|scroll)/.test(cs.overflowY)) {
-          el.style.overflow = "visible";
-          el.style.maxHeight = "none";
-          el.style.height = "auto";
-        }
+        el.style.overflow = "visible";
+        el.style.overflowY = "visible";
+        el.style.overflowX = "visible";
+        el.style.maxHeight = "none";
+        el.style.height = "auto";
       });
     },
   });
