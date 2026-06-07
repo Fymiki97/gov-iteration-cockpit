@@ -90,71 +90,52 @@ export function waitForRender(ms = 400): Promise<void> {
 }
 
 /**
- * 截取指定 DOM 区域为 PNG（支持超出视口高度的完整内容）
- * 截图前临时展开滚动容器，避免内容被裁剪
+ * 截取指定 DOM 区域为 PNG（支持超出视口高度的完整内容）。
+ *
+ * 原理：html2canvas 内部会克隆 DOM → 在克隆体上执行 onclone 回调展开滚动容器 →
+ * 按克隆体的真实尺寸生成 canvas。我们不再手动操作原始 DOM，避免：
+ *   - 操作原始 DOM 导致克隆体布局不同步
+ *   - 显式传入 width/height 导致 canvas 按需求列表全量高度分配内存而 OOM
  */
 export async function captureElementAsPng(element: HTMLElement, filename: string) {
-  const scrollParent = findScrollableParent(element) ?? element;
-  const saved = {
-    overflow: scrollParent.style.overflow,
-    height: scrollParent.style.height,
-    maxHeight: scrollParent.style.maxHeight,
-  };
+  await waitForRender(300);
 
-  scrollParent.style.overflow = "visible";
-  scrollParent.style.height = "auto";
-  scrollParent.style.maxHeight = "none";
+  const canvas = await html2canvas(element, {
+    useCORS: true,
+    allowTaint: false,
+    backgroundColor: "#F8FAFC",
+    scale: 1,
+    scrollX: 0,
+    scrollY: 0,
+    logging: false,
+    onclone: (_doc, clonedEl) => {
+      const cloned = clonedEl as HTMLElement;
+      // 展开克隆体：移除所有裁剪，让 html2canvas 按完整内容尺寸渲染
+      cloned.style.overflow = "visible";
+      cloned.style.maxHeight = "none";
+      cloned.style.height = "auto";
+      // 递归展开子节点的滚动容器
+      cloned.querySelectorAll("*").forEach((child) => {
+        const el = child as HTMLElement;
+        const cs = getComputedStyle(el);
+        if (/(auto|scroll)/.test(cs.overflowY)) {
+          el.style.overflow = "visible";
+          el.style.maxHeight = "none";
+          el.style.height = "auto";
+        }
+      });
+    },
+  });
 
-  await waitForRender(500);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("canvas.toBlob 返回 null（内容可能超出浏览器 canvas 尺寸限制）");
 
-  try {
-    const width = element.scrollWidth;
-    const height = element.scrollHeight;
-
-    const canvas = await html2canvas(element, {
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: "#F8FAFC",
-      scale: Math.min(window.devicePixelRatio || 1, 2),
-      width,
-      height,
-      windowWidth: width,
-      windowHeight: height,
-      scrollX: 0,
-      scrollY: 0,
-      logging: false,
-      onclone: (_doc, clonedEl) => {
-        const cloned = clonedEl as HTMLElement;
-        cloned.style.overflow = "visible";
-        cloned.style.maxHeight = "none";
-        cloned.style.height = "auto";
-      },
-    });
-
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!blob) throw new Error("图片生成失败");
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  } finally {
-    scrollParent.style.overflow = saved.overflow;
-    scrollParent.style.height = saved.height;
-    scrollParent.style.maxHeight = saved.maxHeight;
-  }
-}
-
-function findScrollableParent(el: HTMLElement): HTMLElement | null {
-  let node: HTMLElement | null = el;
-  while (node) {
-    const style = getComputedStyle(node);
-    if (/(auto|scroll)/.test(style.overflowY)) return node;
-    node = node.parentElement;
-  }
-  return null;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 /** Tab key 到中文名称 */
