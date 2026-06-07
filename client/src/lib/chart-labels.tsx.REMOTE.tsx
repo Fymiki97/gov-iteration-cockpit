@@ -66,7 +66,7 @@ export function LineTopLabel({ x, y, value, fill, valueFormat }: LineLabelProps)
 
 /**
  * 环形图外侧引线标签：月份 + 人天数 + 占比。
- * 标签绘制在环外，颜色跟随切片色而非纯黑。
+ * 标签绘制在环外并使用深色文字，避免 clip-path 裁切导致截图不可见。
  */
 export function PieOutsideLabel(props: PieLabelRenderProps) {
   const { cx, cy, midAngle, outerRadius, percent, value, name } = props;
@@ -93,27 +93,19 @@ export function PieOutsideLabel(props: PieLabelRenderProps) {
   const textX = cxN + (or + 28) * cos;
   const month = String(name ?? "");
 
-  // 标签颜色跟随切片色
+  // 标签颜色跟随切片色，比纯黑更柔和但比浅色切片更暗，确保可读
   const sliceFill = (props as any).fill as string | undefined;
   const labelColor = sliceFill || "#475569";
 
   return (
     <g className="pie-export-label">
-      <polyline
-        points={`${sx},${sy} ${mx},${my} ${ex},${ey}`}
-        stroke={labelColor}
-        style={{ stroke: labelColor }}
-        fill="none"
-        strokeWidth={1}
-        opacity={0.6}
-      />
+      <polyline points={`${sx},${sy} ${mx},${my} ${ex},${ey}`} stroke={labelColor} fill="none" strokeWidth={1} opacity={0.6} />
       <text
         x={textX}
         y={ey}
         textAnchor={textAnchor}
         dominantBaseline="central"
         fill={labelColor}
-        style={{ fill: labelColor }}
         fontSize={11}
         fontWeight={600}
         fontFamily="Microsoft YaHei, sans-serif"
