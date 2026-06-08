@@ -172,6 +172,7 @@ export function DashboardPage() {
   const [exportingImage, setExportingImage] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportTip, setExportTip] = useState<string | null>(null);
+  const [dataEmptyWarning, setDataEmptyWarning] = useState(false);
 
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
@@ -239,6 +240,16 @@ export function DashboardPage() {
       }
       if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
       setLastRefreshTime(new Date());
+
+      // 检测疑似无权限：三个 sheet 都没有返回任何记录
+      const reqGot = reqRes.data?.records?.length ?? 0;
+      const milGot = milRes.data?.records?.length ?? 0;
+      const riskGot = riskRes.data?.records?.length ?? 0;
+      if (reqGot === 0 && milGot === 0 && riskGot === 0) {
+        setDataEmptyWarning(true);
+      } else {
+        setDataEmptyWarning(false);
+      }
     } catch (err) {
       console.error("加载失败:", err);
     } finally {
@@ -648,6 +659,19 @@ export function DashboardPage() {
           </header>
 
         <main className="flex-1 px-6 md:px-8 py-6">
+          {/*  疑似无权限警告 */}
+          {!loading && dataEmptyWarning && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-800">未读取到任何数据</p>
+                <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                  三个数据表均返回 0 条记录，很可能是你没有该多维表的访问权限。
+                  请确认多维表（ID: <code className="bg-amber-100 px-1 rounded text-amber-900">{FILE_ID}</code>）已在 WPS365 中共享给你，或联系表主添加访问权限。
+                </p>
+              </div>
+            </div>
+          )}
           {/* ============ TAB 1: 迭代概览 ============ */}
           {tab === TAB_OVERVIEW && (
             <div className="space-y-6">
