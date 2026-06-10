@@ -133,36 +133,54 @@ interface MonthDetail {
 
 type FilterTag = "total" | "completed" | "risk" | "bar" | null;
 
-/* ==================== 数据加载策略（自动检测） ==================== */
+/* ==================== 数据加载策略 ==================== */
 type DataResult = { code?: number; data?: { records: { id?: string; fields?: string | Record<string, unknown> }[] } } | null;
 
-type ListRecordsFn = (sheetId: number, body: Record<string, unknown>, label: string) => Promise<DataResult>;
-
-function createServerFetcher(): ListRecordsFn {
-  return async (sheetId, body, label) => {
-    const res = await fetch(`./api/wps-openapi/v7/coop/dbsheet/${FILE_ID}/sheets/${sheetId}/records`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.error(`[${label}] HTTP ${res.status}: ${text.slice(0, 300)}`);
-      throw new Error(`HTTP ${res.status}`);
-    }
-    return await res.json();
-  };
+interface BulkResponse {
+  requirements: DataResult;
+  milestones: DataResult;
+  risks: DataResult;
+  ts: number;
 }
 
-function createSdkFetcher(client: Wps365Client): ListRecordsFn {
-  return async (sheetId, body, label) => {
-    try {
-      return await client.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: sheetId, ...body } as Parameters<typeof client.dbsheet.listRecords>[0]);
-    } catch (err) {
-      console.error(`[${label}] SDK 加载失败:`, err);
-      return null;
+async function fetchServerCache(): Promise<BulkResponse | null> {
+  try {
+    const res = await fetch("./api/dbsheet-data", { credentials: "include" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchViaSdk(client: Wps365Client): Promise<{ reqRes: DataResult; milRes: DataResult; riskRes: DataResult }> {
+  async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 3): Promise<T | null> {
+    for (let i = 0; i <= retries; i++) {
+      try { return await fn(); } catch (err) {
+        const code = (err as { code?: number })?.code;
+        if (code === 403000001 || (err instanceof Error && /403|permission/i.test(err.message))) {
+          if (i < retries) { await new Promise(r => setTimeout(r, (i + 1) * 2000)); continue; }
+        }
+        console.error(`[${label}] 失败 (尝试 ${i + 1}/${retries + 1}):`, err);
+        if (i >= retries) return null;
+      }
     }
+    return null;
+  }
+
+  const lr = (sheetId: number, body: Record<string, unknown>) =>
+    client.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: sheetId, ...body } as Parameters<typeof client.dbsheet.listRecords>[0]);
+
+  const [reqRes, milRes, riskRes] = await Promise.allSettled([
+    withRetry(() => lr(21, { prefer_id: false, max_records: 2000, page_size: 1000 }), "需求数据"),
+    withRetry(() => lr(23, { prefer_id: false, max_records: 200 }), "里程碑数据"),
+    withRetry(() => lr(24, { prefer_id: false, max_records: 50 }), "风险数据"),
+  ]);
+
+  return {
+    reqRes: reqRes.status === "fulfilled" ? reqRes.value : null,
+    milRes: milRes.status === "fulfilled" ? milRes.value : null,
+    riskRes: riskRes.status === "fulfilled" ? riskRes.value : null,
   };
 }
 
@@ -173,7 +191,7 @@ export function DashboardPage() {
   const [risks, setRisks] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(TAB_OVERVIEW);
-  const fetcherRef = useRef<{ fn: ListRecordsFn; mode: "server" | "sdk" } | null>(null);
+  const sdkRef = useRef<Wps365Client | null>(null);
 
   // 筛选
   const [filterTag, setFilterTag] = useState<FilterTag>(null);
@@ -211,35 +229,31 @@ export function DashboardPage() {
   const loadData = useCallback(async (silent = false) => {
     if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
 
-    // 首次调用：探测服务端 JWT 模式是否可用，选定加载策略后缓存
-    if (!fetcherRef.current) {
-      try {
-        const serverFn = createServerFetcher();
-        const probe = await serverFn(24, { prefer_id: false, max_records: 1 }, "探测");
-        if (probe) {
-          console.info("[数据策略] 服务端 OAuth2 JWT 模式可用");
-          fetcherRef.current = { fn: serverFn, mode: "server" };
-        }
-      } catch {
-        console.info("[数据策略] 服务端不可用，回退到 base-proxy SDK");
-      }
+    let reqRes: DataResult = null;
+    let milRes: DataResult = null;
+    let riskRes: DataResult = null;
 
-      if (!fetcherRef.current) {
-        const client = createWps365({
+    // 策略1：服务端缓存（应用凭证，不依赖用户鉴权）
+    const bulk = await fetchServerCache();
+    if (bulk && (bulk.requirements || bulk.milestones || bulk.risks)) {
+      console.info("[数据策略] 服务端缓存命中");
+      reqRes = bulk.requirements;
+      milRes = bulk.milestones;
+      riskRes = bulk.risks;
+    } else {
+      // 策略2：base-proxy SDK（走网关 gateway_token）
+      console.info("[数据策略] 回退到 base-proxy SDK");
+      if (!sdkRef.current) {
+        sdkRef.current = createWps365({
           proxyBase: import.meta.env.DEV ? "/base-proxy" : "/app/app-base/base-proxy",
         });
-        await client.ensureAuthorized({ scope: "kso.dbsheet.readwrite" });
-        fetcherRef.current = { fn: createSdkFetcher(client), mode: "sdk" };
+        await sdkRef.current.ensureAuthorized({ scope: "kso.dbsheet.readwrite" });
       }
+      const sdkResult = await fetchViaSdk(sdkRef.current);
+      reqRes = sdkResult.reqRes;
+      milRes = sdkResult.milRes;
+      riskRes = sdkResult.riskRes;
     }
-
-    const listRecords = fetcherRef.current.fn;
-
-    const [reqRes, milRes, riskRes] = await Promise.all([
-      listRecords(21, { prefer_id: false, max_records: 2000, page_size: 1000 }, "需求数据").catch(() => null),
-      listRecords(23, { prefer_id: false, max_records: 200 }, "里程碑数据").catch(() => null),
-      listRecords(24, { prefer_id: false, max_records: 50 }, "风险数据").catch(() => null),
-    ]);
 
     if (reqRes?.data?.records) {
       const reqs = parseReqs(reqRes.data.records);
