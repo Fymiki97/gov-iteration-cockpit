@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { createWps365 } from "@ks-open/capability/client/wps365";
+import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import {
   ResponsiveContainer as RechartResponsive,
   ComposedChart as RechartComposed,
@@ -131,6 +133,39 @@ interface MonthDetail {
 
 type FilterTag = "total" | "completed" | "risk" | "bar" | null;
 
+/* ==================== 数据加载策略（自动检测） ==================== */
+type DataResult = { code?: number; data?: { records: { id?: string; fields?: string | Record<string, unknown> }[] } } | null;
+
+type ListRecordsFn = (sheetId: number, body: Record<string, unknown>, label: string) => Promise<DataResult>;
+
+function createServerFetcher(): ListRecordsFn {
+  return async (sheetId, body, label) => {
+    const res = await fetch(`./api/wps-openapi/v7/coop/dbsheet/${FILE_ID}/sheets/${sheetId}/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(`[${label}] HTTP ${res.status}: ${text.slice(0, 300)}`);
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return await res.json();
+  };
+}
+
+function createSdkFetcher(client: Wps365Client): ListRecordsFn {
+  return async (sheetId, body, label) => {
+    try {
+      return await client.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: sheetId, ...body } as Parameters<typeof client.dbsheet.listRecords>[0]);
+    } catch (err) {
+      console.error(`[${label}] SDK 加载失败:`, err);
+      return null;
+    }
+  };
+}
+
 /* ==================== 主组件 ==================== */
 export function DashboardPage() {
   const [requirements, setRequirements] = useState<ReqRow[]>([]);
@@ -138,6 +173,7 @@ export function DashboardPage() {
   const [risks, setRisks] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(TAB_OVERVIEW);
+  const fetcherRef = useRef<{ fn: ListRecordsFn; mode: "server" | "sdk" } | null>(null);
 
   // 筛选
   const [filterTag, setFilterTag] = useState<FilterTag>(null);
@@ -175,30 +211,34 @@ export function DashboardPage() {
   const loadData = useCallback(async (silent = false) => {
     if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
 
-    async function listRecords(sheetId: number, body: Record<string, unknown>, label: string) {
+    // 首次调用：探测服务端 JWT 模式是否可用，选定加载策略后缓存
+    if (!fetcherRef.current) {
       try {
-        const res = await fetch(`./api/wps-openapi/v7/coop/dbsheet/${FILE_ID}/sheets/${sheetId}/records`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          console.error(`[${label}] HTTP ${res.status}: ${text.slice(0, 300)}`);
-          return null;
+        const serverFn = createServerFetcher();
+        const probe = await serverFn(24, { prefer_id: false, max_records: 1 }, "探测");
+        if (probe) {
+          console.info("[数据策略] 服务端 OAuth2 JWT 模式可用");
+          fetcherRef.current = { fn: serverFn, mode: "server" };
         }
-        return (await res.json()) as { code?: number; data?: { records: { id?: string; fields?: string | Record<string, unknown> }[] } };
-      } catch (err) {
-        console.error(`[${label}] 加载失败:`, err);
-        return null;
+      } catch {
+        console.info("[数据策略] 服务端不可用，回退到 base-proxy SDK");
+      }
+
+      if (!fetcherRef.current) {
+        const client = createWps365({
+          proxyBase: import.meta.env.DEV ? "/base-proxy" : "/app/app-base/base-proxy",
+        });
+        await client.ensureAuthorized({ scope: "kso.dbsheet.readwrite" });
+        fetcherRef.current = { fn: createSdkFetcher(client), mode: "sdk" };
       }
     }
 
+    const listRecords = fetcherRef.current.fn;
+
     const [reqRes, milRes, riskRes] = await Promise.all([
-      listRecords(21, { prefer_id: false, max_records: 2000, page_size: 1000 }, "需求数据"),
-      listRecords(23, { prefer_id: false, max_records: 200 }, "里程碑数据"),
-      listRecords(24, { prefer_id: false, max_records: 50 }, "风险数据"),
+      listRecords(21, { prefer_id: false, max_records: 2000, page_size: 1000 }, "需求数据").catch(() => null),
+      listRecords(23, { prefer_id: false, max_records: 200 }, "里程碑数据").catch(() => null),
+      listRecords(24, { prefer_id: false, max_records: 50 }, "风险数据").catch(() => null),
     ]);
 
     if (reqRes?.data?.records) {
@@ -572,7 +612,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
-          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.2</p>}
+          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.3</p>}
         </div>
       </aside>
 
