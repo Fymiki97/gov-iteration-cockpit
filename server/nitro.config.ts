@@ -9,6 +9,9 @@ export default defineNitroConfig({
     logLevel: '3',
     projectId: '',
     appBaseEndpoint: 'https://o.wpsgo.com/app/app-base',
+    SESSION_SECRET: '',
+    WPS_APP_ID: '',
+    WPS_APP_SECRET: '',
     nitro: {
       envPrefix: '',
     },

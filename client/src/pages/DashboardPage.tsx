@@ -1,6 +1,4 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { createWps365 } from "@ks-open/capability/client/wps365";
-import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import {
   ResponsiveContainer as RechartResponsive,
   ComposedChart as RechartComposed,
@@ -135,9 +133,6 @@ type FilterTag = "total" | "completed" | "risk" | "bar" | null;
 
 /* ==================== 主组件 ==================== */
 export function DashboardPage() {
-  const [wps, setWps] = useState<Wps365Client | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [requirements, setRequirements] = useState<ReqRow[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
   const [risks, setRisks] = useState<RiskRow[]>([]);
@@ -172,97 +167,83 @@ export function DashboardPage() {
   const [exportingImage, setExportingImage] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportTip, setExportTip] = useState<string | null>(null);
-  const [dataEmptyWarning, setDataEmptyWarning] = useState(false);
 
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
-  /* === SDK === */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const client = createWps365({
-          proxyBase: import.meta.env.DEV ? "/base-proxy" : "/app/app-base/base-proxy",
-        });
-        const authResult = await client.ensureAuthorized({ scope: "kso.dbsheet.readwrite" });
-        if (!authResult.authorized) return;
-        if (cancelled) return;
-        setWps(client);
-        setAuthChecked(true);
-      } catch (err) {
-        if (!cancelled) setAuthError(err instanceof Error ? err.message : String(err));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
   /* === 加载数据（silent=true 时不清空已有数据、不显示骨架屏） === */
   const loadData = useCallback(async (silent = false) => {
-    if (!wps) return;
     if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
-    try {
-      const [reqRes, milRes, riskRes] = await Promise.all([
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 2000, page_size: 1000 }),
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 23, prefer_id: false, max_records: 200 }),
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 24, prefer_id: false, max_records: 50 }),
-      ]);
-      if (reqRes.data?.records) {
-        const reqs = parseReqs(reqRes.data.records);
-        setRequirements(reqs);
-        if (!silent) {
-          const monthDist: Record<string, number> = {};
-          reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
-          console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
-          if (reqRes.data.records.length > 0) {
-            const raw = reqRes.data.records.slice(0, 3).map(r => {
-              const f = fld(r as RawRec);
-              const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
-              const vals: Record<string, string> = {};
-              monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
-              return { id: r.id, monthKeys: vals };
-            });
-            console.log("[需求-含月的字段]", JSON.stringify(raw));
-          }
-          console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
-        }
-      }
-      if (milRes.data?.records) {
-        const mils = parseMils(milRes.data.records);
-        setMilestones(mils);
-        if (!silent && milRes.data.records.length > 0) {
-          const raw = milRes.data.records.slice(0, 5).map(r => {
-            const f = fld(r as RawRec);
-            return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
-          });
-          console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
-        }
-      }
-      if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
-      setLastRefreshTime(new Date());
 
-      // 检测疑似无权限：三个 sheet 都没有返回任何记录
-      const reqGot = reqRes.data?.records?.length ?? 0;
-      const milGot = milRes.data?.records?.length ?? 0;
-      const riskGot = riskRes.data?.records?.length ?? 0;
-      if (reqGot === 0 && milGot === 0 && riskGot === 0) {
-        setDataEmptyWarning(true);
-      } else {
-        setDataEmptyWarning(false);
+    async function listRecords(sheetId: number, body: Record<string, unknown>, label: string) {
+      try {
+        const res = await fetch(`./api/wps-openapi/v7/coop/dbsheet/${FILE_ID}/sheets/${sheetId}/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          console.error(`[${label}] HTTP ${res.status}: ${text.slice(0, 300)}`);
+          return null;
+        }
+        return (await res.json()) as { code?: number; data?: { records: { id?: string; fields?: string | Record<string, unknown> }[] } };
+      } catch (err) {
+        console.error(`[${label}] 加载失败:`, err);
+        return null;
       }
-    } catch (err) {
-      console.error("加载失败:", err);
-    } finally {
-      if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
     }
-  }, [wps]);
+
+    const [reqRes, milRes, riskRes] = await Promise.all([
+      listRecords(21, { prefer_id: false, max_records: 2000, page_size: 1000 }, "需求数据"),
+      listRecords(23, { prefer_id: false, max_records: 200 }, "里程碑数据"),
+      listRecords(24, { prefer_id: false, max_records: 50 }, "风险数据"),
+    ]);
+
+    if (reqRes?.data?.records) {
+      const reqs = parseReqs(reqRes.data.records);
+      setRequirements(reqs);
+      if (!silent) {
+        const monthDist: Record<string, number> = {};
+        reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
+        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
+        if (reqRes.data.records.length > 0) {
+          const raw = reqRes.data.records.slice(0, 3).map(r => {
+            const f = fld(r as RawRec);
+            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
+            const vals: Record<string, string> = {};
+            monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
+            return { id: r.id, monthKeys: vals };
+          });
+          console.log("[需求-含月的字段]", JSON.stringify(raw));
+        }
+        console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
+      }
+    }
+    if (milRes?.data?.records) {
+      const mils = parseMils(milRes.data.records);
+      setMilestones(mils);
+      if (!silent && milRes.data.records.length > 0) {
+        const raw = milRes.data.records.slice(0, 5).map(r => {
+          const f = fld(r as RawRec);
+          return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
+        });
+        console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
+      }
+    }
+    if (riskRes?.data?.records) setRisks(parseRisks(riskRes.data.records));
+
+    if (reqRes || milRes || riskRes) setLastRefreshTime(new Date());
+
+    if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
+  }, []);
 
   // 首次加载
-  useEffect(() => { if (wps) loadData(false); }, [wps, loadData]);
+  useEffect(() => { loadData(false); }, [loadData]);
 
   // 自动轮询：工作时间(8:00-21:00) 5分钟，其余 1小时
   useEffect(() => {
-    if (!wps) return;
     function scheduleNext() {
       const h = new Date().getHours();
       const ms = (h >= 8 && h < 21) ? 5 * 60_000 : 60 * 60_000;
@@ -270,16 +251,16 @@ export function DashboardPage() {
     }
     scheduleNext();
     return () => { if (autoRefreshRef.current) clearTimeout(autoRefreshRef.current); };
-  }, [wps, loadData]);
+  }, [loadData]);
 
   // 页面可见性恢复时立即刷新
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && wps) loadData(true);
+      if (document.visibilityState === "visible") loadData(true);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [wps, loadData]);
+  }, [loadData]);
 
   /* === 全量统计 (加权进度，需求终止权重为0但计入总数) === */
   const stats = useMemo(() => {
@@ -497,27 +478,6 @@ export function DashboardPage() {
   };
 
   /* === 加载/错误页 === */
-  if (!authChecked) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F8FAFC]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#2563EB] mx-auto mb-4" />
-          <p className="text-[#64748B]">检查授权状态...</p>
-        </div>
-      </div>
-    );
-  }
-  if (authError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F8FAFC]">
-        <div className="text-center max-w-md p-8">
-          <AlertTriangle className="w-12 h-12 text-[#DC2626] mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-[#0F172A] mb-2">授权失败</h2>
-          <p className="text-[#64748B] text-sm">{authError}</p>
-        </div>
-      </div>
-    );
-  }
 
   const NAV_ITEMS = [
     { key: TAB_OVERVIEW, label: "迭代概览", icon: BarChart3 },
@@ -612,6 +572,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
+          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.2</p>}
         </div>
       </aside>
 
@@ -659,19 +620,6 @@ export function DashboardPage() {
           </header>
 
         <main className="flex-1 px-6 md:px-8 py-6">
-          {/*  疑似无权限警告 */}
-          {!loading && dataEmptyWarning && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-800">未读取到任何数据</p>
-                <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                  三个数据表均返回 0 条记录，很可能是你没有该多维表的访问权限。
-                  请确认多维表（ID: <code className="bg-amber-100 px-1 rounded text-amber-900">{FILE_ID}</code>）已在 WPS365 中共享给你，或联系表主添加访问权限。
-                </p>
-              </div>
-            </div>
-          )}
           {/* ============ TAB 1: 迭代概览 ============ */}
           {tab === TAB_OVERVIEW && (
             <div className="space-y-6">
