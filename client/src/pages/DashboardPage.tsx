@@ -138,23 +138,15 @@ interface ServerCache { requirements: DataResult; milestones: DataResult; risks:
 
 /**
  * 读取服务端缓存。
- * GET 请求自动携带 cookie（含 gateway_token），服务端会自动提取并启动定时刷新。
- * 如果返回 202（服务端正在首次拉取），等待后重试。
+ * GET 请求自动携带 cookie（含 gateway_token），服务端会提取 token 并启动自动刷新。
+ * 首次请求时服务端会同步等待数据拉取完成再返回（最多 20 秒）。
  */
-async function readServerCache(retries = 8): Promise<ServerCache | null> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch("./api/dbsheet-data", { credentials: "include" });
-      if (res.ok) return await res.json();
-      if (res.status === 202 && i < retries - 1) {
-        console.info(`[数据] 服务端正在刷新，等待重试 (${i + 1}/${retries})...`);
-        await new Promise(r => setTimeout(r, 3000));
-        continue;
-      }
-      return null;
-    } catch { return null; }
-  }
-  return null;
+async function readServerCache(): Promise<ServerCache | null> {
+  try {
+    const res = await fetch("./api/dbsheet-data", { credentials: "include" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
 }
 
 /* ==================== 主组件 ==================== */

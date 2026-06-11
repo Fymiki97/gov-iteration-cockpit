@@ -1,7 +1,12 @@
-import { getDbsheetCache, getAutoRefreshStatus, activateAutoRefresh } from "~/utils/dbsheet-cache";
+import {
+  getDbsheetCache,
+  getAutoRefreshStatus,
+  activateAutoRefresh,
+  waitForRefresh,
+  triggerRefresh,
+} from "~/utils/dbsheet-cache";
 
 export default defineEventHandler(async (event) => {
-  // 从请求 Cookie 中提取 gateway_token，自动启动/更新服务端刷新
   const cookieHeader = getRequestHeader(event, "cookie") ?? "";
   const match = cookieHeader.match(/(?:^|;\s*)gateway_token=([^;]+)/);
   if (match) {
@@ -10,18 +15,24 @@ export default defineEventHandler(async (event) => {
     activateAutoRefresh(match[1], endpoint);
   }
 
-  const cache = getDbsheetCache();
+  let data = getDbsheetCache();
   const status = getAutoRefreshStatus();
 
-  if (!cache) {
-    if (status.hasToken) {
-      setResponseStatus(event, 202);
-      return { status: "refreshing", message: "服务端正在拉取数据，请稍候..." };
-    }
-    throw createError({ statusCode: 404, message: "no_token" });
+  // 没有缓存但有 token → 等待当前刷新完成（最多 20 秒）
+  if (!data && status.hasToken) {
+    triggerRefresh();
+    await waitForRefresh(20_000);
+    data = getDbsheetCache();
   }
 
-  setResponseHeader(event, "X-Data-Age", String(Date.now() - cache.ts));
+  if (!data) {
+    throw createError({
+      statusCode: 404,
+      message: status.hasToken ? "refresh_failed" : "no_token",
+    });
+  }
+
+  setResponseHeader(event, "X-Data-Age", String(Date.now() - data.ts));
   setResponseHeader(event, "X-Auto-Refresh", status.isRunning ? "active" : "inactive");
-  return cache;
+  return data;
 });
