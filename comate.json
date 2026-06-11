@@ -10,7 +10,7 @@
     "build": "",
     "zip": "$system-zip frontend:./client/dist"
   },
-  "scopes": ["kso.dbsheet.readwrite"],
+  "scopes": [],
   "redirect_url": "http://localhost:5922/api/oauth/callback",
   "cover": true
 }
