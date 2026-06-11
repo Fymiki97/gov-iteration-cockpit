@@ -31,6 +31,7 @@ export default toNitroHandler({
   capabilitiesDir,
   env: {
     WPS_APP_ID: config.WPS_APP_ID,
-    WPS_APP_SECRET: config.WPS_APP_SECRET
+    WPS_APP_SECRET: config.WPS_APP_SECRET,
+    SESSION_SECRET: config.SESSION_SECRET,
   },
 });

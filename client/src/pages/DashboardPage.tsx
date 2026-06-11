@@ -1,6 +1,4 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { createWps365 } from "@ks-open/capability/client/wps365";
-import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import {
   ResponsiveContainer as RechartResponsive,
   ComposedChart as RechartComposed,
@@ -133,11 +131,34 @@ interface MonthDetail {
 
 type FilterTag = "total" | "completed" | "risk" | "bar" | null;
 
+/* ==================== 数据加载策略 ==================== */
+type DataResult = { code?: number; data?: { records: { id?: string; fields?: string | Record<string, unknown> }[] } } | null;
+
+interface ServerCache { requirements: DataResult; milestones: DataResult; risks: DataResult; ts: number }
+
+/**
+ * 读取服务端缓存。
+ * GET 请求自动携带 cookie（含 gateway_token），服务端会自动提取并启动定时刷新。
+ * 如果返回 202（服务端正在首次拉取），等待后重试。
+ */
+async function readServerCache(retries = 8): Promise<ServerCache | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch("./api/dbsheet-data", { credentials: "include" });
+      if (res.ok) return await res.json();
+      if (res.status === 202 && i < retries - 1) {
+        console.info(`[数据] 服务端正在刷新，等待重试 (${i + 1}/${retries})...`);
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      return null;
+    } catch { return null; }
+  }
+  return null;
+}
+
 /* ==================== 主组件 ==================== */
 export function DashboardPage() {
-  const [wps, setWps] = useState<Wps365Client | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [requirements, setRequirements] = useState<ReqRow[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
   const [risks, setRisks] = useState<RiskRow[]>([]);
@@ -176,99 +197,77 @@ export function DashboardPage() {
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
-  /* === SDK === */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const client = createWps365({
-          proxyBase: import.meta.env.DEV ? "/base-proxy" : "/app/app-base/base-proxy",
-        });
-        const authResult = await client.ensureAuthorized({ scope: "kso.dbsheet.readwrite" });
-        if (!authResult.authorized) return;
-        if (cancelled) return;
-        setWps(client);
-        setAuthChecked(true);
-      } catch (err) {
-        if (!cancelled) setAuthError(err instanceof Error ? err.message : String(err));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
   /* === 加载数据（silent=true 时不清空已有数据、不显示骨架屏） === */
   const loadData = useCallback(async (silent = false) => {
-    if (!wps) return;
     if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
-    try {
-      const [reqRes, milRes, riskRes] = await Promise.all([
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 2000, page_size: 1000 }),
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 23, prefer_id: false, max_records: 200 }),
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 24, prefer_id: false, max_records: 50 }),
-      ]);
-      if (reqRes.data?.records) {
-        const reqs = parseReqs(reqRes.data.records);
-        setRequirements(reqs);
-        if (!silent) {
-          const monthDist: Record<string, number> = {};
-          reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
-          console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
-          if (reqRes.data.records.length > 0) {
-            const raw = reqRes.data.records.slice(0, 3).map(r => {
-              const f = fld(r as RawRec);
-              const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
-              const vals: Record<string, string> = {};
-              monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
-              return { id: r.id, monthKeys: vals };
-            });
-            console.log("[需求-含月的字段]", JSON.stringify(raw));
-          }
-          console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
-        }
-      }
-      if (milRes.data?.records) {
-        const mils = parseMils(milRes.data.records);
-        setMilestones(mils);
-        if (!silent && milRes.data.records.length > 0) {
-          const raw = milRes.data.records.slice(0, 5).map(r => {
-            const f = fld(r as RawRec);
-            return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
-          });
-          console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
-        }
-      }
-      if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
-      setLastRefreshTime(new Date());
-    } catch (err) {
-      console.error("加载失败:", err);
-    } finally {
-      if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
+
+    let reqRes: DataResult = null;
+    let milRes: DataResult = null;
+    let riskRes: DataResult = null;
+
+    // 从服务端缓存读取数据（服务端自动定时拉取最新）
+    const cached = await readServerCache();
+    if (cached && (cached.requirements || cached.milestones || cached.risks)) {
+      reqRes = cached.requirements;
+      milRes = cached.milestones;
+      riskRes = cached.risks;
     }
-  }, [wps]);
+
+    if (reqRes?.data?.records) {
+      const reqs = parseReqs(reqRes.data.records);
+      setRequirements(reqs);
+      if (!silent) {
+        const monthDist: Record<string, number> = {};
+        reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
+        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
+        if (reqRes.data.records.length > 0) {
+          const raw = reqRes.data.records.slice(0, 3).map(r => {
+            const f = fld(r as RawRec);
+            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
+            const vals: Record<string, string> = {};
+            monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
+            return { id: r.id, monthKeys: vals };
+          });
+          console.log("[需求-含月的字段]", JSON.stringify(raw));
+        }
+        console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
+      }
+    }
+    if (milRes?.data?.records) {
+      const mils = parseMils(milRes.data.records);
+      setMilestones(mils);
+      if (!silent && milRes.data.records.length > 0) {
+        const raw = milRes.data.records.slice(0, 5).map(r => {
+          const f = fld(r as RawRec);
+          return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
+        });
+        console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
+      }
+    }
+    if (riskRes?.data?.records) setRisks(parseRisks(riskRes.data.records));
+
+    if (reqRes || milRes || riskRes) setLastRefreshTime(new Date());
+
+    if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
+  }, []);
 
   // 首次加载
-  useEffect(() => { if (wps) loadData(false); }, [wps, loadData]);
+  useEffect(() => { loadData(false); }, [loadData]);
 
-  // 自动轮询：工作时间(8:00-21:00) 5分钟，其余 1小时
+  // 自动轮询：每 30 秒从服务端缓存读最新数据
   useEffect(() => {
-    if (!wps) return;
-    function scheduleNext() {
-      const h = new Date().getHours();
-      const ms = (h >= 8 && h < 21) ? 5 * 60_000 : 60 * 60_000;
-      autoRefreshRef.current = setTimeout(() => { loadData(true).then(scheduleNext); }, ms);
-    }
-    scheduleNext();
-    return () => { if (autoRefreshRef.current) clearTimeout(autoRefreshRef.current); };
-  }, [wps, loadData]);
+    autoRefreshRef.current = setInterval(() => { loadData(true); }, 30_000);
+    return () => { if (autoRefreshRef.current) clearInterval(autoRefreshRef.current); };
+  }, [loadData]);
 
   // 页面可见性恢复时立即刷新
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && wps) loadData(true);
+      if (document.visibilityState === "visible") loadData(true);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [wps, loadData]);
+  }, [loadData]);
 
   /* === 全量统计 (加权进度，需求终止权重为0但计入总数) === */
   const stats = useMemo(() => {
@@ -486,27 +485,6 @@ export function DashboardPage() {
   };
 
   /* === 加载/错误页 === */
-  if (!authChecked) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F8FAFC]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#2563EB] mx-auto mb-4" />
-          <p className="text-[#64748B]">检查授权状态...</p>
-        </div>
-      </div>
-    );
-  }
-  if (authError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F8FAFC]">
-        <div className="text-center max-w-md p-8">
-          <AlertTriangle className="w-12 h-12 text-[#DC2626] mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-[#0F172A] mb-2">授权失败</h2>
-          <p className="text-[#64748B] text-sm">{authError}</p>
-        </div>
-      </div>
-    );
-  }
 
   const NAV_ITEMS = [
     { key: TAB_OVERVIEW, label: "迭代概览", icon: BarChart3 },
@@ -601,6 +579,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
+          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.5</p>}
         </div>
       </aside>
 
