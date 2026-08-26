@@ -11,6 +11,6 @@
     "zip": "$system-zip frontend:./client/dist"
   },
   "scopes": ["kso.dbsheet.readwrite"],
-  "redirect_url": "http://localhost:5922/api/oauth/callback",
+  "redirect_url": "https://o.wpsgo.com/app/41000207/9w1qvC8NVtKs/api/oauth/callback",
   "cover": true
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { ReactNode } from "react";
+import { getOAuthRedirectUri } from "@/lib/oauth-redirect";
 
 type OAuthStatus = "checking" | "authorizing" | "authorized" | "error";
 
@@ -81,7 +82,7 @@ export function OAuthProvider({ children }: { children: ReactNode }) {
   const triggerAuth = useCallback(
     (appId: string, scope: string) => {
       setStatus("authorizing");
-      const redirectUri = new URL("./api/oauth/callback", location.href).href;
+      const redirectUri = getOAuthRedirectUri();
       const mode = window.OpenSDK.OAuth2.Mode.REDIRECT;
       const isRedirect = mode === window.OpenSDK.OAuth2.Mode.REDIRECT;
 

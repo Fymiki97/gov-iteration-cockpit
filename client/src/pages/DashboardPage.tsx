@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { createWps365 } from "@ks-open/capability/client/wps365";
+import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import {
   ResponsiveContainer as RechartResponsive,
   ComposedChart as RechartComposed,
@@ -76,6 +78,7 @@ interface ReqRow {
   project: string;
   iteration: string;
   testDate: string;
+  owner: string;
   devOwner: string;
   testOwner: string;
   productOwner: string;
@@ -131,26 +134,9 @@ interface MonthDetail {
 
 type FilterTag = "total" | "completed" | "risk" | "bar" | null;
 
-/* ==================== 数据加载策略 ==================== */
-type DataResult = { code?: number; data?: { records: { id?: string; fields?: string | Record<string, unknown> }[] } } | null;
-
-interface ServerCache { requirements: DataResult; milestones: DataResult; risks: DataResult; ts: number }
-
-/**
- * 读取服务端缓存。
- * GET 请求自动携带 cookie（含 gateway_token），服务端会提取 token 并启动自动刷新。
- * 首次请求时服务端会同步等待数据拉取完成再返回（最多 20 秒）。
- */
-async function readServerCache(): Promise<ServerCache | null> {
-  try {
-    const res = await fetch("./api/dbsheet-data", { credentials: "include" });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch { return null; }
-}
-
 /* ==================== 主组件 ==================== */
 export function DashboardPage() {
+  const [wps, setWps] = useState<Wps365Client | null>(null);
   const [requirements, setRequirements] = useState<ReqRow[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
   const [risks, setRisks] = useState<RiskRow[]>([]);
@@ -189,68 +175,70 @@ export function DashboardPage() {
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
-  /* === 加载数据（silent=true 时不清空已有数据、不显示骨架屏） === */
-  const loadData = useCallback(async (silent = false) => {
-    if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
-
-    let reqRes: DataResult = null;
-    let milRes: DataResult = null;
-    let riskRes: DataResult = null;
-
-    // 从服务端缓存读取数据（服务端自动定时拉取最新）
-    const cached = await readServerCache();
-    if (cached && (cached.requirements || cached.milestones || cached.risks)) {
-      reqRes = cached.requirements;
-      milRes = cached.milestones;
-      riskRes = cached.risks;
-    }
-
-    if (reqRes?.data?.records) {
-      const reqs = parseReqs(reqRes.data.records);
-      setRequirements(reqs);
-      if (!silent) {
-        const monthDist: Record<string, number> = {};
-        reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
-        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
-        if (reqRes.data.records.length > 0) {
-          const raw = reqRes.data.records.slice(0, 3).map(r => {
-            const f = fld(r as RawRec);
-            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
-            const vals: Record<string, string> = {};
-            monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
-            return { id: r.id, monthKeys: vals };
-          });
-          console.log("[需求-含月的字段]", JSON.stringify(raw));
-        }
-        console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
-      }
-    }
-    if (milRes?.data?.records) {
-      const mils = parseMils(milRes.data.records);
-      setMilestones(mils);
-      if (!silent && milRes.data.records.length > 0) {
-        const raw = milRes.data.records.slice(0, 5).map(r => {
-          const f = fld(r as RawRec);
-          return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
-        });
-        console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
-      }
-    }
-    if (riskRes?.data?.records) setRisks(parseRisks(riskRes.data.records));
-
-    if (reqRes || milRes || riskRes) setLastRefreshTime(new Date());
-
-    if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
+  /* === SDK：OAuthProvider 完成授权后，通过应用后端代理按用户拉取数据 === */
+  useEffect(() => {
+    setWps(createWps365({ proxyBase: "./api/wps-openapi" }));
   }, []);
 
-  // 首次加载
-  useEffect(() => { loadData(false); }, [loadData]);
+  /* === 加载数据（silent=true 时不清空已有数据、不显示骨架屏） === */
+  const loadData = useCallback(async (silent = false) => {
+    if (!wps) return;
+    if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
+    try {
+      const [reqRes, milRes, riskRes] = await Promise.all([
+        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 2000, page_size: 1000 }),
+        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 23, prefer_id: false, max_records: 200 }),
+        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 24, prefer_id: false, max_records: 50 }),
+      ]);
+      if (reqRes.data?.records) {
+        const reqs = parseReqs(reqRes.data.records);
+        setRequirements(reqs);
+        if (!silent) {
+          const monthDist: Record<string, number> = {};
+          reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
+          console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
+          if (reqRes.data.records.length > 0) {
+            const raw = reqRes.data.records.slice(0, 3).map(r => {
+              const f = fld(r as RawRec);
+              const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
+              const vals: Record<string, string> = {};
+              monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
+              return { id: r.id, monthKeys: vals };
+            });
+            console.log("[需求-含月的字段]", JSON.stringify(raw));
+          }
+          console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
+        }
+      }
+      if (milRes.data?.records) {
+        const mils = parseMils(milRes.data.records);
+        setMilestones(mils);
+        if (!silent && milRes.data.records.length > 0) {
+          const raw = milRes.data.records.slice(0, 5).map(r => {
+            const f = fld(r as RawRec);
+            return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
+          });
+          console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
+        }
+      }
+      if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
+      setLastRefreshTime(new Date());
+    } catch (err) {
+      console.error("加载失败:", err);
+    } finally {
+      if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
+    }
+  }, [wps]);
 
-  // 自动轮询：每 30 秒从服务端缓存读最新数据
+  // 首次加载
+  useEffect(() => { if (wps) loadData(false); }, [wps, loadData]);
+
+  // 自动轮询：每 30 秒刷新当前用户数据
   useEffect(() => {
+    if (!wps) return;
     autoRefreshRef.current = setInterval(() => { loadData(true); }, 30_000);
     return () => { if (autoRefreshRef.current) clearInterval(autoRefreshRef.current); };
-  }, [loadData]);
+  }, [wps, loadData]);
 
   // 页面可见性恢复时立即刷新
   useEffect(() => {
@@ -299,7 +287,7 @@ export function DashboardPage() {
   const monthDetails: MonthDetail[] = useMemo(() => {
     return Object.entries(stats.byMonth)
       .map(([month, d]) => {
-        const st = Object.entries(d.statuses).sort(([, a], [, b]) => b - a).slice(0, 4);
+        const st = Object.entries(d.statuses).sort(([, a], [, b]) => a - b).slice(0, 4);
         const cRate = d.total > 0 ? Math.round(d.completed / d.total * 100) : 0;
         const ntRatio = d.total > 0 ? Math.round(d.noTestCount / d.total * 100) : 0;
         return {
@@ -325,9 +313,9 @@ export function DashboardPage() {
       });
   }, [stats]);
 
-  /* === 柱状图数据 === */
+  /* === 柱状图数据（按状态权重升序） === */
   const barData = useMemo(() =>
-    Object.entries(stats.statusCounts).sort(([, a], [, b]) => b - a),
+    Object.entries(stats.statusCounts).sort(([, a], [, b]) => a - b),
     [stats.statusCounts]
   );
   const barMax = Math.max(...barData.map(([, c]) => c), 1);
@@ -335,7 +323,7 @@ export function DashboardPage() {
   /* === 筛选需求列表 === */
   const filteredReqs = useMemo(() => {
     let list = [...requirements];
-    list.sort((a, b) => b.modTime.localeCompare(a.modTime));
+    list.sort(compareReqByModTime);
 
     if (filterTag === "completed") {
       list = list.filter(r => isComplete(r.status));
@@ -362,7 +350,7 @@ export function DashboardPage() {
       );
     }
 
-    if (selectedIterations.length > 0) list = list.filter(r => selectedIterations.includes(r.month));
+    if (selectedIterations.length > 0) list = list.filter(r => selectedIterations.includes(getMonth(r)));
     if (selectedStatuses.length > 0) list = list.filter(r => selectedStatuses.includes(r.status));
     if (selectedOwners.length > 0) list = list.filter(r => selectedOwners.some(o => r.devOwner === o || r.testOwner === o));
 
@@ -451,6 +439,7 @@ export function DashboardPage() {
           status: r.status,
           level: r.level,
           project: r.project,
+          owner: r.owner,
           productOwner: r.productOwner,
           devOwner: r.devOwner,
           testOwner: r.testOwner,
@@ -551,7 +540,7 @@ export function DashboardPage() {
                   {lastRefreshTime.getHours().toString().padStart(2, "0")}:{lastRefreshTime.getMinutes().toString().padStart(2, "0")}:{lastRefreshTime.getSeconds().toString().padStart(2, "0")}
                 </>}
               </p>
-              <p>{(() => { const h = new Date().getHours(); return h >= 8 && h < 21 ? "工作时段 · 每5分钟自动刷新" : "非工作时段 · 每小时自动刷新"; })()}</p>
+              <p>页面打开时自动刷新</p>
             </div>
           )}
           <button
@@ -571,7 +560,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
-          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.5</p>}
+          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.9</p>}
         </div>
       </aside>
 
@@ -1165,11 +1154,11 @@ export function DashboardPage() {
                 /* === 单月详情视图 === */
                 const md = monthDetails.find(d => d.month === monthlyMonthFilter);
                 if (!md) return <p className="text-sm text-[#94A3B8] py-4 text-center">该月份暂无迭代数据</p>;
-                const allStatuses = Object.entries(stats.byMonth[md.month]?.statuses || {}).sort(([, a], [, b]) => b - a);
+                const allStatuses = Object.entries(stats.byMonth[md.month]?.statuses || {}).sort(([, a], [, b]) => a - b);
                 const statusMax = Math.max(...allStatuses.map(([, c]) => c), 1);
                 const monthMilestones = milestones.filter(m => m.month === md.month).sort((a, b) => (a.eventDate || "zzzz").localeCompare(b.eventDate || "zzzz"));
                 const monthRisks = risks.filter(r => r.iteration === md.month);
-                const monthReqs = requirements.filter(r => getMonth(r) === md.month).sort((a, b) => b.modTime.localeCompare(a.modTime));
+                const monthReqs = requirements.filter(r => getMonth(r) === md.month).sort(compareReqByModTime);
                 return (
                   <div className="space-y-6">
                     {/* 核心指标卡片 */}
@@ -1534,7 +1523,7 @@ export function DashboardPage() {
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b-2 border-[#E4ECFC] bg-[#F8FAFC] text-left">
-                                {["ONES ID", "标题", "状态", "优先级", "提测时间", "产品负责人", "开发负责人", "测试负责人"].map(h => (
+                                {["ONES ID", "标题", "状态", "优先级", "提测时间", "负责人", "产品负责人", "开发负责人", "测试负责人"].map(h => (
                                   <th key={h} className="py-2.5 px-3 font-semibold text-[#0F172A] whitespace-nowrap text-xs">{h}</th>
                                 ))}
                               </tr>
@@ -1553,6 +1542,7 @@ export function DashboardPage() {
                                   <td className="py-2.5 px-3 whitespace-nowrap"><Badge className={`text-xs font-normal border ${sc(r.status)}`}>{r.status || "-"}</Badge></td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.level || "-"}</td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.testDate || "-"}</td>
+                                  <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.owner || "-"}</td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.productOwner || "-"}</td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.devOwner || "-"}</td>
                                   <td className="py-2.5 px-3 text-[#64748B] whitespace-nowrap text-xs">{r.testOwner || "-"}</td>
@@ -1640,7 +1630,7 @@ export function DashboardPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b-2 border-[#E4ECFC] bg-[#F8FAFC] text-left">
-                          {["ONES ID","标题","状态","优先级","所属项目","提测时间","产品负责人","开发负责人","测试负责人"].map(h => (
+                          {["ONES ID","标题","状态","优先级","所属项目","提测时间","负责人","产品负责人","开发负责人","测试负责人"].map(h => (
                             <th key={h} className="py-3 px-4 font-semibold text-[#0F172A] whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -1667,6 +1657,7 @@ export function DashboardPage() {
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.level || "-"}</td>
                             <td className="py-3 px-4 text-[#0F172A] whitespace-nowrap text-xs max-w-[120px] truncate" title={r.project}>{r.project || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.testDate || "-"}</td>
+                            <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.owner || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.productOwner || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.devOwner || "-"}</td>
                             <td className="py-3 px-4 text-[#64748B] whitespace-nowrap text-xs">{r.testOwner || "-"}</td>
@@ -1970,9 +1961,113 @@ function fld(r: RawRec): Record<string, unknown> {
   return (r.fields || {}) as Record<string, unknown>;
 }
 function str(v: unknown): string {
+  if (v == null) return "";
   if (typeof v === "string") return v;
-  if (Array.isArray(v)) return v.map(x => typeof x === "object" && x ? (x as Record<string, unknown>).displayText || "" : String(x)).join(", ");
-  return v != null ? String(v) : "";
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map(str).filter(Boolean).join(", ");
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    // 人员 / 超链接 / 选项：优先取可读人名或展示文本，避免 String(obj) → [object Object]
+    for (const k of ["displayText", "text", "name", "userName", "user_name", "nickname", "nickName", "label"]) {
+      const s = str(o[k]);
+      if (s) return s;
+    }
+    for (const k of ["value", "data", "content", "user", "users"]) {
+      if (o[k] != null) {
+        const s = str(o[k]);
+        if (s) return s;
+      }
+    }
+    return "";
+  }
+  return String(v);
+}
+
+/** 解析 WPS 多维表格中的时间字段（字符串 / 时间戳 / 对象 / 数组） */
+function parseFieldTime(v: unknown): string {
+  if (v == null) return "";
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString();
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number") {
+    const ms = v > 1e12 ? v : v * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+  }
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      const t = parseFieldTime(item);
+      if (t) return t;
+    }
+    return "";
+  }
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    for (const k of ["displayText", "text", "value", "data", "content", "name", "date"]) {
+      const t = parseFieldTime(o[k]);
+      if (t) return t;
+    }
+    const s = String(v).trim();
+    if (s && s !== "[object Object]" && /\d{4}[/-]\d{1,2}[/-]\d{1,2}/.test(s)) return s;
+  }
+  return "";
+}
+
+function getFieldValue(f: Record<string, unknown>, exactKey: string): unknown {
+  if (exactKey in f) return f[exactKey];
+  const key = Object.keys(f).find(k => k.trim() === exactKey || k.includes(exactKey));
+  return key ? f[key] : undefined;
+}
+
+/** 提取可读时间字符串（与控制台 String(field) 行为一致） */
+function extractTimeString(raw: unknown): string {
+  const parsed = parseFieldTime(raw);
+  if (parsed) return parsed;
+  if (raw == null) return "";
+  const s = String(raw).trim();
+  if (s && s !== "[object Object]" && /\d{4}/.test(s)) return s;
+  return "";
+}
+
+function getModTimeField(f: Record<string, unknown>): unknown {
+  return getFieldValue(f, "最后修改时间") ?? Object.entries(f).find(([k]) => /最后修改/.test(k))?.[1];
+}
+
+function parseModTime(r: RawRec, f: Record<string, unknown>): string {
+  return (
+    extractTimeString(getModTimeField(f)) ||
+    extractTimeString(r.last_modified_time) ||
+    extractTimeString(getFieldValue(f, "更新时间")) ||
+    extractTimeString(getFieldValue(f, "修改时间")) ||
+    extractTimeString(r.created_time) ||
+    ""
+  );
+}
+
+/** 上传缓存前把时间字段标准化为字符串，避免 JSON 序列化后丢失 */
+function normalizeReqRecords(records: RawRec[]): RawRec[] {
+  return records.map(r => {
+    const f = fld(r);
+    const modTime = parseModTime(r, f);
+    if (!modTime) return r;
+    return { ...r, last_modified_time: modTime, fields: { ...f, "最后修改时间": modTime } };
+  });
+}
+
+function modTimeToMs(t: string): number {
+  if (!t) return 0;
+  const normalized = t.replace(/\//g, "-").replace(" ", "T");
+  const ms = new Date(normalized).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/** 有更新时间的排前面（新→旧），无时间的排最后 */
+function compareReqByModTime(a: ReqRow, b: ReqRow): number {
+  const aHas = !!a.modTime?.trim();
+  const bHas = !!b.modTime?.trim();
+  if (aHas && bHas) return modTimeToMs(b.modTime) - modTimeToMs(a.modTime);
+  if (aHas) return -1;
+  if (bHas) return 1;
+  return 0;
 }
 function summary(v: unknown): string {
   if (typeof v === "object" && v && "summary" in v) return String((v as Record<string, unknown>).summary || "");
@@ -2137,6 +2232,8 @@ function parseReqs(records: RawRec[]): ReqRow[] {
     console.log("[需求-fields所有key]", allKeys);
     const timeKeys = allKeys.filter(k => /时间|日期|time|date|提测|完成|更新|修改|创建/i.test(k));
     console.log("[需求-fields时间字段]", timeKeys.map(k => k + "=" + String(f0[k]).substring(0, 40)));
+    const rawTime = getModTimeField(f0);
+    console.log("[需求-最后修改时间解析]", { typeof: typeof rawTime, str: String(rawTime ?? ""), parsed: parseModTime(r0, f0) });
   }
   const result = records.map(r => {
     const f = fld(r);
@@ -2144,9 +2241,12 @@ function parseReqs(records: RawRec[]): ReqRow[] {
     return {
       id: r.id || "", title: str(f["标题"]), status: str(f["状态"]),
       level: str(f["需求级别"]), project: str(f["所属项目"]), iteration: str(f["迭代"]),
-      testDate: str(f["计划提测时间"]), devOwner: str(f["开发负责人"]), testOwner: str(f["测试负责人"]),
+      testDate: str(f["计划提测时间"]), owner: str(f["负责人"]),
+      devOwner: str(f["开发负责人"]), testOwner: str(f["测试负责人"]),
       productOwner: str(f["产品负责人"]),
-      onesId: o.id, onesUrl: o.url, modTime: r.last_modified_time || "", month: str(f["排期月度"]),
+      onesId: o.id, onesUrl: o.url,
+      modTime: parseModTime(r, f),
+      month: str(f["排期月度"]),
       ...(() => {
         const keys = Object.keys(f);
         const devKey = keys.find(k => /开发.*实际工作量/.test(k));
@@ -2158,8 +2258,8 @@ function parseReqs(records: RawRec[]): ReqRow[] {
       noTest: str(f["是否免测"]) === "是",
     };
   });
-  // 调试：打印前5条的modTime格式
-  console.log("[需求modTime样本]", result.slice(0, 5).map(r => ({ title: r.title?.substring(0, 15), modTime: r.modTime })));
+  const withTime = result.filter(r => r.modTime);
+  console.log(`[需求modTime] ${withTime.length}/${result.length} 条有更新时间`, result.slice(0, 5).map(r => ({ title: r.title?.substring(0, 15), modTime: r.modTime })));
   return result;
 }
 

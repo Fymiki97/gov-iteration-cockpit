@@ -14,6 +14,7 @@ export interface ReqExportRow {
   status: string;
   level: string;
   project: string;
+  owner: string;
   productOwner: string;
   devOwner: string;
   testOwner: string;
@@ -25,6 +26,7 @@ const REQ_EXCEL_HEADERS = [
   "状态",
   "优先级",
   "所属项目",
+  "负责人",
   "产品负责人",
   "开发负责人",
   "测试负责人",
@@ -42,6 +44,7 @@ export function exportRequirementsToExcel(rows: ReqExportRow[], filename: string
       r.status || "",
       r.level || "",
       r.project || "",
+      r.owner || "",
       r.productOwner || "",
       r.devOwner || "",
       r.testOwner || "",
