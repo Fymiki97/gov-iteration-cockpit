@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import { getOAuthRedirectUri } from "@/lib/oauth-redirect";
+import { getAppApiUrl, getOAuthRedirectUri } from "@/lib/oauth-redirect";
 
 type OAuthStatus = "checking" | "authorizing" | "authorized" | "error";
 
@@ -11,6 +11,7 @@ interface OAuthContextValue {
 }
 
 const OAuthContext = createContext<OAuthContextValue | null>(null);
+const DEFAULT_SCOPE = "kso.dbsheet.readwrite";
 
 export function useOAuth() {
   return useContext(OAuthContext)!;
@@ -47,78 +48,97 @@ function OAuthError({ error, onRetry }: { error: string | null; onRetry: () => v
   );
 }
 
+function waitForOpenSDK(timeoutMs = 8000): Promise<boolean> {
+  if (window.OpenSDK?.OAuth2) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      if (window.OpenSDK?.OAuth2) {
+        window.clearInterval(timer);
+        resolve(true);
+        return;
+      }
+      if (Date.now() - started >= timeoutMs) {
+        window.clearInterval(timer);
+        resolve(false);
+      }
+    }, 80);
+  });
+}
+
 export function OAuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<OAuthStatus>("checking");
   const [error, setError] = useState<string | null>(null);
+  const triggerAuthRef = useRef<(appId: string, scope: string) => Promise<void>>(async () => {});
 
   const checkStatus = useCallback(async () => {
     setStatus("checking");
+    setError(null);
     try {
-      const res = await fetch("./api/oauth/status", { credentials: "include" });
-      const data = await res.json();
+      const res = await fetch(getAppApiUrl("api/oauth/status"), { credentials: "include" });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const msg = data?.message || data?.error || res.statusText;
-        setError(
-          /appid/i.test(msg)
-            ? "请前往应用身份页面完成应用身份绑定和配置"
-            : msg,
-        );
-        setStatus("error");
+        if (/appid/i.test(msg)) {
+          setError("请前往应用身份页面完成应用身份绑定和配置");
+          setStatus("error");
+          return;
+        }
+        // 状态接口异常时不挡住看板，后续会走服务端缓存
+        setStatus("authorized");
         return;
       }
-      if (data.isAuthorized) {
+      if (data.isAuthorized || !data.appId) {
         setStatus("authorized");
-      } else if (!data.appId) {
-        setStatus("authorized");
-      } else {
-        triggerAuth(data.appId, data.scope);
+        return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus("error");
+      await triggerAuthRef.current(data.appId, data.scope);
+    } catch {
+      setStatus("authorized");
     }
   }, []);
 
   const triggerAuth = useCallback(
-    (appId: string, scope: string) => {
+    async (appId: string, scope: string) => {
+      const ready = await waitForOpenSDK();
+      if (!ready || !window.OpenSDK?.OAuth2) {
+        // 平台未注入 OpenSDK 时不阻断页面，由看板走服务端缓存
+        setStatus("authorized");
+        return;
+      }
+
+      const resolvedScope = (typeof scope === "string" && scope.trim()) || DEFAULT_SCOPE;
       setStatus("authorizing");
       const redirectUri = getOAuthRedirectUri();
       const mode = window.OpenSDK.OAuth2.Mode.REDIRECT;
-      const isRedirect = mode === window.OpenSDK.OAuth2.Mode.REDIRECT;
 
-      const state = isRedirect
-        ? btoa(JSON.stringify({ redirect_uri: redirectUri, return_url: location.href }))
-        : btoa(redirectUri);
+      const state = btoa(JSON.stringify({ redirect_uri: redirectUri, return_url: location.href }));
 
-      if (!isRedirect) {
-        const onSuccess = () => {
-          cleanup();
-          checkStatus();
-        };
-        const onError = (evt: unknown) => {
-          cleanup();
-          setError(String(evt));
-          setStatus("error");
-        };
-        const cleanup = () => {
-          window.OpenSDK.removeEventListener(window.OpenSDK.Events.OAuth2Message, onSuccess);
-          window.OpenSDK.removeEventListener(window.OpenSDK.Events.AuthError, onError);
-        };
+      const onError = (evt: unknown) => {
+        window.OpenSDK.removeEventListener(window.OpenSDK.Events.AuthError, onError);
+        setError(String(evt));
+        setStatus("error");
+      };
+      window.OpenSDK.addEventListener(window.OpenSDK.Events.AuthError, onError);
 
-        window.OpenSDK.addEventListener(window.OpenSDK.Events.OAuth2Message, onSuccess);
-        window.OpenSDK.addEventListener(window.OpenSDK.Events.AuthError, onError);
+      try {
+        window.OpenSDK.OAuth2.authorize({
+          appId,
+          redirect_uri: redirectUri,
+          scope: resolvedScope,
+          mode,
+          state,
+        });
+      } catch (err) {
+        window.OpenSDK.removeEventListener(window.OpenSDK.Events.AuthError, onError);
+        setError(err instanceof Error ? err.message : String(err));
+        setStatus("error");
       }
-
-      window.OpenSDK.OAuth2.authorize({
-        appId,
-        redirect_uri: redirectUri,
-        scope,
-        mode,
-        state,
-      });
     },
-    [checkStatus],
+    [],
   );
+
+  triggerAuthRef.current = triggerAuth;
 
   useEffect(() => {
     checkStatus();

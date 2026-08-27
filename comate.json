@@ -7,7 +7,7 @@
   "command": {
     "install": "pnpm install --ignore-scripts",
     "dev": "pnpm run dev",
-    "build": "",
+    "build": "pnpm --filter @wps365-open/boilerplate-client exec vite build",
     "zip": "$system-zip frontend:./client/dist"
   },
   "scopes": ["kso.dbsheet.readwrite"],

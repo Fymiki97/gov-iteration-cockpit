@@ -1,0 +1,19 @@
+{
+  "id": "dbsheet",
+  "pluginKey": "wps-dbsheet",
+  "pluginVersion": "1.0.0",
+  "name": "政务看板多维表格",
+  "description": "为 OAuth 状态接口提供 kso.dbsheet.readwrite 权限范围",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "formValue": {
+    "file_id": "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF"
+  },
+  "authOverride": {
+    "scopes": ["kso.dbsheet.readwrite"]
+  },
+  "createdAt": 0,
+  "updatedAt": 0
+}

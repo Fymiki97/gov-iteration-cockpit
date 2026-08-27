@@ -56,6 +56,7 @@ import {
   exportRequirementsToExcel,
 } from "@/lib/export-utils";
 import { BarTopLabel, LineTopLabel, PieOutsideLabel, PieLegendTable } from "@/lib/chart-labels";
+import { getAppApiUrl } from "@/lib/oauth-redirect";
 
 /* ==================== 常量 ==================== */
 const FILE_ID = "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF";
@@ -134,6 +135,26 @@ interface MonthDetail {
 
 type FilterTag = "total" | "completed" | "risk" | "bar" | null;
 
+interface SheetPayload {
+  data?: { records?: unknown[] };
+}
+
+interface ServerCache {
+  requirements: SheetPayload | null;
+  milestones: SheetPayload | null;
+  risks: SheetPayload | null;
+}
+
+async function readServerCache(): Promise<ServerCache | null> {
+  try {
+    const res = await fetch(getAppApiUrl("api/dbsheet-data"), { credentials: "include" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /* ==================== 主组件 ==================== */
 export function DashboardPage() {
   const [wps, setWps] = useState<Wps365Client | null>(null);
@@ -177,29 +198,52 @@ export function DashboardPage() {
 
   /* === SDK：OAuthProvider 完成授权后，通过应用后端代理按用户拉取数据 === */
   useEffect(() => {
-    setWps(createWps365({ proxyBase: "./api/wps-openapi" }));
+    setWps(createWps365({ proxyBase: getAppApiUrl("api/wps-openapi") }));
   }, []);
 
   /* === 加载数据（silent=true 时不清空已有数据、不显示骨架屏） === */
   const loadData = useCallback(async (silent = false) => {
-    if (!wps) return;
     if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
     try {
-      const [reqRes, milRes, riskRes] = await Promise.all([
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 2000, page_size: 1000 }),
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 23, prefer_id: false, max_records: 200 }),
-        wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 24, prefer_id: false, max_records: 50 }),
-      ]);
-      if (reqRes.data?.records) {
-        const reqs = parseReqs(reqRes.data.records);
+      let reqRes: SheetPayload | null = null;
+      let milRes: SheetPayload | null = null;
+      let riskRes: SheetPayload | null = null;
+
+      if (wps) {
+        try {
+          const [req, mil, risk] = await Promise.all([
+            wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 21, prefer_id: false, max_records: 2000, page_size: 1000 }),
+            wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 23, prefer_id: false, max_records: 200 }),
+            wps.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: 24, prefer_id: false, max_records: 50 }),
+          ]);
+          reqRes = req as SheetPayload;
+          milRes = mil as SheetPayload;
+          riskRes = risk as SheetPayload;
+        } catch (err) {
+          console.warn("按用户拉取失败，回退服务端缓存:", err);
+        }
+      }
+
+      if (!reqRes?.data?.records && !milRes?.data?.records && !riskRes?.data?.records) {
+        const cached = await readServerCache();
+        if (cached) {
+          reqRes = cached.requirements;
+          milRes = cached.milestones;
+          riskRes = cached.risks;
+        }
+      }
+
+      if (reqRes?.data?.records) {
+        const reqs = parseReqs(reqRes.data.records as RawRec[]);
         setRequirements(reqs);
         if (!silent) {
           const monthDist: Record<string, number> = {};
           reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
           console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
           if (reqRes.data.records.length > 0) {
-            const raw = reqRes.data.records.slice(0, 3).map(r => {
-              const f = fld(r as RawRec);
+            const raw = reqRes.data.records.slice(0, 3).map((row) => {
+              const r = row as RawRec;
+              const f = fld(r);
               const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
               const vals: Record<string, string> = {};
               monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
@@ -210,18 +254,19 @@ export function DashboardPage() {
           console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
         }
       }
-      if (milRes.data?.records) {
-        const mils = parseMils(milRes.data.records);
+      if (milRes?.data?.records) {
+        const mils = parseMils(milRes.data.records as RawRec[]);
         setMilestones(mils);
         if (!silent && milRes.data.records.length > 0) {
-          const raw = milRes.data.records.slice(0, 5).map(r => {
-            const f = fld(r as RawRec);
+          const raw = milRes.data.records.slice(0, 5).map((row) => {
+            const r = row as RawRec;
+            const f = fld(r);
             return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
           });
           console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
         }
       }
-      if (riskRes.data?.records) setRisks(parseRisks(riskRes.data.records));
+      if (riskRes?.data?.records) setRisks(parseRisks(riskRes.data.records as RawRec[]));
       setLastRefreshTime(new Date());
     } catch (err) {
       console.error("加载失败:", err);
@@ -560,7 +605,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
-          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.9</p>}
+          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.10</p>}
         </div>
       </aside>
 
