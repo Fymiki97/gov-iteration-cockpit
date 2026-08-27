@@ -35,7 +35,8 @@ export default defineConfig(({ mode }) => {
           },
         },
         "/api": {
-          target: "http://localhost:4917",
+          // 后端端口可用 API_PROXY_TARGET 覆盖，默认本地 4917
+          target: env.API_PROXY_TARGET || "http://localhost:4917",
           changeOrigin: false,
           configure: (proxy) => {
             proxy.on("proxyReq", (proxyReq) => {
