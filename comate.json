@@ -7,8 +7,8 @@
   "command": {
     "install": "pnpm install --ignore-scripts",
     "dev": "pnpm run dev",
-    "build": "pnpm --filter @wps365-open/boilerplate-client exec vite build",
-    "zip": "$system-zip frontend:./client/dist"
+    "build": "pnpm run pack",
+    "zip": "$system-zip frontend:./client/dist server:./server/.output:.output"
   },
   "scopes": ["kso.dbsheet.readwrite"],
   "redirect_url": "https://o.wpsgo.com/app/41000207/9w1qvC8NVtKs/api/oauth/callback",
