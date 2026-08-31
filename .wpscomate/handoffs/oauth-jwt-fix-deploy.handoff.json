@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "handoffId": "oauth-jwt-fix-deploy",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788146245660,
+  "note": {
+    "completed": [
+      "修复插件运行时依赖解析：copy-capability-assets.mjs 新增第 5 步——扫描共享 chunk/plugins 的 bare import，传递闭包拷贝 9 个真实文件包（ajv/ky/jose/cookie-es/fast-deep-equal/json-schema-traverse/fast-uri/require-from-string/tinybench）到 .output/server/node_modules",
+      "修复脚本自嵌套崩溃：isBuiltin 过滤 + requireRealPkgDir 仅接受 node_modules 下路径 + 自嵌套防护（曾导致把整个 server/ 拷进自己 ENAMETOOLONG）",
+      "冒烟全过：/api/health 200、/api/oauth/status 200 且返回 appId（JWT 模式生效）、/api/capabilities/plugins 200 加载 4 插件、/api/oauth/callback 路由已注册",
+      "修复 2 个预存 lint error：删除空文件 chart-labels.tsx.BASE.tsx、DashboardPage.tsx:381 self-assign 改为空分支；lint 0 error、typecheck 0 error",
+      "pnpm run pack 成功：dist-server.zip 933KB（含 9 个真实文件运行时依赖，无软链）、dist-frontend.zip 1.9MB",
+      "发布成功：version 20260831111511（version_id 1152782910279841）→ https://o.wpsgo.com/app/41000207/9w1qvC8NVtKs/",
+      "缩略图重新截图（file:// 白屏，改用本地 http 服务 + playwright 61KB）并上传成功，会话追踪已写入"
+    ],
+    "remaining": [
+      "线上验证：建议用户访问授权流程确认前端能弹出 WPS 授权页并回调成功"
+    ],
+    "decisions": [
+      "Nitro NITRO_PRESET=node 产物是 listener 库（无 listen），本地冒烟需 runner 壳（http.createServer(mod.listener)）模拟 app-runtime-be 部署形态",
+      "运行时依赖闭包拷贝（方案 A）而非部分 external：可控、zip 无软链，WARN 的 re2/neostandard/tape/module/path/assert 均为 ajv 可选依赖或内置模块噪音，不影响运行",
+      "capability dist 的 index.js 会被当作共享 chunk 拷入 .output/server（与 nitro 的 index.mjs 不冲突）"
+    ],
+    "issues": [
+      "lint client 剩 5 个 warning（unused vars：statusMax/normalizeReqRecords/Link 等），非阻塞未处理",
+      "open-sdk 从 wpscdn CDN 外链加载，无外网环境会缺 SDK（预存设计，未动）"
+    ],
+    "files_changed": [
+      "server/scripts/copy-capability-assets.mjs",
+      "client/src/pages/DashboardPage.tsx",
+      "client/src/lib/chart-labels.tsx.BASE.tsx (deleted)"
+    ]
+  },
+  "reason": "线上后端崩溃与授权页问题修复完成并已发布上线（version 20260831111511）"
+}
