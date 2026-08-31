@@ -75,6 +75,17 @@ if (sharedFiles.length > 0) {
   console.log(`  -> Copied ${sharedFiles.length} shared chunk(s) to ${serverDir}`);
 }
 
+// 4. Copy widgets directory (widget manifests + assets served via
+//    /api/capabilities/widgets). When @ks-open/capability is bundled into
+//    index.mjs, import.meta.url → .output/server/ so widgets must live there.
+const widgetsSrc = resolve(capabilityDistRoot, "widgets");
+if (existsSync(widgetsSrc)) {
+  const widgetsDest = resolve(serverDir, "widgets");
+  mkdirSync(widgetsDest, { recursive: true });
+  cpSync(widgetsSrc, widgetsDest, { recursive: true });
+  console.log(`  -> Copied widgets to ${widgetsDest}`);
+}
+
 // 3b. Also copy shared chunks into the externalized node_modules dist root.
 //     Plugins loaded from node_modules resolve relative imports (e.g.
 //     ../../wps365-S0qq6oY9.js) against the package's dist/ directory,
