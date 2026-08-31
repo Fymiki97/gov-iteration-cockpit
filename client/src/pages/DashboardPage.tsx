@@ -377,8 +377,7 @@ export function DashboardPage() {
       const riskOnesIds = new Set(risks.map(r => r.onesId).filter(Boolean));
       list = list.filter(r => r.onesId && riskOnesIds.has(r.onesId));
     } else if (filterTag === "bar") {
-      // 柱状图点击传入的状态
-      list = list; // 由 selectedStatuses 处理
+      // 柱状图点击的状态筛选由 selectedStatuses 统一处理，此处无需额外过滤
     }
 
     if (searchText.trim()) {
