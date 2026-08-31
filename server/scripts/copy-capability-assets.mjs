@@ -14,9 +14,9 @@
  * `.output/server/capabilities/` because the deploy server's `process.cwd()` is
  * NOT the project root—it's `/app/deploy-srv/`.
  */
-import { cpSync, readdirSync, copyFileSync, existsSync, mkdirSync } from "node:fs";
-import { resolve, dirname, extname } from "node:path";
-import { createRequire } from "node:module";
+import { cpSync, readdirSync, copyFileSync, existsSync, mkdirSync, statSync, readFileSync } from "node:fs";
+import { resolve, dirname, extname, join, sep } from "node:path";
+import { createRequire, isBuiltin } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -109,6 +109,144 @@ if (existsSync(capabilitiesSrc)) {
   console.log(`  -> Copied capabilities to ${capabilitiesDest}`);
 } else {
   console.log(`[copy-capability-assets] No capabilities/ directory, skipping`);
+}
+
+// 5. Copy runtime external dependencies (bare imports) of the shared chunks
+//    and plugin modules into .output/server/node_modules/.
+//    With `externals.inline` the bundle ships no node_modules, but plugins
+//    are loaded dynamically from disk at runtime and their chunks still
+//    import bare specifiers (ajv, ky, jose, ...). Copy the transitive
+//    closure of those packages as real files (no symlinks) so the zip is
+//    self-contained and the dynamic imports resolve.
+const BARE_IMPORT_RES = [
+  /from\s*["']([^"'\n]+)["']/g,
+  /import\(\s*["']([^"'\n]+)["']\s*\)/g,
+  /require\(\s*["']([^"'\n]+)["']\s*\)/g,
+];
+const PKG_BLOCKLIST = new Set(["nitropack"]);
+
+function toPkgName(spec) {
+  if (
+    spec.startsWith("node:") ||
+    spec.startsWith(".") ||
+    spec.startsWith("/") ||
+    spec.startsWith("#") ||
+    spec.startsWith("~") ||
+    spec.includes("${") ||
+    spec.includes("\\n")
+  ) {
+    return null;
+  }
+  const seg = spec.split("/");
+  const name = spec.startsWith("@") ? seg.slice(0, 2).join("/") : seg[0];
+  if (!name || PKG_BLOCKLIST.has(name) || name.startsWith("@nitro")) return null;
+  return name;
+}
+
+function collectBareImports(dir, acc) {
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    const p = join(dir, name);
+    let st;
+    try {
+      st = statSync(p);
+    } catch {
+      continue;
+    }
+    if (st.isDirectory()) {
+      if (name === "node_modules" || name === ".bin") continue;
+      collectBareImports(p, acc);
+    } else if (st.isFile() && [".js", ".mjs", ".cjs"].includes(extname(name))) {
+      let src;
+      try {
+        src = readFileSync(p, "utf8");
+      } catch {
+        continue;
+      }
+      for (const re of BARE_IMPORT_RES) {
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(src)) !== null) {
+          const pkg = toPkgName(m[1]);
+          if (pkg) acc.add(pkg);
+        }
+      }
+    }
+  }
+}
+
+function resolvePkgRoot(pkg) {
+  if (isBuiltin(pkg) || isBuiltin(`node:${pkg}`)) return null;
+  const resolvers = [
+    createRequire(join(projectRoot, "package.json")),
+    createRequire(capabilityPkgEntry),
+  ];
+  for (const r of resolvers) {
+    try {
+      return requireRealPkgDir(r.resolve(join(pkg, "package.json")));
+    } catch {}
+    try {
+      return requireRealPkgDir(r.resolve(pkg));
+    } catch {}
+  }
+  return null;
+}
+
+// Accept only paths that live inside a node_modules directory and contain a
+// package.json — guards against resolving builtins ("node:assert") or
+// workspace files, which would make cpSync copy the project into itself.
+function requireRealPkgDir(resolved) {
+  let d = dirname(resolved);
+  for (let i = 0; i < 8; i++) {
+    if (d.split(sep).includes("node_modules") && existsSync(join(d, "package.json"))) {
+      return d;
+    }
+    const parent = dirname(d);
+    if (parent === d) break;
+    d = parent;
+  }
+  return null;
+}
+
+const runtimePkgDirs = [serverDir, pluginsDest];
+const pending = new Set();
+for (const dir of runtimePkgDirs) {
+  if (existsSync(dir)) collectBareImports(dir, pending);
+}
+const nmDest = resolve(serverDir, "node_modules");
+const copiedPkgs = new Set();
+const visited = new Set();
+let queue = [...pending];
+while (queue.length > 0) {
+  const pkg = queue.shift();
+  if (visited.has(pkg)) continue;
+  visited.add(pkg);
+  const pkgRoot = resolvePkgRoot(pkg);
+  if (!pkgRoot) {
+    console.warn(`[copy-capability-assets] WARN: cannot resolve runtime dep '${pkg}'`);
+    continue;
+  }
+  copiedPkgs.add(pkg);
+  const dest = join(nmDest, pkg);
+  if (resolve(dest).startsWith(resolve(pkgRoot) + sep)) {
+    console.warn(`[copy-capability-assets] WARN: skip self-nesting copy for '${pkg}'`);
+    continue;
+  }
+  cpSync(pkgRoot, dest, { recursive: true, dereference: true });
+  // Scan the copied package for its own bare imports (transitive closure).
+  const inner = new Set();
+  collectBareImports(dest, inner);
+  for (const dep of inner) {
+    if (!visited.has(dep)) queue.push(dep);
+  }
+}
+if (copiedPkgs.size > 0) {
+  console.log(`  -> Copied ${copiedPkgs.size} runtime dep(s) to ${nmDest}: ${[...copiedPkgs].join(", ")}`);
 }
 
 console.log("[copy-capability-assets] Done");
