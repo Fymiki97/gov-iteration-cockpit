@@ -59,6 +59,7 @@ import {
 import { BarTopLabel, LineTopLabel, PieOutsideLabel, PieLegendTable } from "@/lib/chart-labels";
 import { getAppApiUrl } from "@/lib/oauth-redirect";
 import { PmScheduleAuditTab } from "@/components/PmScheduleAuditTab";
+import type { DbsheetRecord } from "@/lib/pm-schedule-audit";
 
 /* ==================== 常量 ==================== */
 const FILE_ID = "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF";
@@ -162,6 +163,7 @@ async function readServerCache(): Promise<ServerCache | null> {
 export function DashboardPage() {
   const [wps, setWps] = useState<Wps365Client | null>(null);
   const [requirements, setRequirements] = useState<ReqRow[]>([]);
+  const [rawRequirements, setRawRequirements] = useState<DbsheetRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
   const [risks, setRisks] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,7 +239,9 @@ export function DashboardPage() {
       }
 
       if (reqRes?.data?.records) {
-        const reqs = parseReqs(reqRes.data.records as RawRec[]);
+        const recs = reqRes.data.records as RawRec[];
+        setRawRequirements(recs);
+        const reqs = parseReqs(recs);
         setRequirements(reqs);
         if (!silent) {
           const monthDist: Record<string, number> = {};
@@ -534,7 +538,7 @@ export function DashboardPage() {
       return `${base} · 时间视图${qf}`;
     }
     if (tab === TAB_PM_AUDIT) {
-      return `${base} · 排期会准入审计初稿（示例数据）`;
+      return `${base} · 数据来源《2026年政务产研版本管理》`;
     }
     return base;
   })();
@@ -611,7 +615,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
-          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V2.0</p>}
+          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V2.1</p>}
         </div>
       </aside>
 
@@ -1759,7 +1763,7 @@ export function DashboardPage() {
           )}
 
           {/* ============ TAB 4: 里程碑 ============ */}
-          {tab === TAB_PM_AUDIT && <PmScheduleAuditTab />}
+          {tab === TAB_PM_AUDIT && <PmScheduleAuditTab records={rawRequirements} loading={loading} />}
 
           {tab === TAB_MILESTONE && (
             <div className="space-y-4">

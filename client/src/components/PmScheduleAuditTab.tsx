@@ -24,372 +24,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-interface AuditCriterion {
-  name: string;
-  current: string;
-  standard: string;
-  passed: boolean;
-}
-
-interface AuditRequirement {
-  id: string;
-  name: string;
-  pmOwner: string;
-  devOwner: string;
-  qaOwner: string;
-  project: string;
-  productLine: string;
-  expectedVersion: string;
-  versionLine: string;
-  month: string;
-  planYear: number;
-  onesId: string;
-  onesUrl: string;
-  deadline: string;
-  scheduleConclusion: string;
-  passed: boolean;
-  criteria: AuditCriterion[];
-}
-
-type RoleKey = "pm" | "dev" | "qa";
-
-interface RoleFailBlock {
-  role: string;
-  person: string;
-  reasons: string[];
-}
+import type { AuditRequirement, DbsheetRecord, RoleFailBlock } from "@/lib/pm-schedule-audit";
+import {
+  DEFAULT_RULES,
+  SKIP_SCHED_CONCLUSIONS,
+  failReasonsByRole,
+  groupByProductLine,
+  matchesExpectedVersion,
+  matchesPlanMonth,
+  parseAuditRequirements,
+} from "@/lib/pm-schedule-audit";
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 type FilterTab = "belong" | "plan";
-const I18N_CRITERION = "多语言适配情况";
-const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
-
-function matchesExpectedVersion(text: string, year: number, month: number): boolean {
-  const haystack = text.trim();
-  if (!haystack) return false;
-  const yy = String(year).slice(-2);
-  if (!haystack.includes(yy)) return false;
-  const mm = String(month).padStart(2, "0");
-  if (haystack.includes(mm)) return true;
-  const monthCn = new RegExp(`(^|[^0-9])${month}月`);
-  return monthCn.test(haystack);
-}
-
-function criterion(name: string, current: string, standard: string, passed: boolean): AuditCriterion {
-  return { name, current, standard, passed };
-}
-
-function applyAuditScope(item: AuditRequirement): AuditRequirement {
-  const criteria = item.project === "Office"
-    ? item.criteria
-    : item.criteria.filter((c) => c.name !== I18N_CRITERION);
-  return { ...item, criteria, passed: criteria.every((c) => c.passed) };
-}
-
-function onesLink(onesId: string): string {
-  return `https://ones.wps.cn/${onesId}`;
-}
-
-function roleOfCriterion(name: string): RoleKey {
-  if (name === "开发计划工作量") return "dev";
-  if (name === "测试计划工作量") return "qa";
-  return "pm";
-}
-
-function formatFailReason(c: AuditCriterion): string {
-  if (c.name === "需求状态流转") {
-    return `状态为「${c.current}」（不可以为需求立项中/需求分析中/未开始/待公审/需求终止/挂起/需求变更/UX设计中/开发方案设计中）`;
-  }
-  if (c.name === "带出版本线") {
-    return `带出版本线不包含国际（当前: ${c.current}）且豁免轻审批无链接`;
-  }
-  if (c.name === "多语言适配情况") {
-    return `多语言适配情况为空（当前: ${c.current}）`;
-  }
-  if (!c.current || c.current === "空" || c.current === "未填" || c.current === "无") {
-    return `${c.name}为空`;
-  }
-  return `${c.name}为「${c.current}」（标准: ${c.standard}）`;
-}
-
-function failReasonsByRole(row: AuditRequirement): RoleFailBlock[] {
-  const buckets: Record<RoleKey, RoleFailBlock> = {
-    pm: { role: "产品负责人", person: row.pmOwner, reasons: [] },
-    dev: { role: "开发负责人", person: row.devOwner, reasons: [] },
-    qa: { role: "测试负责人", person: row.qaOwner, reasons: [] },
-  };
-  for (const c of row.criteria) {
-    if (c.passed) continue;
-    buckets[roleOfCriterion(c.name)].reasons.push(formatFailReason(c));
-  }
-  return (["pm", "dev", "qa"] as RoleKey[]).map((key) => buckets[key]).filter((block) => block.reasons.length > 0);
-}
-
-const PRODUCT_LINE_ORDER = [
-  "政务AI",
-  "政务协作",
-  "医疗版",
-  "安全版",
-  "WPS政务365",
-  "统一平台",
-];
-
-function groupByProductLine(rows: AuditRequirement[]): { productLine: string; rows: AuditRequirement[] }[] {
-  const map = new Map<string, AuditRequirement[]>();
-  for (const row of rows) {
-    const key = row.productLine.trim() || "未填写";
-    const list = map.get(key) ?? [];
-    list.push(row);
-    map.set(key, list);
-  }
-  return [...map.keys()]
-    .sort((a, b) => {
-      const ia = PRODUCT_LINE_ORDER.indexOf(a);
-      const ib = PRODUCT_LINE_ORDER.indexOf(b);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, "zh");
-    })
-    .map((productLine) => ({ productLine, rows: map.get(productLine) ?? [] }));
-}
-
-const MOCK_REQUIREMENTS: AuditRequirement[] = [
-  {
-    id: "PM-001",
-    name: "公文交换通道改造",
-    pmOwner: "李倩",
-    devOwner: "张凯",
-    qaOwner: "刘洋",
-    project: "WPS政务365",
-    productLine: "WPS政务365",
-    expectedVersion: "政务365 26.09 国际正式",
-    versionLine: "国际正式",
-    month: "9月",
-    planYear: 2026,
-    onesId: "ONES-10231",
-    onesUrl: onesLink("ONES-10231"),
-    deadline: "2026-09-12",
-    scheduleConclusion: "通过",
-    passed: true,
-    criteria: [
-      criterion("需求状态流转", "OpenAPI 设计", "不在不合规状态池", true),
-      criterion("需求立项评审结论", "通过", "不为空且不为「无」", true),
-      criterion("需求来源", "政务业务", "不为空", true),
-      criterion("开发计划工作量", "5", "不为空", true),
-      criterion("测试计划工作量", "2", "不为空", true),
-      criterion("是否免测", "否", "已填写", true),
-      criterion("带出版本线", "国际正式", "包含「国际」或已有豁免审批", true),
-      criterion("多语言适配情况", "已适配", "已填写", true),
-    ],
-  },
-  {
-    id: "PM-002",
-    name: "签批流程移动端适配",
-    pmOwner: "王磊",
-    devOwner: "黄峰",
-    qaOwner: "宋琪",
-    project: "WPS政务365",
-    productLine: "政务AI",
-    expectedVersion: "政务365 2026年9月 国际体验",
-    versionLine: "国际体验",
-    month: "9月",
-    planYear: 2026,
-    onesId: "ONES-10258",
-    onesUrl: onesLink("ONES-10258"),
-    deadline: "2026-09-18",
-    scheduleConclusion: "通过",
-    passed: true,
-    criteria: [
-      criterion("需求状态流转", "开发方案设计中", "不在不合规状态池", true),
-      criterion("需求立项评审结论", "通过", "不为空且不为「无」", true),
-      criterion("需求来源", "客户反馈", "不为空", true),
-      criterion("开发计划工作量", "8", "不为空", true),
-      criterion("测试计划工作量", "3", "不为空", true),
-      criterion("是否免测", "否", "已填写", true),
-      criterion("带出版本线", "国际体验", "包含「国际」或已有豁免审批", true),
-      criterion("多语言适配情况", "部分适配", "已填写", true),
-    ],
-  },
-  {
-    id: "PM-003",
-    name: "办件时限看板",
-    pmOwner: "赵敏",
-    devOwner: "马超",
-    qaOwner: "林悦",
-    project: "Office",
-    productLine: "统一平台",
-    expectedVersion: "Office 26.08 国内正式",
-    versionLine: "国内正式",
-    month: "8月",
-    planYear: 2026,
-    onesId: "ONES-9841",
-    onesUrl: onesLink("ONES-9841"),
-    deadline: "2026-09-08",
-    scheduleConclusion: "通过",
-    passed: false,
-    criteria: [
-      criterion("需求状态流转", "开发方案设计中", "不在不合规状态池", true),
-      criterion("需求立项评审结论", "通过", "不为空且不为「无」", true),
-      criterion("需求来源", "内部规划", "不为空", true),
-      criterion("开发计划工作量", "4", "不为空", true),
-      criterion("测试计划工作量", "1", "不为空", true),
-      criterion("是否免测", "是", "已填写", true),
-      criterion("带出版本线", "国内正式", "包含「国际」或已有豁免审批", false),
-      criterion("多语言适配情况", "已填写", "已填写", true),
-    ],
-  },
-  {
-    id: "PM-004",
-    name: "事项颗粒度拆分",
-    pmOwner: "周宁",
-    devOwner: "何斌",
-    qaOwner: "许晴",
-    project: "Office",
-    productLine: "安全版",
-    expectedVersion: "Office 26.09 国际正式",
-    versionLine: "国际正式",
-    month: "9月",
-    planYear: 2026,
-    onesId: "ONES-11002",
-    onesUrl: onesLink("ONES-11002"),
-    deadline: "2026-09-22",
-    scheduleConclusion: "通过",
-    passed: false,
-    criteria: [
-      criterion("需求状态流转", "需求立项中", "不在不合规状态池", false),
-      criterion("需求立项评审结论", "空", "不为空且不为「无」", false),
-      criterion("需求来源", "空", "不为空", false),
-      criterion("开发计划工作量", "空", "不为空", false),
-      criterion("测试计划工作量", "空", "不为空", false),
-      criterion("是否免测", "未填", "已填写", false),
-      criterion("带出版本线", "国际正式", "包含「国际」或已有豁免审批", true),
-      criterion("多语言适配情况", "未填", "已填写", false),
-    ],
-  },
-  {
-    id: "PM-005",
-    name: "电子证照核验接口",
-    pmOwner: "陈晨",
-    devOwner: "邓杰",
-    qaOwner: "韩雪",
-    project: "WPS政务365",
-    productLine: "医疗版",
-    expectedVersion: "政务365 26.09 国际正式",
-    versionLine: "国际正式",
-    month: "9月",
-    planYear: 2026,
-    onesId: "ONES-11087",
-    onesUrl: onesLink("ONES-11087"),
-    deadline: "2026-09-15",
-    scheduleConclusion: "通过",
-    passed: false,
-    criteria: [
-      criterion("需求状态流转", "OpenAPI 设计", "不在不合规状态池", true),
-      criterion("需求立项评审结论", "通过", "不为空且不为「无」", true),
-      criterion("需求来源", "政务业务", "不为空", true),
-      criterion("开发计划工作量", "6", "不为空", true),
-      criterion("测试计划工作量", "空", "不为空", false),
-      criterion("是否免测", "否", "已填写", true),
-      criterion("带出版本线", "国际正式", "包含「国际」或已有豁免审批", true),
-      criterion("多语言适配情况", "已填写", "已填写", true),
-    ],
-  },
-  {
-    id: "PM-006",
-    name: "协同待办统一收口",
-    pmOwner: "孙悦",
-    devOwner: "曹毅",
-    qaOwner: "冯岚",
-    project: "私有云",
-    productLine: "政务协作",
-    expectedVersion: "协作 26.08 国内正式",
-    versionLine: "国内正式",
-    month: "8月",
-    planYear: 2026,
-    onesId: "ONES-9910",
-    onesUrl: onesLink("ONES-9910"),
-    deadline: "2026-09-10",
-    scheduleConclusion: "通过",
-    passed: false,
-    criteria: [
-      criterion("需求状态流转", "未开始", "不在不合规状态池", false),
-      criterion("需求立项评审结论", "无", "不为空且不为「无」", false),
-      criterion("需求来源", "空", "不为空", false),
-      criterion("开发计划工作量", "空", "不为空", false),
-      criterion("测试计划工作量", "空", "不为空", false),
-      criterion("是否免测", "未填", "已填写", false),
-      criterion("带出版本线", "国内正式", "包含「国际」或已有豁免审批", false),
-      criterion("多语言适配情况", "未填", "已填写", false),
-    ],
-  },
-  {
-    id: "PM-007",
-    name: "会议纪要智能归档",
-    pmOwner: "吴桐",
-    devOwner: "沈博",
-    qaOwner: "蒋薇",
-    project: "Office",
-    productLine: "政务AI",
-    expectedVersion: "Office 26.10 国际正式",
-    versionLine: "国际正式",
-    month: "10月",
-    planYear: 2026,
-    onesId: "ONES-12011",
-    onesUrl: onesLink("ONES-12011"),
-    deadline: "2026-09-25",
-    scheduleConclusion: "取消",
-    passed: true,
-    criteria: [
-      criterion("需求状态流转", "OpenAPI 设计", "不在不合规状态池", true),
-      criterion("需求立项评审结论", "通过", "不为空且不为「无」", true),
-      criterion("需求来源", "内部规划", "不为空", true),
-      criterion("开发计划工作量", "3", "不为空", true),
-      criterion("测试计划工作量", "1", "不为空", true),
-      criterion("是否免测", "是", "已填写", true),
-      criterion("带出版本线", "国际正式", "包含「国际」或已有豁免审批", true),
-      criterion("多语言适配情况", "已填写", "已填写", true),
-    ],
-  },
-  {
-    id: "PM-008",
-    name: "共享交换目录治理",
-    pmOwner: "郑浩",
-    devOwner: "潘成",
-    qaOwner: "卢敏",
-    project: "WPS政务365",
-    productLine: "政务协作",
-    expectedVersion: "政务365 26.10 国内正式",
-    versionLine: "国内正式",
-    month: "10月",
-    planYear: 2026,
-    onesId: "ONES-12044",
-    onesUrl: onesLink("ONES-12044"),
-    deadline: "2026-09-20",
-    scheduleConclusion: "排期后下车",
-    passed: false,
-    criteria: [
-      criterion("需求状态流转", "需求分析中", "不在不合规状态池", false),
-      criterion("需求立项评审结论", "空", "不为空且不为「无」", false),
-      criterion("需求来源", "空", "不为空", false),
-      criterion("开发计划工作量", "空", "不为空", false),
-      criterion("测试计划工作量", "空", "不为空", false),
-      criterion("是否免测", "未填", "已填写", false),
-      criterion("带出版本线", "国内正式", "包含「国际」或已有豁免审批", false),
-      criterion("多语言适配情况", "未填", "已填写", false),
-    ],
-  },
-];
-
-const DEFAULT_RULES = [
-  { key: "status", label: "需求状态流转", standard: "不在：未开始 / 需求变更 / 挂起 / 需求立项中 / 需求分析中 / 需求终止 / UX设计中" },
-  { key: "review", label: "需求立项评审结论", standard: "不为空，且不为「无」" },
-  { key: "source", label: "需求来源", standard: "不为空" },
-  { key: "dev", label: "开发计划工作量", standard: "不为空" },
-  { key: "test", label: "测试计划工作量", standard: "不为空" },
-  { key: "notest", label: "是否免测", standard: "已填写" },
-  { key: "line", label: "带出版本线", standard: "包含「国际」，或已有豁免轻审批链接/编号" },
-  { key: "i18n", label: "多语言适配情况", standard: "已填写；仅所属项目为 Office 计入，其他项目跳过此项" },
-];
 
 function matchesOnesId(onesId: string, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -399,7 +47,7 @@ function matchesOnesId(onesId: string, query: string): boolean {
   return onesId.toLowerCase().includes(q) || normalized.includes(qNorm);
 }
 
-export function PmScheduleAuditTab() {
+export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: boolean }) {
   const [filterTab, setFilterTab] = useState<FilterTab>("belong");
   const [belongYear, setBelongYear] = useState(2026);
   const [belongMonth, setBelongMonth] = useState(9);
@@ -414,9 +62,9 @@ export function PmScheduleAuditTab() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const inScope = MOCK_REQUIREMENTS
-    .filter((item) => !SKIP_SCHED_CONCLUSIONS.has(item.scheduleConclusion))
-    .map(applyAuditScope);
+  const inScope = parseAuditRequirements(props.records)
+    .filter((item) => !SKIP_SCHED_CONCLUSIONS.has(item.scheduleConclusion));
+
 
   const matchedVersions = [...new Set(
     inScope
@@ -425,13 +73,13 @@ export function PmScheduleAuditTab() {
   )];
 
   const matchedPlanCount = inScope.filter(
-    (item) => item.planYear === planYear && item.month === `${planMonth}月`,
+    (item) => matchesPlanMonth(item.month, planYear, planMonth),
   ).length;
 
   const filtered = inScope.filter((item) => {
     if (filterTab === "belong") {
       if (!matchesExpectedVersion(item.expectedVersion, belongYear, belongMonth)) return false;
-    } else if (item.planYear !== planYear || item.month !== `${planMonth}月`) {
+    } else if (!matchesPlanMonth(item.month, planYear, planMonth)) {
       return false;
     }
     return matchesOnesId(item.onesId, appliedOnesId);
@@ -455,6 +103,9 @@ export function PmScheduleAuditTab() {
 
   return (
     <div className="space-y-5">
+      {props.loading && (
+        <p className="text-sm text-[#64748B]">正在从《2026年政务产研版本管理》拉取需求...</p>
+      )}
       <div className="rounded-xl border border-[#E4ECFC] bg-white px-4 py-3 shadow-sm">
         <Tabs value={filterTab} onValueChange={(val) => setFilterTab(val as FilterTab)}>
           <TabsList>
@@ -479,7 +130,7 @@ export function PmScheduleAuditTab() {
               <FilterActions onSearch={runSearch} onReset={resetFilters} />
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              按「期望带出版本」匹配：包含年份后两位，且包含月份两位（如 09）或「N月」。自动排除「取消」「排期后下车」。列表按多维表「所属产品线」分组；「多语言适配情况」仅所属项目为 Office 计入。
+              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配年份后两位及月份（09 或 N月）。自动排除排期结论为「取消」「排期后下车」。按「所属产品线」分组；多语言仅所属项目 Office 计入。
             </p>
           </TabsContent>
           <TabsContent value="plan" className="mt-3">
@@ -500,7 +151,7 @@ export function PmScheduleAuditTab() {
               <FilterActions onSearch={runSearch} onReset={resetFilters} />
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              按规则文档「规划月度」精确匹配所选年、月。自动排除「取消」「排期后下车」。列表按多维表「所属产品线」分组；「多语言适配情况」仅所属项目为 Office 计入。
+              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。按「所属产品线」分组；多语言仅所属项目 Office 计入。
             </p>
           </TabsContent>
         </Tabs>
@@ -612,7 +263,7 @@ export function PmScheduleAuditTab() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>配置审计规则</DialogTitle>
-            <DialogDescription>来自规则文档门禁；多语言适配仅统计 Office。初稿仅展示，保存不会写回数据源。</DialogDescription>
+            <DialogDescription>来自规则文档门禁，数据来自多维表「需求管理」。多语言适配仅统计所属项目 Office。初稿仅展示，保存不会写回数据源。</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-[50vh] overflow-y-auto">
             {DEFAULT_RULES.map((rule, i) => (
@@ -877,9 +528,13 @@ function ProductLineTable(props: {
                     )}
                   </td>
                   <td className="py-3 px-4 whitespace-nowrap">
-                    <a href={row.onesUrl} target="_blank" rel="noreferrer" className="text-sm text-[#2563EB] hover:underline">
-                      链接
-                    </a>
+                    {row.onesUrl ? (
+                      <a href={row.onesUrl} target="_blank" rel="noreferrer" className="text-sm text-[#2563EB] hover:underline">
+                        链接
+                      </a>
+                    ) : (
+                      <span className="text-xs text-[#94A3B8]">—</span>
+                    )}
                   </td>
                 </tr>
               );
