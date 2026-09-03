@@ -11,7 +11,7 @@ interface OAuthContextValue {
 }
 
 const OAuthContext = createContext<OAuthContextValue | null>(null);
-const DEFAULT_SCOPE = "kso.dbsheet.readwrite kso.user_base.read kso.chat_message.readwrite";
+const DEFAULT_SCOPE = "kso.dbsheet.readwrite kso.user_base.read";
 
 export function useOAuth() {
   return useContext(OAuthContext)!;

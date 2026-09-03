@@ -64,6 +64,7 @@ interface SendResult {
   code?: number;
   msg?: string;
   message?: string;
+  error?: string;
 }
 
 export function formatMonthLabel(year: number, month: number): string {
@@ -217,16 +218,37 @@ export async function resolvePushRecipients(preview: PushPreview): Promise<PushP
   return { ...preview, recipients, unresolved };
 }
 
-// 应用通道仅支持纯文本（消息契约禁止 markdown 字段），ONES 链接以原始 URL 保持可点击。
+// 发送通道：App Studio 平台代理（gateway_token 鉴权，X-Project-Id 标识项目）。
+// 平台代理用平台应用凭证转发并自动将内部用户 ID 转为应用维度 OpenID，
+// 无需项目自建应用单独申请消息权限。消息契约仅支持纯文本（无 markdown 字段）。
+// dev 由 vite /base-proxy 代理转发；生产页面与 o.wpsgo.com 同源，直接走 /app/app-base 路径。
+const IM_SEND_PATH = import.meta.env.DEV
+  ? "/base-proxy/app/v7/messages/create"
+  : "/app/app-base/base-proxy/app/v7/messages/create";
+const PROJECT_ID = import.meta.env.VITE_PROJECT_ID || "760386581358207";
+
 async function postMessage(userId: string, content: string): Promise<void> {
-  const res = await fetch("./api/im-send", {
+  const res = await fetch(IM_SEND_PATH, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, content }),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Project-Id": PROJECT_ID,
+    },
+    body: JSON.stringify({
+      type: "text",
+      content: { text: { type: "plain", content } },
+      receiver: { receiver_id: userId, type: "user" },
+      mentions: [],
+    }),
   });
   const data = (await res.json().catch(() => ({}))) as SendResult;
   if (!res.ok) {
-    throw new Error(data.message || data.msg || `发送接口错误（HTTP ${res.status}）`);
+    const detail = data.msg || data.message || (data.error ? String(data.error) : "");
+    throw new Error(detail || `发送接口错误（HTTP ${res.status}）`);
+  }
+  if (data.code !== undefined && data.code !== 0) {
+    throw new Error(data.msg || data.message || `错误码 ${data.code}`);
   }
 }
 
