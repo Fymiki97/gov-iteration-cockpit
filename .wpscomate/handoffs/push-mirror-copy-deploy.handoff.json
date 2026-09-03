@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "handoffId": "push-mirror-copy-deploy",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788430240980,
+  "note": {
+    "completed": [
+      "新增镜像副本：sendOneMessage 成功后，自动把该条消息原文（带【转发】前缀+接收人姓名）发给操作人本人；超长安全截断；转发失败仅 console.error 不影响主流程",
+      "发布 version 20260903180934 deployed（version_id 3658746294832312）；lint 0 error、typecheck 通过",
+      "新增 scripts/gen-push-preview.ts：用真实数据+线上同一套格式化代码构造/还原任意负责人的推送消息原文（node --experimental-strip-types 跑，支持 DETAIL=1 输出角色归属）",
+      "数据通路验证：页面上下文 fetch /api/wps-openapi/v7/coop/dbsheet/{file}/sheets/21/records（POST）可用；直接调 base-proxy coop 需 AppBase OAuth 授权（401）"
+    ],
+    "remaining": [
+      "用户下次线上推送时验证：每个负责人收到提醒 + 本人收到对应副本 + 最后收到回执，三条链路齐备"
+    ],
+    "decisions": [
+      "镜像副本逐人转发而非塞进回执：单条消息 ≤5000 字限制下更稳，副本=负责人原文逐字一致",
+      "回执（汇总）与副本（原文）同时存在：回执 1 条统计+失败明细，副本 N 条原文"
+    ],
+    "issues": [
+      "历史已发送的消息无存档（前端构造即发、无日志），无法原样重发；机制仅对之后的推送生效",
+      "数据 1 分钟自动刷新，事后用当前数据构造的消息与当时发出内容可能不同"
+    ],
+    "files_changed": [
+      "client/src/lib/pm-audit-push.ts",
+      "scripts/gen-push-preview.ts"
+    ]
+  },
+  "reason": "推送镜像副本功能：每人消息原文同步转发给操作人（20260903180934）"
+}
