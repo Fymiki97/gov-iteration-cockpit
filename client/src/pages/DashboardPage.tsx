@@ -48,6 +48,7 @@ import {
   PanelLeftClose,
   Download,
   ImageDown,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   buildExcelExportFilename,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/export-utils";
 import { BarTopLabel, LineTopLabel, PieOutsideLabel, PieLegendTable } from "@/lib/chart-labels";
 import { getAppApiUrl } from "@/lib/oauth-redirect";
+import { PmScheduleAuditTab } from "@/components/PmScheduleAuditTab";
 
 /* ==================== 常量 ==================== */
 const FILE_ID = "Dm5Wx1ph11MNih2SbwZurxjFLUZTboQEF";
@@ -64,6 +66,7 @@ const TAB_OVERVIEW = "overview";
 const TAB_MONTHLY = "monthly";
 const TAB_LIST = "list";
 const TAB_MILESTONE = "milestone";
+const TAB_PM_AUDIT = "pm-audit";
 
 const STATUS_COLORS = [
   "#2563EB", "#059669", "#F59E0B", "#DC2626", "#8B5CF6",
@@ -450,7 +453,7 @@ export function DashboardPage() {
 
   /** 导出当前 Tab 内容为 PNG */
   const handleExportImage = useCallback(async () => {
-    if (exportingImage || !tabContentRef.current || tab === TAB_LIST) return;
+    if (exportingImage || !tabContentRef.current || tab === TAB_LIST || tab === TAB_PM_AUDIT) return;
     setExportingImage(true);
     setExportTip("正在生成图片，请稍候...");
     try {
@@ -516,6 +519,7 @@ export function DashboardPage() {
     { key: TAB_MONTHLY, label: "月度迭代情况", icon: CalendarDays },
     { key: TAB_LIST, label: "需求列表", icon: ListChecks },
     { key: TAB_MILESTONE, label: "里程碑", icon: Milestone },
+    { key: TAB_PM_AUDIT, label: "排期会准入审计(PM)", icon: ClipboardCheck },
   ] as const;
 
   const pageTitle = NAV_ITEMS.find(n => n.key === tab)?.label || "政务产研迭代进度看板";
@@ -528,6 +532,9 @@ export function DashboardPage() {
       if (milestoneMonth !== "全部") return `${base} · 迭代月份：${milestoneMonth}`;
       const qf = milestoneQuickFilter !== "全部" ? ` · ${milestoneQuickFilter}` : "";
       return `${base} · 时间视图${qf}`;
+    }
+    if (tab === TAB_PM_AUDIT) {
+      return `${base} · 排期会准入审计初稿（示例数据）`;
     }
     return base;
   })();
@@ -611,7 +618,7 @@ export function DashboardPage() {
       {/* 右侧主内容区 */}
       <div className="flex-1 min-w-0 flex flex-col relative">
         {/* 导出按钮浮层（不纳入截图） */}
-        {tab !== TAB_LIST && (
+        {tab !== TAB_LIST && tab !== TAB_PM_AUDIT && (
           <div className="absolute top-4 right-6 md:right-8 z-30 flex items-center gap-3">
             {exportTip && (
               <span className="text-xs text-[#64748B] hidden sm:inline bg-white/90 px-2 py-1 rounded">{exportTip}</span>
@@ -1752,6 +1759,8 @@ export function DashboardPage() {
           )}
 
           {/* ============ TAB 4: 里程碑 ============ */}
+          {tab === TAB_PM_AUDIT && <PmScheduleAuditTab />}
+
           {tab === TAB_MILESTONE && (
             <div className="space-y-4">
               {/* 顶部工具栏 */}
