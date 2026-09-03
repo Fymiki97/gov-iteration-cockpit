@@ -47,7 +47,16 @@ async function request<T = unknown>(
   });
 
   if (!res.ok) {
-    const err = new Error(`WPS API error: ${res.status}`) as Error & { status: number };
+    const bodyText = await res.text().catch(() => "");
+    let detail = bodyText;
+    try {
+      const json = JSON.parse(bodyText) as { msg?: string; message?: string; code?: number };
+      detail = json.msg || json.message || bodyText;
+      if (json.code !== undefined && detail) detail = `[${json.code}] ${detail}`;
+    } catch {
+      // keep raw body
+    }
+    const err = new Error(detail ? `WPS API ${res.status}: ${detail}` : `WPS API error: ${res.status}`) as Error & { status: number };
     err.status = res.status;
     throw err;
   }

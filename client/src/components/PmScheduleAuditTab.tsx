@@ -149,7 +149,8 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
         toast.success(`已向 ${result.sent} 位负责人发送 WPS 消息`);
       }
       if (result.failed.length > 0) {
-        toast.error(`发送失败 ${result.failed.length} 人：${result.failed.map((item) => item.person).join("、")}`);
+        const detail = result.failed.map((item) => `${item.person}（${item.error}）`).join("；");
+        toast.error(`发送失败 ${result.failed.length} 人：${detail}`, { duration: 10000 });
       }
       if (result.sent > 0) setPushOpen(false);
     } catch (err) {

@@ -3,7 +3,7 @@ import type { AuditRequirement } from "@/lib/pm-schedule-audit";
 import { failReasonsByRole } from "@/lib/pm-schedule-audit";
 
 const MAX_MESSAGE_CHARS = 5000;
-const CONTACT_MENTION_ID = "pm";
+const CONTACT_MENTION_ID = "0";
 
 export interface PushContext {
   monthLabel: string;
@@ -72,9 +72,11 @@ export function formatMonthLabel(year: number, month: number): string {
 function requirementLabel(item: PushRequirementItem, markdown: boolean): string {
   if (!item.onesId) return `「${item.name}」`;
   if (markdown && item.onesUrl) {
-    return `「${item.name}」（[${item.onesId}](${item.onesUrl})）`;
+    const safeId = item.onesId.replace(/[\[\]()]/g, "");
+    return `「${item.name}」 ([${safeId}](${item.onesUrl}))`;
   }
-  return `「${item.name}」（${item.onesId}）`;
+  const onesSuffix = item.onesUrl ? `${item.onesId} ${item.onesUrl}` : item.onesId;
+  return `「${item.name}」（${onesSuffix}）`;
 }
 
 function formatRequirementBlock(item: PushRequirementItem, markdown: boolean): string {
@@ -100,10 +102,13 @@ function formatPushMessage(
   recipient: PushRecipient,
   context: PushContext,
   contact: PushContact,
+  markdown: boolean,
 ): string {
   const header = `【排期会准入审计提醒】\n\n以下需求未满足${context.monthLabel}排期会准入条件，请您关注并尽快处理：\n\n`;
-  const body = formatRecipientBody(recipient, true);
-  const footer = `\n\n如有疑问请联系 <at id="${CONTACT_MENTION_ID}">${contact.userName}</at>。`;
+  const body = formatRecipientBody(recipient, markdown);
+  const footer = markdown
+    ? `\n\n如有疑问请联系 <at id="${CONTACT_MENTION_ID}">${contact.userName}</at>。`
+    : `\n\n如有疑问请联系 @${contact.userName}。`;
   const full = header + body + footer;
   if (full.length <= MAX_MESSAGE_CHARS) return full;
   const truncatedBody = body.slice(0, MAX_MESSAGE_CHARS - header.length - footer.length - 20);
@@ -211,6 +216,70 @@ export async function resolvePushRecipients(preview: PushPreview): Promise<PushP
   return { ...preview, recipients, unresolved };
 }
 
+async function postMessage(body: Record<string, unknown>): Promise<SendMessageResponse> {
+  return wpsApi.post<SendMessageResponse>("/v7/messages/create", body);
+}
+
+async function sendOneMessage(
+  recipient: PushRecipient,
+  context: PushContext,
+  contact: PushContact,
+): Promise<void> {
+  const markdownContent = formatPushMessage(recipient, context, contact, true);
+  const markdownBody: Record<string, unknown> = {
+    type: "text",
+    content: {
+      text: {
+        type: "markdown",
+        content: markdownContent,
+      },
+    },
+    receiver: {
+      receiver_id: recipient.userId,
+      type: "user",
+    },
+  };
+  if (contact.companyId) {
+    markdownBody.mentions = [
+      {
+        id: CONTACT_MENTION_ID,
+        type: "user",
+        identity: {
+          id: contact.userId,
+          type: "user",
+          company_id: contact.companyId,
+        },
+      },
+    ];
+  }
+
+  try {
+    const res = await postMessage(markdownBody);
+    if (res.code === undefined || res.code === 0) return;
+    throw new Error(res.msg || `错误码 ${res.code}`);
+  } catch (markdownErr) {
+    const plainContent = formatPushMessage(recipient, context, contact, false);
+    const plainBody = {
+      type: "text",
+      content: {
+        text: {
+          type: "plain",
+          content: plainContent,
+        },
+      },
+      receiver: {
+        receiver_id: recipient.userId,
+        type: "user",
+      },
+    };
+    const res = await postMessage(plainBody);
+    if (res.code !== undefined && res.code !== 0) {
+      const markdownMsg = markdownErr instanceof Error ? markdownErr.message : String(markdownErr);
+      throw new Error(res.msg || `${markdownMsg}；纯文本重试也失败（错误码 ${res.code}）`);
+    }
+  }
+}
+
 export async function sendPushToRecipients(
   recipients: PushRecipient[],
   context: PushContext,
@@ -221,35 +290,7 @@ export async function sendPushToRecipients(
 
   for (const recipient of recipients) {
     try {
-      const content = formatPushMessage(recipient, context, contact);
-      const res = await wpsApi.post<SendMessageResponse>("/v7/messages/create", {
-        type: "text",
-        content: {
-          text: {
-            type: "markdown",
-            content,
-          },
-        },
-        receiver: {
-          receiver_id: recipient.userId,
-          type: "user",
-        },
-        mentions: [
-          {
-            id: CONTACT_MENTION_ID,
-            type: "user",
-            identity: {
-              id: contact.userId,
-              type: "user",
-              company_id: contact.companyId,
-            },
-          },
-        ],
-      });
-      if (res.code !== undefined && res.code !== 0) {
-        failed.push({ person: recipient.person, error: res.msg || `错误码 ${res.code}` });
-        continue;
-      }
+      await sendOneMessage(recipient, context, contact);
       sent += 1;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
