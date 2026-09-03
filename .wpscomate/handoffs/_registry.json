@@ -42,6 +42,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1788430240980,
       "file": "push-mirror-copy-deploy.handoff.json"
+    },
+    {
+      "handoffId": "push-receipt-userid-fix",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1788430947789,
+      "file": "push-receipt-userid-fix.handoff.json"
     }
   ]
 }

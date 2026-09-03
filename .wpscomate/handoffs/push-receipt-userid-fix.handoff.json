@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "handoffId": "push-receipt-userid-fix",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788430947789,
+  "note": {
+    "completed": [
+      "根因定位：回执/副本发操作人失败，因 users/current 返回非数字展示 ID（如 06YZ***），平台代理报 \"internal user ID must be numeric\"；负责人的 ID 来自表内 ownerId（数字）所以主推送正常",
+      "组织架构搜索通路确认不可用：/v7/users/search 需 kso.contact.read（应用未申请，403 400000003）——负责人搜索兑底也一直不可用",
+      "本地通路解析出冯雨檬内部数字 ID（wps365 user search，唯一命中），并用页面会话 + 平台代理验证发送成功（HTTP 200 code:0，用户已收到测试私信）",
+      "修复 fetchPushContact：id 非数字时先试搜索（未来权限开通自动生效），失败查 OPERATOR_NUMERIC_ID_FALLBACK 表（按 ex_user_id=fengyumeng 对应数字 ID）",
+      "发布 version 20260903182146 deployed（version_id 8341276533251987）；lint 0 error、typecheck 通过"
+    ],
+    "remaining": [
+      "用户线上再推一次：验证负责人消息 + 副本 + 回执三条链路全部到位",
+      "可选：申请 kso.contact.read 权限使搜索通路可用，兑底表变兜底"
+    ],
+    "decisions": [
+      "操作人数字 ID 用本地预解析兑底表（按 ex_user_id 键）而非等待权限申请——应用目标用户固定为政务质量管理小团队，可接受",
+      "保留搜索优先逻辑：未来申请到 kso.contact.read 后无需改码自动切换到运行时解析"
+    ],
+    "issues": [
+      "副本/回执链路端到端仍待用户再点一次推送验证",
+      "若未来其他操作人（非 fengyumeng）使用推送，其 ex_user_id 不在兑底表内则回执仍会失败——需要时用 wps365 user search 补表"
+    ],
+    "files_changed": [
+      "client/src/lib/pm-audit-push.ts"
+    ]
+  },
+  "reason": "回执失败根因修复：操作人数字 ID 解析（20260903182146）"
+}
