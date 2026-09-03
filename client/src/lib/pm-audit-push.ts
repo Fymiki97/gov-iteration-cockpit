@@ -60,9 +60,10 @@ interface CurrentUserResponse {
   };
 }
 
-interface SendMessageResponse {
+interface SendResult {
   code?: number;
   msg?: string;
+  message?: string;
 }
 
 export function formatMonthLabel(year: number, month: number): string {
@@ -216,8 +217,17 @@ export async function resolvePushRecipients(preview: PushPreview): Promise<PushP
   return { ...preview, recipients, unresolved };
 }
 
-async function postMessage(body: Record<string, unknown>): Promise<SendMessageResponse> {
-  return wpsApi.post<SendMessageResponse>("/v7/messages/create", body);
+// 应用通道仅支持纯文本（消息契约禁止 markdown 字段），ONES 链接以原始 URL 保持可点击。
+async function postMessage(userId: string, content: string): Promise<void> {
+  const res = await fetch("./api/im-send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, content }),
+  });
+  const data = (await res.json().catch(() => ({}))) as SendResult;
+  if (!res.ok) {
+    throw new Error(data.message || data.msg || `发送接口错误（HTTP ${res.status}）`);
+  }
 }
 
 async function sendOneMessage(
@@ -225,59 +235,8 @@ async function sendOneMessage(
   context: PushContext,
   contact: PushContact,
 ): Promise<void> {
-  const markdownContent = formatPushMessage(recipient, context, contact, true);
-  const markdownBody: Record<string, unknown> = {
-    type: "text",
-    content: {
-      text: {
-        type: "markdown",
-        content: markdownContent,
-      },
-    },
-    receiver: {
-      receiver_id: recipient.userId,
-      type: "user",
-    },
-  };
-  if (contact.companyId) {
-    markdownBody.mentions = [
-      {
-        id: CONTACT_MENTION_ID,
-        type: "user",
-        identity: {
-          id: contact.userId,
-          type: "user",
-          company_id: contact.companyId,
-        },
-      },
-    ];
-  }
-
-  try {
-    const res = await postMessage(markdownBody);
-    if (res.code === undefined || res.code === 0) return;
-    throw new Error(res.msg || `错误码 ${res.code}`);
-  } catch (markdownErr) {
-    const plainContent = formatPushMessage(recipient, context, contact, false);
-    const plainBody = {
-      type: "text",
-      content: {
-        text: {
-          type: "plain",
-          content: plainContent,
-        },
-      },
-      receiver: {
-        receiver_id: recipient.userId,
-        type: "user",
-      },
-    };
-    const res = await postMessage(plainBody);
-    if (res.code !== undefined && res.code !== 0) {
-      const markdownMsg = markdownErr instanceof Error ? markdownErr.message : String(markdownErr);
-      throw new Error(res.msg || `${markdownMsg}；纯文本重试也失败（错误码 ${res.code}）`);
-    }
-  }
+  const content = formatPushMessage(recipient, context, contact, false);
+  await postMessage(recipient.userId, content);
 }
 
 export async function sendPushToRecipients(
