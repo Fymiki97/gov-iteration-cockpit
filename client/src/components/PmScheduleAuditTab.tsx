@@ -148,6 +148,11 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
       if (result.sent > 0) {
         toast.success(`已向 ${result.sent} 位负责人发送 WPS 消息`);
       }
+      if (result.receiptSent) {
+        toast.info("推送回执已发到你的 WPS 私信，包含发送对象与结果明细");
+      } else {
+        toast.warning("推送回执发送失败，请以页面提示为准");
+      }
       if (result.failed.length > 0) {
         const detail = result.failed.map((item) => `${item.person}（${item.error}）`).join("；");
         toast.error(`发送失败 ${result.failed.length} 人：${detail}`, { duration: 10000 });

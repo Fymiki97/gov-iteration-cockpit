@@ -261,11 +261,52 @@ async function sendOneMessage(
   await postMessage(recipient.userId, content);
 }
 
+interface PushResult {
+  sent: number;
+  failed: Array<{ person: string; error: string }>;
+  receiptSent: boolean;
+}
+
+function formatReceipt(
+  recipients: PushRecipient[],
+  failed: Array<{ person: string; error: string }>,
+  context: PushContext,
+  contact: PushContact,
+): string {
+  const sentList = recipients.filter((r) => !failed.some((f) => f.person === r.person));
+  const now = new Date().toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const lines: string[] = [
+    "【推送回执】排期会准入审计提醒",
+    "",
+    `发送时间：${now}（北京时间）`,
+    `审计月份：${context.monthLabel}`,
+    `推送对象 ${recipients.length} 人：成功 ${sentList.length}，失败 ${failed.length}。`,
+  ];
+  if (sentList.length > 0) {
+    lines.push("", "已推送：");
+    sentList.forEach((r, i) => lines.push(`${i + 1}. ${r.person}（${r.requirementCount} 个需求）`));
+  }
+  if (failed.length > 0) {
+    lines.push("", "发送失败：");
+    failed.forEach((f, i) => lines.push(`${i + 1}. ${f.person}：${f.error.slice(0, 120)}`));
+  }
+  lines.push("", `操作人：${contact.userName}（此回执仅发给你本人）`);
+  return lines.join("\n");
+}
+
 export async function sendPushToRecipients(
   recipients: PushRecipient[],
   context: PushContext,
   contact: PushContact,
-): Promise<{ sent: number; failed: Array<{ person: string; error: string }> }> {
+): Promise<PushResult> {
   let sent = 0;
   const failed: Array<{ person: string; error: string }> = [];
 
@@ -279,5 +320,15 @@ export async function sendPushToRecipients(
     }
   }
 
-  return { sent, failed };
+  // 回执发给操作人本人：所有接收人的消息都走应用通道，发送者无法在会话里看到，
+  // 凭回执确认推送给谁、结果如何。回执失败不影响推送结果，仅记日志。
+  let receiptSent = false;
+  try {
+    await postMessage(contact.userId, formatReceipt(recipients, failed, context, contact));
+    receiptSent = true;
+  } catch (err) {
+    console.error("[push] 回执发送失败:", err);
+  }
+
+  return { sent, failed, receiptSent };
 }
