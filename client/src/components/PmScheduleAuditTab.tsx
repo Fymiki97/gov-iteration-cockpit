@@ -29,6 +29,7 @@ import type { AuditRequirement, DbsheetRecord, RoleFailBlock } from "@/lib/pm-sc
 import {
   DEFAULT_RULES,
   SKIP_SCHED_CONCLUSIONS,
+  SUB_REQ_WITH_CHILDREN,
   failReasonsByRole,
   groupByProductLine,
   matchesExpectedVersion,
@@ -200,7 +201,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               <FilterActions onSearch={runSearch} onReset={resetFilters} />
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
+              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
           <TabsContent value="plan" className="mt-3">
@@ -221,7 +222,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               <FilterActions onSearch={runSearch} onReset={resetFilters} />
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
+              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。「需求-有子需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
         </Tabs>
@@ -323,8 +324,14 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
             <DialogTitle>{detail?.name}</DialogTitle>
             <DialogDescription>
               {detail?.onesId} · {detail?.expectedVersion} · {detail?.month} · 所属项目 {detail?.project} · 所属产品线 {detail?.productLine} · 产品 {detail?.pmOwner}
+              {detail?.subRequirementType === SUB_REQ_WITH_CHILDREN && " · 需求-有子需求（自动达标）"}
             </DialogDescription>
           </DialogHeader>
+          {detail?.subRequirementType === SUB_REQ_WITH_CHILDREN && (
+            <p className="text-xs text-[#059669] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-3 py-2">
+              该需求为「需求-有子需求」，不参与门禁审计，统一列为达标。
+            </p>
+          )}
           <div className="space-y-2 max-h-[50vh] overflow-y-auto">
             {detail?.criteria.map((c) => (
               <div key={c.name} className="flex items-start justify-between gap-3 rounded-lg border border-[#E4ECFC] px-3 py-2">

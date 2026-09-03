@@ -31,6 +31,7 @@ export interface AuditRequirement {
   onesUrl: string;
   deadline: string;
   scheduleConclusion: string;
+  subRequirementType: string;
   passed: boolean;
   criteria: AuditCriterion[];
 }
@@ -45,6 +46,7 @@ export interface RoleFailBlock {
 }
 
 export const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
+export const SUB_REQ_WITH_CHILDREN = "需求-有子需求";
 export const PRODUCT_LINE_ORDER = ["政务AI", "政务协作", "医疗版", "安全版", "WPS政务365", "统一平台"];
 
 const ILLEGAL_STATUS = new Set([
@@ -62,7 +64,7 @@ export const DEFAULT_RULES = [
   { key: "dev", label: "开发计划工作量", standard: "不为空；仅开发负责人所属部门为数字政务事业部时计入" },
   { key: "test", label: "测试计划工作量", standard: "不为空；仅测试负责人所属部门为数字政务事业部时计入" },
   { key: "notest", label: "是否免测", standard: "已填写" },
-  { key: "line", label: "带出版本线", standard: "须包含「国际」，或「豁免轻审批」有链接/审批编号" },
+  { key: "line", label: "带出版本线", standard: "Office 项目须包含「国际」或豁免轻审批有链接；其他项目不为空" },
 ];
 
 function fld(r: DbsheetRecord): Record<string, unknown> {
@@ -116,6 +118,10 @@ function filled(value: string): boolean {
   return t !== "" && t !== "空" && t !== "未填" && t !== "-" && t !== "/";
 }
 
+function isOfficeProject(project: string): boolean {
+  return project.split(/[,，、]/).some((part) => part.trim() === "Office");
+}
+
 function isInDigitalGovDept(fieldValue: unknown): boolean {
   if (fieldValue == null) return false;
   const items = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
@@ -133,7 +139,7 @@ function criterion(name: string, current: string, standard: string, passed: bool
   return { name, current: current.trim() || "空", standard, passed };
 }
 
-export function applyAuditScope(item: AuditRequirement): AuditRequirement {
+export function applyAuditScope(item: AuditRequirement, autoPass = false): AuditRequirement {
   let criteria = item.criteria;
   if (!item.devInDigitalGov) {
     criteria = criteria.filter((c) => c.name !== DEV_WORKLOAD_CRITERION);
@@ -141,7 +147,10 @@ export function applyAuditScope(item: AuditRequirement): AuditRequirement {
   if (!item.qaInDigitalGov) {
     criteria = criteria.filter((c) => c.name !== TEST_WORKLOAD_CRITERION);
   }
-  return { ...item, criteria, passed: criteria.every((c) => c.passed) };
+  if (autoPass) {
+    criteria = criteria.map((c) => ({ ...c, passed: true }));
+  }
+  return { ...item, criteria, passed: autoPass || criteria.every((c) => c.passed) };
 }
 
 export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequirement[] {
@@ -156,10 +165,19 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const notest = str(f["是否免测"]);
     const line = str(f["带出版本线"]);
     const exemption = str(f["豁免轻审批"]);
-    const linePass = line.includes("国际") || filled(exemption);
-    const lineCurrent = line || (exemption ? `豁免轻审批：${exemption}` : "");
+    const project = str(f["所属项目"]);
+    const isOffice = isOfficeProject(project);
+    const linePass = isOffice
+      ? line.includes("国际") || filled(exemption)
+      : filled(line);
+    const lineStandard = isOffice
+      ? "Office 项目：须包含「国际」，或豁免轻审批有链接/编号"
+      : "不为空";
+    const lineCurrent = line || (isOffice && exemption ? `豁免轻审批：${exemption}` : "");
     const devInDigitalGov = isInDigitalGovDept(f["开发负责人·部门"]);
     const qaInDigitalGov = isInDigitalGovDept(f["测试负责人·部门"]);
+    const subRequirementType = str(f["需求类型（子需求）"]);
+    const isParentWithChildren = subRequirementType === SUB_REQ_WITH_CHILDREN;
     const criteria = [
       criterion("需求状态流转", status, "不在不合规状态池", !!status && !ILLEGAL_STATUS.has(status)),
       criterion("需求立项评审结论", review, "不为空且不为「无」", filled(review) && review !== "无"),
@@ -167,7 +185,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       criterion(DEV_WORKLOAD_CRITERION, dev, "不为空", filled(dev)),
       criterion(TEST_WORKLOAD_CRITERION, test, "不为空", filled(test)),
       criterion("是否免测", notest, "已填写", filled(notest)),
-      criterion("带出版本线", lineCurrent, "包含「国际」，或豁免轻审批有链接/编号", linePass),
+      criterion("带出版本线", lineCurrent, lineStandard, linePass),
     ];
     return applyAuditScope({
       id: r.id || `row-${index}`,
@@ -190,9 +208,10 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       onesUrl: o.url,
       deadline: str(f["计划提测时间"]),
       scheduleConclusion: str(f["排期结论"]),
+      subRequirementType,
       passed: criteria.every((c) => c.passed),
       criteria,
-    });
+    }, isParentWithChildren);
   });
 }
 
@@ -224,7 +243,10 @@ export function formatFailReason(c: AuditCriterion): string {
     return `状态为「${c.current}」（不可以为需求立项中/需求分析中/未开始/待公审/需求终止/挂起/需求变更/UX设计中）`;
   }
   if (c.name === "带出版本线") {
-    return `带出版本线不包含国际（当前: ${c.current}）且豁免轻审批无链接`;
+    if (c.standard.includes("国际")) {
+      return `带出版本线不包含国际（当前: ${c.current}）且豁免轻审批无链接`;
+    }
+    return "带出版本线为空";
   }
   if (!c.current || c.current === "空" || c.current === "未填" || c.current === "无") {
     return `${c.name}为空`;
