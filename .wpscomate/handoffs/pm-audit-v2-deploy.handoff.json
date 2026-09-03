@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "handoffId": "pm-audit-v2-deploy",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788407026623,
+  "note": {
+    "completed": [
+      "git fetch 发现远端新提交 3 个（5a0e3c1..e27352c）：84a6e0e capability 本地开发路径修复、90ade39 新增排期会准入审计(PM)页 906 行、e27352c 侧栏版本号 V2.0",
+      "git pull --rebase 成功（本地元数据提交 rebase 为 03ef6a1，main 含全部远端代码）",
+      "lint 0 error（client 5 预存 warning 非阻塞）、typecheck 通过",
+      "发布成功 version 20260903114222（version_id 7617780745947841）status deployed",
+      "缩略图已重新截图（65KB）并上传成功"
+    ],
+    "remaining": [
+      "用户线上验证新 PM 审计页功能"
+    ],
+    "decisions": [
+      "用户多次说'获取新代码'实为等待其 GitHub 网页端推送；第三次指令时 fetch 拉到 3 个新提交，验证了这一判断"
+    ],
+    "issues": [
+      "本地 main 仍 ahead 1（元数据提交 03ef6a1：handoff/缩略图），未推送 GitHub，非业务代码",
+      "PM 审计页是纯前端新 tab，未做线上功能验证，建议用户打开页面确认"
+    ],
+    "files_changed": [
+      "client/src/components/PmScheduleAuditTab.tsx (new, from remote)",
+      "client/src/pages/DashboardPage.tsx (from remote)",
+      "server/routes/api/[...capability].ts (from remote)"
+    ]
+  }
+}

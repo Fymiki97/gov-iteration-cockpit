@@ -6,6 +6,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1788146245660,
       "file": "oauth-jwt-fix-deploy.handoff.json"
+    },
+    {
+      "handoffId": "pm-audit-v2-deploy",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1788407026623,
+      "file": "pm-audit-v2-deploy.handoff.json"
     }
   ]
 }
