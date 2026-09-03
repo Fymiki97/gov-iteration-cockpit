@@ -16,6 +16,9 @@ export interface AuditRequirement {
   pmOwner: string;
   devOwner: string;
   qaOwner: string;
+  pmOwnerId: string;
+  devOwnerId: string;
+  qaOwnerId: string;
   devInDigitalGov: boolean;
   qaInDigitalGov: boolean;
   project: string;
@@ -37,6 +40,7 @@ export type RoleKey = "pm" | "dev" | "qa";
 export interface RoleFailBlock {
   role: string;
   person: string;
+  userId: string;
   reasons: string[];
 }
 
@@ -78,6 +82,21 @@ function str(v: unknown): string {
     for (const k of ["displayText", "text", "name", "userName", "user_name", "nickname", "nickName", "label", "value"]) {
       const s = str(o[k]);
       if (s) return s;
+    }
+  }
+  return "";
+}
+
+function contactId(v: unknown): string {
+  if (v == null) return "";
+  const items = Array.isArray(v) ? v : [v];
+  for (const item of items) {
+    if (typeof item !== "object" || !item) continue;
+    const o = item as Record<string, unknown>;
+    for (const k of ["id", "user_id", "userId", "uid"]) {
+      const raw = o[k];
+      if (typeof raw === "string" && raw.trim()) return raw.trim();
+      if (typeof raw === "number") return String(raw);
     }
   }
   return "";
@@ -156,6 +175,9 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       pmOwner: str(f["产品负责人"]),
       devOwner: str(f["开发负责人"]),
       qaOwner: str(f["测试负责人"]),
+      pmOwnerId: contactId(f["产品负责人"]),
+      devOwnerId: contactId(f["开发负责人"]),
+      qaOwnerId: contactId(f["测试负责人"]),
       devInDigitalGov,
       qaInDigitalGov,
       project: str(f["所属项目"]),
@@ -212,9 +234,9 @@ export function formatFailReason(c: AuditCriterion): string {
 
 export function failReasonsByRole(row: AuditRequirement): RoleFailBlock[] {
   const buckets: Record<RoleKey, RoleFailBlock> = {
-    pm: { role: "产品负责人", person: row.pmOwner, reasons: [] },
-    dev: { role: "开发负责人", person: row.devOwner, reasons: [] },
-    qa: { role: "测试负责人", person: row.qaOwner, reasons: [] },
+    pm: { role: "产品负责人", person: row.pmOwner, userId: row.pmOwnerId, reasons: [] },
+    dev: { role: "开发负责人", person: row.devOwner, userId: row.devOwnerId, reasons: [] },
+    qa: { role: "测试负责人", person: row.qaOwner, userId: row.qaOwnerId, reasons: [] },
   };
   for (const c of row.criteria) {
     if (c.passed) continue;

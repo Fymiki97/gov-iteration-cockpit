@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
+  Send,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,15 @@ import {
   matchesPlanMonth,
   parseAuditRequirements,
 } from "@/lib/pm-schedule-audit";
+import {
+  buildPushPreview,
+  fetchPushContact,
+  formatMonthLabel,
+  formatPushMessagePreview,
+  resolvePushRecipients,
+  sendPushToRecipients,
+  type PushPreview,
+} from "@/lib/pm-audit-push";
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -61,6 +71,14 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
   const [rulesOpen, setRulesOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [pushOpen, setPushOpen] = useState(false);
+  const [pushPreview, setPushPreview] = useState<PushPreview | null>(null);
+  const [pushing, setPushing] = useState(false);
+  const [pushContactName, setPushContactName] = useState("PM");
+
+  const pushMonthLabel = filterTab === "belong"
+    ? formatMonthLabel(belongYear, belongMonth)
+    : formatMonthLabel(planYear, planMonth);
 
   const inScope = parseAuditRequirements(props.records)
     .filter((item) => !SKIP_SCHED_CONCLUSIONS.has(item.scheduleConclusion));
@@ -87,6 +105,58 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
 
   const passed = filtered.filter((item) => item.passed);
   const failed = filtered.filter((item) => !item.passed);
+  const selectedFailedCount = selectedIds.filter((id) => {
+    const item = inScope.find((row) => row.id === id);
+    return item && !item.passed;
+  }).length;
+
+  const openPushDialog = async () => {
+    const preview = buildPushPreview(inScope, selectedIds, { monthLabel: pushMonthLabel });
+    if (preview.skippedNoSelection) {
+      toast.info("请先勾选要推送的未达标需求");
+      return;
+    }
+    if (preview.recipients.length === 0) {
+      toast.info(preview.skippedPassed > 0 ? "所选需求均已达标，无需推送" : "所选需求没有可推送的不满足原因");
+      return;
+    }
+    const contact = await fetchPushContact();
+    setPushContactName(contact?.userName || "PM");
+    setPushPreview(preview);
+    setPushOpen(true);
+  };
+
+  const confirmPush = async () => {
+    if (!pushPreview) return;
+    setPushing(true);
+    try {
+      const contact = await fetchPushContact();
+      if (!contact) {
+        toast.error("无法获取当前用户信息，请确认已登录 WPS");
+        return;
+      }
+      const resolved = await resolvePushRecipients(pushPreview);
+      if (resolved.unresolved.length > 0) {
+        toast.error(`未找到以下负责人的 WPS 账号：${resolved.unresolved.join("、")}`);
+      }
+      if (resolved.recipients.length === 0) {
+        setPushOpen(false);
+        return;
+      }
+      const result = await sendPushToRecipients(resolved.recipients, { monthLabel: pushPreview.monthLabel }, contact);
+      if (result.sent > 0) {
+        toast.success(`已向 ${result.sent} 位负责人发送 WPS 消息`);
+      }
+      if (result.failed.length > 0) {
+        toast.error(`发送失败 ${result.failed.length} 人：${result.failed.map((item) => item.person).join("、")}`);
+      }
+      if (result.sent > 0) setPushOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "推送失败");
+    } finally {
+      setPushing(false);
+    }
+  };
 
   const runSearch = () => setAppliedOnesId(onesId);
   const resetFilters = () => {
@@ -183,6 +253,18 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            disabled={selectedFailedCount === 0}
+            onClick={openPushDialog}
+            className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white bg-[#059669] hover:bg-[#047857] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+          >
+            <Send className="w-4 h-4" />
+            推送到个人
+            {selectedFailedCount > 0 && (
+              <span className="ml-0.5 rounded bg-white/20 px-1.5 text-xs">{selectedFailedCount}</span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => toast.info("导出当前页：初稿暂未接入真实导出")}
             className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-[#1E3A5F] border border-[#CBD5E1] rounded-lg bg-white hover:bg-[#F8FAFC] transition-colors"
           >
@@ -255,6 +337,49 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
                 </Badge>
               </div>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pushOpen} onOpenChange={(open) => { if (!open && !pushing) { setPushOpen(false); setPushPreview(null); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>推送到个人</DialogTitle>
+            <DialogDescription>
+              将通过 WPS 协作向对应负责人发送即时消息，内容为所选未达标需求的不满足原因（{pushPreview?.monthLabel}）。
+              {pushPreview && pushPreview.skippedPassed > 0 && ` 已跳过 ${pushPreview.skippedPassed} 条达标需求。`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {pushPreview?.recipients.map((recipient) => (
+              <div key={`${recipient.person}-${recipient.userId}`} className="rounded-lg border border-[#E4ECFC] px-3 py-2">
+                <p className="text-sm font-medium text-[#0F172A]">
+                  {recipient.person}
+                  <span className="ml-2 text-xs font-normal text-[#64748B]">{recipient.requirementCount} 条待办项</span>
+                </p>
+                <p className="text-xs text-[#64748B] mt-1 whitespace-pre-wrap line-clamp-6">
+                  {formatPushMessagePreview(recipient, { monthLabel: pushPreview.monthLabel }, pushContactName)}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              disabled={pushing}
+              onClick={() => { setPushOpen(false); setPushPreview(null); }}
+              className="h-9 px-4 text-sm font-medium text-[#64748B] border border-[#E4ECFC] rounded-lg hover:bg-[#F8FAFC] disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={pushing || !pushPreview?.recipients.length}
+              onClick={confirmPush}
+              className="h-9 px-4 text-sm font-medium text-white bg-[#059669] hover:bg-[#047857] rounded-lg disabled:opacity-50"
+            >
+              {pushing ? "发送中…" : `确认发送（${pushPreview?.recipients.length ?? 0} 人）`}
+            </button>
           </div>
         </DialogContent>
       </Dialog>
