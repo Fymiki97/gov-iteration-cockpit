@@ -3,11 +3,18 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toNitroHandler } from "@ks-open/capability/server/nitro";
 
-const require = createRequire(import.meta.url);
-const capabilityDistRoot = resolve(
-  dirname(require.resolve("@ks-open/capability/server")),
-  "..",
-);
+// Dev-only: resolve the real package dir under node_modules. In the prod
+// bundle node_modules is NOT shipped (deps are inlined), so require.resolve
+// throws at module load and 500s every capability route — guard with try/catch.
+let capabilityDistRoot = "";
+try {
+  capabilityDistRoot = resolve(
+    dirname(createRequire(import.meta.url).resolve("@ks-open/capability/server")),
+    "..",
+  );
+} catch {
+  capabilityDistRoot = "";
+}
 
 // Dev:  process.cwd() is the project root, so "./capabilities" works.
 // Prod: Nitro replaces import.meta.url → globalThis._importMeta_.url which
@@ -19,7 +26,7 @@ const capabilitiesDir = import.meta.dev
 
 // Dev: point at the real package plugins under node_modules.
 // Prod: use the plugins copied next to the Nitro bundle by copy-capability-assets.
-const pluginsConfigPath = import.meta.dev
+const pluginsConfigPath = import.meta.dev && capabilityDistRoot
   ? resolve(capabilityDistRoot, "plugins/capability-plugins.json")
   : resolve(dirname(fileURLToPath(import.meta.url)), "plugins/capability-plugins.json");
 
