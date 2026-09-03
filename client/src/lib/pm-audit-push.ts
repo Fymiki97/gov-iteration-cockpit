@@ -259,6 +259,22 @@ async function sendOneMessage(
 ): Promise<void> {
   const content = formatPushMessage(recipient, context, contact, false);
   await postMessage(recipient.userId, content);
+  // 镜像副本：负责人收到的消息原文同步转发给操作人本人，
+  // 否则应用通道消息发送者在自身会话中不可见，无法留痕核对。
+  await forwardCopyToOperator(recipient, content, contact);
+}
+
+function forwardCopyToOperator(
+  recipient: PushRecipient,
+  content: string,
+  contact: PushContact,
+): Promise<void> {
+  const prefix = `【转发】以下是发给 ${recipient.person} 的消息原文：\n\n`;
+  const budget = MAX_MESSAGE_CHARS - prefix.length - 20;
+  const body = content.length > budget ? `${content.slice(0, budget)}\n…（原文过长已截断）` : content;
+  return postMessage(contact.userId, prefix + body).catch((err) => {
+    console.error(`[push] 转发 ${recipient.person} 副本失败:`, err);
+  });
 }
 
 interface PushResult {
