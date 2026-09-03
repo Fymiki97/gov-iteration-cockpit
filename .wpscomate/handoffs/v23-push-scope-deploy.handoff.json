@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "handoffId": "v23-push-scope-deploy",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788423973274,
+  "note": {
+    "completed": [
+      "拉取远端 4 个新提交：dc46967 移除多语言门禁、4b75da0 排期会审计推送到个人 V2.3（新增 lib/pm-audit-push.ts 302 行）、5ddf3f4 带出版本线有子需求自动达标、1958786 WPS 推送失败诊断与纯文本降级",
+      "关键配置变更：OAuth scope 扩为 3 个（dbsheet.readwrite + user_base.read + chat_message.readwrite），comate.json/dbsheet.json/OAuthProvider 三处一致",
+      "修复新代码 lint error：pm-audit-push.ts:75 正则多余转义 \\[ → [（edit 工具转义反复失败，改用 python 字节级替换）",
+      "lint 0 error、typecheck 通过、pack 成功",
+      "发布 version 20260903162423 deployed，缩略图已更新",
+      "线上验证：status 200 且 isAuthorized=false + 新 scope → 页面自动跳转 openapi.wps.cn/oauth2/auth 授权页（预期行为）"
+    ],
+    "remaining": [
+      "用户线上完成重新授权并验证推送功能"
+    ],
+    "decisions": [
+      "scope 扩展导致服务端判定旧授权不覆盖新 scope → isAuthorized=false，用户需重新授权一次，属预期"
+    ],
+    "issues": [
+      "用户打开线上会弹 WPS 授权页（新 scope 需重新授权），授权后推送功能才能用",
+      "若用户反馈授权后推送仍失败，检查平台应用身份是否已配置 kso.user_base.read 和 kso.chat_message.readwrite scope"
+    ],
+    "files_changed": [
+      "client/src/lib/pm-audit-push.ts (lint 修复)",
+      "client/src/lib/pm-audit-push.ts、client/src/components/PmScheduleAuditTab.tsx、server/capabilities/dbsheet.json、comate.json (from remote)"
+    ]
+  }
+}
