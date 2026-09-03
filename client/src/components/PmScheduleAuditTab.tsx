@@ -130,7 +130,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               <FilterActions onSearch={runSearch} onReset={resetFilters} />
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。按「所属产品线」分组；多语言仅所属项目 Office 计入。
+              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
           <TabsContent value="plan" className="mt-3">
@@ -151,7 +151,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               <FilterActions onSearch={runSearch} onReset={resetFilters} />
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。按「所属产品线」分组；多语言仅所属项目 Office 计入。
+              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
         </Tabs>
@@ -263,7 +263,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>配置审计规则</DialogTitle>
-            <DialogDescription>来自规则文档门禁，数据来自多维表「需求管理」。开发/测试计划工作量仅对所属部门含「数字政务事业部」的负责人计入；多语言适配仅统计所属项目 Office。初稿仅展示，保存不会写回数据源。</DialogDescription>
+            <DialogDescription>来自规则文档门禁，数据来自多维表「需求管理」。开发/测试计划工作量仅对所属部门含「数字政务事业部」的负责人计入。初稿仅展示，保存不会写回数据源。</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-[50vh] overflow-y-auto">
             {DEFAULT_RULES.map((rule, i) => (

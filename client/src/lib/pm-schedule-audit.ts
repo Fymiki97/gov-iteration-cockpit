@@ -40,7 +40,6 @@ export interface RoleFailBlock {
   reasons: string[];
 }
 
-export const I18N_CRITERION = "多语言适配情况";
 export const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
 export const PRODUCT_LINE_ORDER = ["政务AI", "政务协作", "医疗版", "安全版", "WPS政务365", "统一平台"];
 
@@ -60,7 +59,6 @@ export const DEFAULT_RULES = [
   { key: "test", label: "测试计划工作量", standard: "不为空；仅测试负责人所属部门为数字政务事业部时计入" },
   { key: "notest", label: "是否免测", standard: "已填写" },
   { key: "line", label: "带出版本线", standard: "须包含「国际」，或「豁免轻审批」有链接/审批编号" },
-  { key: "i18n", label: "多语言适配情况", standard: "已填写；仅所属项目为 Office 计入" },
 ];
 
 function fld(r: DbsheetRecord): Record<string, unknown> {
@@ -99,10 +97,6 @@ function filled(value: string): boolean {
   return t !== "" && t !== "空" && t !== "未填" && t !== "-" && t !== "/";
 }
 
-function isOfficeProject(project: string): boolean {
-  return project.split(/[,，、]/).some((part) => part.trim() === "Office");
-}
-
 function isInDigitalGovDept(fieldValue: unknown): boolean {
   if (fieldValue == null) return false;
   const items = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
@@ -121,9 +115,7 @@ function criterion(name: string, current: string, standard: string, passed: bool
 }
 
 export function applyAuditScope(item: AuditRequirement): AuditRequirement {
-  let criteria = isOfficeProject(item.project)
-    ? item.criteria
-    : item.criteria.filter((c) => c.name !== I18N_CRITERION);
+  let criteria = item.criteria;
   if (!item.devInDigitalGov) {
     criteria = criteria.filter((c) => c.name !== DEV_WORKLOAD_CRITERION);
   }
@@ -145,7 +137,6 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const notest = str(f["是否免测"]);
     const line = str(f["带出版本线"]);
     const exemption = str(f["豁免轻审批"]);
-    const i18n = str(f["多语言适配情况"]) || str(f["是否适配多语言"]);
     const linePass = line.includes("国际") || filled(exemption);
     const lineCurrent = line || (exemption ? `豁免轻审批：${exemption}` : "");
     const devInDigitalGov = isInDigitalGovDept(f["开发负责人·部门"]);
@@ -158,7 +149,6 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       criterion(TEST_WORKLOAD_CRITERION, test, "不为空", filled(test)),
       criterion("是否免测", notest, "已填写", filled(notest)),
       criterion("带出版本线", lineCurrent, "包含「国际」，或豁免轻审批有链接/编号", linePass),
-      criterion("多语言适配情况", i18n, "已填写", filled(i18n)),
     ];
     return applyAuditScope({
       id: r.id || `row-${index}`,
@@ -213,9 +203,6 @@ export function formatFailReason(c: AuditCriterion): string {
   }
   if (c.name === "带出版本线") {
     return `带出版本线不包含国际（当前: ${c.current}）且豁免轻审批无链接`;
-  }
-  if (c.name === "多语言适配情况") {
-    return `多语言适配情况为空（当前: ${c.current}）`;
   }
   if (!c.current || c.current === "空" || c.current === "未填" || c.current === "无") {
     return `${c.name}为空`;
