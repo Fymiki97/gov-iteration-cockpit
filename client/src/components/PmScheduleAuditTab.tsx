@@ -130,7 +130,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               <FilterActions onSearch={runSearch} onReset={resetFilters} />
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配年份后两位及月份（09 或 N月）。自动排除排期结论为「取消」「排期后下车」。按「所属产品线」分组；多语言仅所属项目 Office 计入。
+              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。按「所属产品线」分组；多语言仅所属项目 Office 计入。
             </p>
           </TabsContent>
           <TabsContent value="plan" className="mt-3">

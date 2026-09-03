@@ -158,10 +158,11 @@ export function matchesExpectedVersion(text: string, year: number, month: number
   const haystack = text.trim();
   if (!haystack) return false;
   const yy = String(year).slice(-2);
-  if (!haystack.includes(yy) && !haystack.includes(String(year))) return false;
   const mm = String(month).padStart(2, "0");
-  if (haystack.includes(mm)) return true;
-  return new RegExp(`(^|[^0-9])${month}月`).test(haystack);
+  if (haystack.includes(`${yy}${mm}`)) return true;
+  const hasYear = haystack.includes(yy) || haystack.includes(String(year));
+  const hasMonthLabel = new RegExp(`(^|[^0-9])${month}月`).test(haystack);
+  return hasYear && hasMonthLabel;
 }
 
 export function matchesPlanMonth(planMonth: string, year: number, month: number): boolean {
