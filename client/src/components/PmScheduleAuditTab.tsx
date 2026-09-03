@@ -179,7 +179,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-xs text-[#94A3B8]">排期会准入审计(PM)需求列表 · 按所属产品线分组 · 多语言仅所属项目 Office</p>
+        <p className="text-xs text-[#94A3B8]">排期会准入审计(PM)需求列表 · 按所属产品线分组 · 工作量仅数字政务事业部负责人计入</p>
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -263,7 +263,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>配置审计规则</DialogTitle>
-            <DialogDescription>来自规则文档门禁，数据来自多维表「需求管理」。多语言适配仅统计所属项目 Office。初稿仅展示，保存不会写回数据源。</DialogDescription>
+            <DialogDescription>来自规则文档门禁，数据来自多维表「需求管理」。开发/测试计划工作量仅对所属部门含「数字政务事业部」的负责人计入；多语言适配仅统计所属项目 Office。初稿仅展示，保存不会写回数据源。</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-[50vh] overflow-y-auto">
             {DEFAULT_RULES.map((rule, i) => (

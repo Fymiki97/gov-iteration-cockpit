@@ -16,6 +16,8 @@ export interface AuditRequirement {
   pmOwner: string;
   devOwner: string;
   qaOwner: string;
+  devInDigitalGov: boolean;
+  qaInDigitalGov: boolean;
   project: string;
   productLine: string;
   expectedVersion: string;
@@ -46,12 +48,16 @@ const ILLEGAL_STATUS = new Set([
   "未开始", "需求变更", "挂起", "需求立项中", "需求分析中", "需求终止", "UX设计中",
 ]);
 
+export const DIGITAL_GOV_DEPT = "数字政务事业部";
+export const DEV_WORKLOAD_CRITERION = "开发计划工作量";
+export const TEST_WORKLOAD_CRITERION = "测试计划工作量";
+
 export const DEFAULT_RULES = [
   { key: "status", label: "需求状态流转", standard: "不在：未开始 / 需求变更 / 挂起 / 需求立项中 / 需求分析中 / 需求终止 / UX设计中" },
   { key: "review", label: "需求立项评审结论", standard: "不为空，且不为「无」" },
   { key: "source", label: "需求来源", standard: "不为空" },
-  { key: "dev", label: "开发计划工作量", standard: "不为空" },
-  { key: "test", label: "测试计划工作量", standard: "不为空" },
+  { key: "dev", label: "开发计划工作量", standard: "不为空；仅开发负责人所属部门为数字政务事业部时计入" },
+  { key: "test", label: "测试计划工作量", standard: "不为空；仅测试负责人所属部门为数字政务事业部时计入" },
   { key: "notest", label: "是否免测", standard: "已填写" },
   { key: "line", label: "带出版本线", standard: "须包含「国际」，或「豁免轻审批」有链接/审批编号" },
   { key: "i18n", label: "多语言适配情况", standard: "已填写；仅所属项目为 Office 计入" },
@@ -97,14 +103,33 @@ function isOfficeProject(project: string): boolean {
   return project.split(/[,，、]/).some((part) => part.trim() === "Office");
 }
 
+function isInDigitalGovDept(fieldValue: unknown): boolean {
+  if (fieldValue == null) return false;
+  const items = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
+  for (const item of items) {
+    if (typeof item !== "object" || !item) continue;
+    const districts = (item as Record<string, unknown>).districts;
+    if (Array.isArray(districts) && districts.some((d) => String(d).includes(DIGITAL_GOV_DEPT))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function criterion(name: string, current: string, standard: string, passed: boolean): AuditCriterion {
   return { name, current: current.trim() || "空", standard, passed };
 }
 
 export function applyAuditScope(item: AuditRequirement): AuditRequirement {
-  const criteria = isOfficeProject(item.project)
+  let criteria = isOfficeProject(item.project)
     ? item.criteria
     : item.criteria.filter((c) => c.name !== I18N_CRITERION);
+  if (!item.devInDigitalGov) {
+    criteria = criteria.filter((c) => c.name !== DEV_WORKLOAD_CRITERION);
+  }
+  if (!item.qaInDigitalGov) {
+    criteria = criteria.filter((c) => c.name !== TEST_WORKLOAD_CRITERION);
+  }
   return { ...item, criteria, passed: criteria.every((c) => c.passed) };
 }
 
@@ -123,12 +148,14 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const i18n = str(f["多语言适配情况"]) || str(f["是否适配多语言"]);
     const linePass = line.includes("国际") || filled(exemption);
     const lineCurrent = line || (exemption ? `豁免轻审批：${exemption}` : "");
+    const devInDigitalGov = isInDigitalGovDept(f["开发负责人·部门"]);
+    const qaInDigitalGov = isInDigitalGovDept(f["测试负责人·部门"]);
     const criteria = [
       criterion("需求状态流转", status, "不在不合规状态池", !!status && !ILLEGAL_STATUS.has(status)),
       criterion("需求立项评审结论", review, "不为空且不为「无」", filled(review) && review !== "无"),
       criterion("需求来源", source, "不为空", filled(source)),
-      criterion("开发计划工作量", dev, "不为空", filled(dev)),
-      criterion("测试计划工作量", test, "不为空", filled(test)),
+      criterion(DEV_WORKLOAD_CRITERION, dev, "不为空", filled(dev)),
+      criterion(TEST_WORKLOAD_CRITERION, test, "不为空", filled(test)),
       criterion("是否免测", notest, "已填写", filled(notest)),
       criterion("带出版本线", lineCurrent, "包含「国际」，或豁免轻审批有链接/编号", linePass),
       criterion("多语言适配情况", i18n, "已填写", filled(i18n)),
@@ -139,6 +166,8 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       pmOwner: str(f["产品负责人"]),
       devOwner: str(f["开发负责人"]),
       qaOwner: str(f["测试负责人"]),
+      devInDigitalGov,
+      qaInDigitalGov,
       project: str(f["所属项目"]),
       productLine: str(f["所属产品线"]),
       expectedVersion: str(f["期望带出版本"]),
@@ -173,8 +202,8 @@ export function matchesPlanMonth(planMonth: string, year: number, month: number)
 }
 
 export function roleOfCriterion(name: string): RoleKey {
-  if (name === "开发计划工作量") return "dev";
-  if (name === "测试计划工作量") return "qa";
+  if (name === DEV_WORKLOAD_CRITERION) return "dev";
+  if (name === TEST_WORKLOAD_CRITERION) return "qa";
   return "pm";
 }
 
