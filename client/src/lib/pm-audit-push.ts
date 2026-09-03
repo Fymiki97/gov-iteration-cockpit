@@ -72,7 +72,7 @@ export function formatMonthLabel(year: number, month: number): string {
 function requirementLabel(item: PushRequirementItem, markdown: boolean): string {
   if (!item.onesId) return `「${item.name}」`;
   if (markdown && item.onesUrl) {
-    const safeId = item.onesId.replace(/[\[\]()]/g, "");
+    const safeId = item.onesId.replace(/[[\]()]/g, "");
     return `「${item.name}」 ([${safeId}](${item.onesUrl}))`;
   }
   const onesSuffix = item.onesUrl ? `${item.onesId} ${item.onesUrl}` : item.onesId;
