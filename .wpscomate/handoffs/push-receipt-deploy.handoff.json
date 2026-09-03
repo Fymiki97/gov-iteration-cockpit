@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "handoffId": "push-receipt-deploy",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788429232966,
+  "note": {
+    "completed": [
+      "新增推送回执：sendPushToRecipients 逐条发送完成后，自动给操作人本人（contact.userId）发一条纯文本回执——发送时间（北京时间）、审计月份、推送对象总数、已推送名单（姓名+需求计数）、失败名单（姓名+错误原因截断120字）、操作人署名",
+      "回执失败不影响主流程（console.error 记日志），返回值新增 receiptSent 标志",
+      "PmScheduleAuditTab toast 增加：回执已发送提示 / 回执失败警示",
+      "lint 0 error、typecheck 通过、发布 version 20260903175317 deployed（version_id 3592621013355342）"
+    ],
+    "remaining": [
+      "用户线上点一次推送：验证负责人收到消息 + 本人收到回执",
+      "若回执未收到，检查 contact.userId 是否为内部数字 ID（users/current 返回）"
+    ],
+    "decisions": [
+      "回执内容纯文本无 emoji（用户偏好文字版），错误明细每条截断 120 字防超长",
+      "回执发操作人本人而非接收人——应用通道消息发送者在自身会话不可见，回执是唯一的留痕手段"
+    ],
+    "issues": [
+      "推送+回执端到端仍待用户线上实际点一次验证",
+      "若推送全失败（如平台代理异常），回执也会发失败，此时只有页面 toast 可看"
+    ],
+    "files_changed": [
+      "client/src/lib/pm-audit-push.ts",
+      "client/src/components/PmScheduleAuditTab.tsx"
+    ]
+  },
+  "reason": "推送回执功能上线（20260903175317）：给操作人发推送结果汇总私信"
+}

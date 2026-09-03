@@ -30,6 +30,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1788428614875,
       "file": "im-push-platform-proxy-deploy.handoff.json"
+    },
+    {
+      "handoffId": "push-receipt-deploy",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1788429232966,
+      "file": "push-receipt-deploy.handoff.json"
     }
   ]
 }
