@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "handoffId": "im-push-platform-proxy-deploy",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788428614875,
+  "note": {
+    "completed": [
+      "根因实锤：授权页返回 JSON 错误 invalid_scope——kso.chat_message.readwrite 从未在开放平台后台申请开通，拖垮整个 OAuth 授权请求（官方文档：scope 须先在开发者后台>权限管理勾选申请）",
+      "comate.json/dbsheet.json/OAuthProvider 三处 scope 已移除 kso.chat_message.readwrite，只留 dbsheet.readwrite+user_base.read（用户已有授权的子集，无需重新授权）",
+      "发现并验证平台代理通道：POST /app/app-base/base-proxy/app/v7/messages/create + X-Project-Id 头 + gateway_token cookie → 400 参数校验错误（权限层通过）；假 userId 报 internal user ID must be numeric（平台自动做 ID 转换）——免申请权限，平台应用 AK20260401JJOYXC 承载",
+      "pm-audit-push.ts 改为前端直调平台代理（dev 走 /base-proxy vite 代理，生产走 /app/app-base/base-proxy 同源路径），纯文本单发，错误透传",
+      "删除中间方案 server/routes/api/im-send.post.ts（app token 后端方案，已不需要）",
+      "lint 0 error、typecheck 通过、pack 成功、发布 version 20260903174016 deployed（version_id 7487888078164859）",
+      "线上验证：应用页正常加载不再跳授权页，看板数据正常（777 需求）；缩略图已重新截图上传",
+      "用户 OAuth 通道结论：消息类 API 权限是应用授权专属（kso.chat_message.readwrite 在用户授权体系申请不到），用户 access_token 发消息官方不允许；wps_sid 内部 API（api.wps.cn 真用户名义）线上网页拿不到凭证"
+    ],
+    "remaining": [
+      "用户线上打开排期会准入审计(PM) tab 实际点一次推送验证",
+      "若推送报错，错误信息会透传 WPS 上游 msg，可据此继续诊断",
+      "可选：app:kso.chat_message.readwrite 如需项目自建应用直发（备用通道），仍需在开放平台开发者后台申请开通"
+    ],
+    "decisions": [
+      "发送通道选平台代理而非自建应用 app token：免权限申请、自动用户 ID 转换、与 IM guide 设计一致",
+      "消息以平台应用名义发送（开放平台所有线上应用的标准形态），无法做到登录人本人名义；文案署名联系人补足",
+      "messages/create 契约纯文本 plain（additionalProperties:false 禁 markdown），删 markdown 双发逻辑"
+    ],
+    "issues": [
+      "推送端到端未验证（真实发送是对外操作，留给用户在线上点一次推送确认）",
+      "dev 环境 vite /base-proxy 代理注入的是 wps_sid，AppBase 认 gateway_token——本地 dev 测推送可能不通，以线上为准",
+      "comate-cli app scope 命令只做项目级绑定，不开通应用权限（实验确认）"
+    ],
+    "files_changed": [
+      "client/src/lib/pm-audit-push.ts",
+      "client/src/components/OAuthProvider.tsx",
+      "comate.json",
+      "server/capabilities/dbsheet.json"
+    ]
+  },
+  "reason": "推送功能切换到平台代理通道并发布（20260903174016），授权页故障修复"
+}
