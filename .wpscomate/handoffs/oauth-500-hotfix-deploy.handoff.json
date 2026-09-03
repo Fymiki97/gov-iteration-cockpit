@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "handoffId": "oauth-500-hotfix-deploy",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788408114872,
+  "note": {
+    "completed": [
+      "浏览器诊断线上：/api/oauth/status 返回 500（url=comate.wps.cn 格式的 nitro 兑底错误），前端设计为接口异常时静默放行→秒进看板，数据接口 wps-openapi 全 500→数据全 0",
+      "根因：远端提交 84a6e0e 在 [...capability].ts 模块顶层无条件 require.resolve(\"@ks-open/capability/server\")，线上部署无 node_modules（依赖已内联）→ ERR_MODULE_NOT_FOUND → 路由 500；本地因 server/node_modules 碰巧存在而 200",
+      "修复：require.resolve 改为 try/catch 包裹（生产落空字符串），dev-only 语义保留；产物验证 require.resolve 已被 try-catch 保护",
+      "隔离验证：拷 .output 到 /tmp/deploy-sim（无任何上层 node_modules）→ status 200 带 appId、plugins 200、health 200、callback 400 预期",
+      "发布 version 20260903115822（version_id 8826659528843888）deployed",
+      "线上复验：status 200，页面正确跳转 openapi.wps.cn 授权页，授权链路恢复",
+      "修复已由 CloudSync 自动提交并推送 origin/main（e63ec08）"
+    ],
+    "remaining": [
+      "用户线上完成授权并确认数据恢复正常",
+      "可选：前端错误处理改为显式报错避免静默放行"
+    ],
+    "decisions": [
+      "require.resolve 用 try/catch 而非依赖 import.meta.dev 死代码消除——更稳，产物里 dev 分支会被 rollup 消除但 catch 分支保留",
+      "dbsheet-data 404 refresh_failed 是同因（缓存刷新依赖未授权 wps API），主因修复后自愈，未单独处理"
+    ],
+    "issues": [
+      "用户需在线上完成一次授权（会弹 WPS 授权页），授权后数据才能恢复；数据 0 是未授权导致，非数据丢失",
+      "前端 OAuthProvider 的静默放行设计（接口异常→authorized、SDK 缺失→authorized）掩盖故障，建议后续改为显式错误页"
+    ],
+    "files_changed": [
+      "server/routes/api/[...capability].ts"
+    ]
+  },
+  "reason": "线上授权与数据异常根因修复并已发布上线（version 20260903115822）"
+}

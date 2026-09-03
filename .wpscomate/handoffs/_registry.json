@@ -12,6 +12,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1788407026623,
       "file": "pm-audit-v2-deploy.handoff.json"
+    },
+    {
+      "handoffId": "oauth-500-hotfix-deploy",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1788408114872,
+      "file": "oauth-500-hotfix-deploy.handoff.json"
     }
   ]
 }
