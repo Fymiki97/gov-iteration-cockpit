@@ -57,8 +57,16 @@ interface CurrentUserResponse {
     id?: string;
     user_name?: string;
     company_id?: string;
+    ex_user_id?: string;
   };
 }
+
+// 平台代理只接受内部数字 user ID：users/current 返回非数字展示 ID，
+// 而组织架构搜索需要 kso.contact.read 权限（应用未申请，403）。
+// 因此用本地预先解析好的数字 ID 作兑底，按 ex_user_id（登录账号）对应。
+const OPERATOR_NUMERIC_ID_FALLBACK: Record<string, string> = {
+  fengyumeng: "1690533110",
+};
 
 interface SendResult {
   code?: number;
@@ -117,21 +125,24 @@ function formatPushMessage(
   return `${header}${truncatedBody}\n\n…（内容过长已截断）${footer}`;
 }
 
-async function resolveUserId(person: string, hintUserId: string): Promise<string> {
-  if (hintUserId) return hintUserId;
-  const keyword = person.trim();
-  if (!keyword) return "";
+async function searchUsersByName(keyword: string): Promise<WpsUserItem[]> {
+  if (!keyword.trim()) return [];
   const data = await wpsApi.get<SearchUsersResponse>("/v7/users/search", {
     params: {
-      keyword,
+      keyword: keyword.trim(),
       status: "active",
       search_field: "user_name",
       search_source: "company_user",
       page_size: "20",
     },
   });
-  const items = data.data?.items ?? [];
-  const exact = items.find((item) => item.user_name === keyword);
+  return data.data?.items ?? [];
+}
+
+async function resolveUserId(person: string, hintUserId: string): Promise<string> {
+  if (hintUserId) return hintUserId;
+  const items = await searchUsersByName(person);
+  const exact = items.find((item) => item.user_name === person.trim());
   return exact?.id || items[0]?.id || "";
 }
 
@@ -139,8 +150,15 @@ export async function fetchPushContact(): Promise<PushContact | null> {
   const res = await wpsApi.get<CurrentUserResponse>("/v7/users/current");
   const user = res.data;
   if (!user?.id || !user.user_name) return null;
+  let userId = user.id;
+  if (!/^\d+$/.test(user.id)) {
+    // 优先走搜索（未来申请到通讯录权限后自动生效），失败则查本地兑底表。
+    const items = await searchUsersByName(user.user_name).catch(() => [] as WpsUserItem[]);
+    const exact = items.find((item) => item.user_name === user.user_name && /^\d+$/.test(item.id ?? ""));
+    userId = exact?.id ?? OPERATOR_NUMERIC_ID_FALLBACK[user.ex_user_id ?? ""] ?? user.id;
+  }
   return {
-    userId: user.id,
+    userId,
     userName: user.user_name,
     companyId: user.company_id || "",
   };
