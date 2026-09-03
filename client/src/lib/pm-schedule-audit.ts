@@ -53,7 +53,7 @@ export const DEFAULT_RULES = [
   { key: "dev", label: "开发计划工作量", standard: "不为空" },
   { key: "test", label: "测试计划工作量", standard: "不为空" },
   { key: "notest", label: "是否免测", standard: "已填写" },
-  { key: "line", label: "带出版本线", standard: "包含「国际」或「海外」，或「是否国际化适配」为适配" },
+  { key: "line", label: "带出版本线", standard: "须包含「国际」，或「豁免轻审批」有链接/审批编号" },
   { key: "i18n", label: "多语言适配情况", standard: "已填写；仅所属项目为 Office 计入" },
 ];
 
@@ -119,9 +119,10 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const test = str(f["测试计划工作量（人/天）"]);
     const notest = str(f["是否免测"]);
     const line = str(f["带出版本线"]);
-    const intlFlag = str(f["是否国际化适配"]);
+    const exemption = str(f["豁免轻审批"]);
     const i18n = str(f["多语言适配情况"]) || str(f["是否适配多语言"]);
-    const linePass = /国际/.test(line) || /海外/.test(line) || intlFlag === "适配";
+    const linePass = line.includes("国际") || filled(exemption);
+    const lineCurrent = line || (exemption ? `豁免轻审批：${exemption}` : "");
     const criteria = [
       criterion("需求状态流转", status, "不在不合规状态池", !!status && !ILLEGAL_STATUS.has(status)),
       criterion("需求立项评审结论", review, "不为空且不为「无」", filled(review) && review !== "无"),
@@ -129,7 +130,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       criterion("开发计划工作量", dev, "不为空", filled(dev)),
       criterion("测试计划工作量", test, "不为空", filled(test)),
       criterion("是否免测", notest, "已填写", filled(notest)),
-      criterion("带出版本线", line || intlFlag, "包含「国际」/「海外」或已国际化适配", linePass),
+      criterion("带出版本线", lineCurrent, "包含「国际」，或豁免轻审批有链接/编号", linePass),
       criterion("多语言适配情况", i18n, "已填写", filled(i18n)),
     ];
     return applyAuditScope({
@@ -182,7 +183,7 @@ export function formatFailReason(c: AuditCriterion): string {
     return `状态为「${c.current}」（不可以为需求立项中/需求分析中/未开始/待公审/需求终止/挂起/需求变更/UX设计中）`;
   }
   if (c.name === "带出版本线") {
-    return `带出版本线不包含国际/海外（当前: ${c.current}）且未标记国际化适配`;
+    return `带出版本线不包含国际（当前: ${c.current}）且豁免轻审批无链接`;
   }
   if (c.name === "多语言适配情况") {
     return `多语言适配情况为空（当前: ${c.current}）`;
