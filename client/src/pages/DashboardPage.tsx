@@ -611,7 +611,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
-          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.11</p>}
+          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V2.0</p>}
         </div>
       </aside>
 
