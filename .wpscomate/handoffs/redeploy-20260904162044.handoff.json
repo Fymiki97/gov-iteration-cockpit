@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "handoffId": "redeploy-20260904162044",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788510110423,
+  "note": {
+    "completed": [
+      "第 6 次标准重部署流程完成：git pull（59c100a→4362788）→ lint 0 error → typecheck → pack → 发布 version 20260904162044 deployed（version_id 2410004799433398）",
+      "新代码内容：新增开发/测试负责人为空检测、免测需求豁免测试工作量、负责人为空时仍检测、测试负责人为空时违规兜底推送冯雨檬（QA_OWNER_FALLBACK 用数字 ID）",
+      "线上验证：页面正常加载无授权重定向，看板数据正常（更新于 16:21:28）",
+      "缩略图已更新上传（thumbnail_key projects/760386581358207/thumbnails/thumbnail.png）"
+    ],
+    "remaining": [
+      "用户线上验证新审计逻辑：负责人为空的需求在页面显示违规，测试负责人为空的违规会推送给你本人"
+    ],
+    "issues": [
+      "client 端 lint 有 5 个已知 warnings（DashboardPage/HomePage 未使用变量，用户历史代码遗留），无 error"
+    ]
+  },
+  "reason": "第 6 次重部署：拉取 4362788（负责人为空检测+推送兜底）发布 20260904162044"
+}
