@@ -1,5 +1,5 @@
 import { wpsApi } from "@/utils/wps-api";
-import type { AuditRequirement } from "@/lib/pm-schedule-audit";
+import type { AuditRequirement, RoleFailBlock } from "@/lib/pm-schedule-audit";
 import { failReasonsByRole } from "@/lib/pm-schedule-audit";
 
 const MAX_MESSAGE_CHARS = 5000;
@@ -66,6 +66,12 @@ interface CurrentUserResponse {
 // 因此用本地预先解析好的数字 ID 作兑底，按 ex_user_id（登录账号）对应。
 const OPERATOR_NUMERIC_ID_FALLBACK: Record<string, string> = {
   fengyumeng: "1690533110",
+};
+
+/** 测试负责人为空时，测试相关不满足原因推送给此人 */
+const QA_OWNER_FALLBACK = {
+  person: "冯雨檬",
+  userId: OPERATOR_NUMERIC_ID_FALLBACK.fengyumeng,
 };
 
 interface SendResult {
@@ -164,6 +170,16 @@ export async function fetchPushContact(): Promise<PushContact | null> {
   };
 }
 
+function resolvePushTarget(block: RoleFailBlock): { person: string; userId: string } | null {
+  if (block.reasons.length === 0) return null;
+  const person = block.person.trim();
+  if (person) return { person, userId: block.userId };
+  if (block.role === "测试负责人") {
+    return { person: QA_OWNER_FALLBACK.person, userId: QA_OWNER_FALLBACK.userId };
+  }
+  return null;
+}
+
 export function buildPushPreview(
   items: AuditRequirement[],
   selectedIds: string[],
@@ -187,16 +203,17 @@ export function buildPushPreview(
 
   for (const item of failedSelected) {
     for (const block of failReasonsByRole(item)) {
-      if (!block.person.trim() || block.reasons.length === 0) continue;
-      const key = block.userId || block.person.trim();
-      const existing = bucket.get(key) ?? { person: block.person.trim(), userId: block.userId, items: [] };
+      const target = resolvePushTarget(block);
+      if (!target) continue;
+      const key = target.userId || target.person;
+      const existing = bucket.get(key) ?? { person: target.person, userId: target.userId, items: [] };
       existing.items.push({
         name: item.name,
         onesId: item.onesId,
         onesUrl: item.onesUrl,
         reasons: block.reasons,
       });
-      if (!existing.userId && block.userId) existing.userId = block.userId;
+      if (!existing.userId && target.userId) existing.userId = target.userId;
       bucket.set(key, existing);
     }
   }

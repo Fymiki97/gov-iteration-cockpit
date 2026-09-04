@@ -61,8 +61,10 @@ export const DEFAULT_RULES = [
   { key: "status", label: "需求状态流转", standard: "不在：未开始 / 需求变更 / 挂起 / 需求立项中 / 需求分析中 / 需求终止 / UX设计中" },
   { key: "review", label: "需求立项评审结论", standard: "不为空，且不为「无」" },
   { key: "source", label: "需求来源", standard: "不为空" },
-  { key: "dev", label: "开发计划工作量", standard: "不为空；仅开发负责人所属部门为数字政务事业部时计入" },
-  { key: "test", label: "测试计划工作量", standard: "不为空；仅测试负责人所属部门为数字政务事业部时计入" },
+  { key: "devOwner", label: "开发负责人", standard: "不为空" },
+  { key: "dev", label: "开发计划工作量", standard: "不为空；负责人为空时仍检测；已填写且非数字政务事业部人员时豁免" },
+  { key: "qaOwner", label: "测试负责人", standard: "不为空" },
+  { key: "test", label: "测试计划工作量", standard: "不为空；免测需求豁免；负责人为空时仍检测；已填写且非数字政务事业部人员时豁免" },
   { key: "notest", label: "是否免测", standard: "已填写" },
   { key: "line", label: "带出版本线", standard: "Office 项目须包含「国际」或豁免轻审批有链接；其他项目不为空" },
 ];
@@ -139,12 +141,24 @@ function criterion(name: string, current: string, standard: string, passed: bool
   return { name, current: current.trim() || "空", standard, passed };
 }
 
+function shouldCheckDevWorkload(devOwner: string, devInDigitalGov: boolean): boolean {
+  if (!filled(devOwner)) return true;
+  return devInDigitalGov;
+}
+
+function shouldCheckTestWorkload(qaOwner: string, qaInDigitalGov: boolean, noTest: boolean): boolean {
+  if (noTest) return false;
+  if (!filled(qaOwner)) return true;
+  return qaInDigitalGov;
+}
+
 export function applyAuditScope(item: AuditRequirement, autoPass = false): AuditRequirement {
   let criteria = item.criteria;
-  if (!item.devInDigitalGov) {
+  const noTest = criteria.find((c) => c.name === "是否免测")?.current === "是";
+  if (!shouldCheckDevWorkload(item.devOwner, item.devInDigitalGov)) {
     criteria = criteria.filter((c) => c.name !== DEV_WORKLOAD_CRITERION);
   }
-  if (!item.qaInDigitalGov) {
+  if (!shouldCheckTestWorkload(item.qaOwner, item.qaInDigitalGov, noTest)) {
     criteria = criteria.filter((c) => c.name !== TEST_WORKLOAD_CRITERION);
   }
   if (autoPass) {
@@ -174,6 +188,8 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       ? "Office 项目：须包含「国际」，或豁免轻审批有链接/编号"
       : "不为空";
     const lineCurrent = line || (isOffice && exemption ? `豁免轻审批：${exemption}` : "");
+    const devOwner = str(f["开发负责人"]);
+    const qaOwner = str(f["测试负责人"]);
     const devInDigitalGov = isInDigitalGovDept(f["开发负责人·部门"]);
     const qaInDigitalGov = isInDigitalGovDept(f["测试负责人·部门"]);
     const subRequirementType = str(f["需求类型（子需求）"]);
@@ -182,7 +198,9 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       criterion("需求状态流转", status, "不在不合规状态池", !!status && !ILLEGAL_STATUS.has(status)),
       criterion("需求立项评审结论", review, "不为空且不为「无」", filled(review) && review !== "无"),
       criterion("需求来源", source, "不为空", filled(source)),
+      criterion("开发负责人", devOwner, "不为空", filled(devOwner)),
       criterion(DEV_WORKLOAD_CRITERION, dev, "不为空", filled(dev)),
+      criterion("测试负责人", qaOwner, "不为空", filled(qaOwner)),
       criterion(TEST_WORKLOAD_CRITERION, test, "不为空", filled(test)),
       criterion("是否免测", notest, "已填写", filled(notest)),
       criterion("带出版本线", lineCurrent, lineStandard, linePass),
@@ -191,8 +209,8 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       id: r.id || `row-${index}`,
       name: str(f["标题"]) || "未命名需求",
       pmOwner: str(f["产品负责人"]),
-      devOwner: str(f["开发负责人"]),
-      qaOwner: str(f["测试负责人"]),
+      devOwner,
+      qaOwner,
       pmOwnerId: contactId(f["产品负责人"]),
       devOwnerId: contactId(f["开发负责人"]),
       qaOwnerId: contactId(f["测试负责人"]),
@@ -233,8 +251,8 @@ export function matchesPlanMonth(planMonth: string, year: number, month: number)
 }
 
 export function roleOfCriterion(name: string): RoleKey {
-  if (name === DEV_WORKLOAD_CRITERION) return "dev";
-  if (name === TEST_WORKLOAD_CRITERION) return "qa";
+  if (name === DEV_WORKLOAD_CRITERION || name === "开发负责人") return "dev";
+  if (name === TEST_WORKLOAD_CRITERION || name === "测试负责人") return "qa";
   return "pm";
 }
 
