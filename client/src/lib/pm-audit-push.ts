@@ -1,12 +1,16 @@
 import { wpsApi } from "@/utils/wps-api";
 import type { AuditRequirement, RoleFailBlock } from "@/lib/pm-schedule-audit";
-import { failReasonsByRole } from "@/lib/pm-schedule-audit";
+import { failReasonsByRole, normalizeOnesId } from "@/lib/pm-schedule-audit";
 
 const MAX_MESSAGE_CHARS = 5000;
 const CONTACT_MENTION_ID = "0";
 
+const ONES_TASK_URL_PREFIX = "https://ones.dig.kso.net/om/v1/gs/task/";
+
 export interface PushContext {
   monthLabel: string;
+  meetingDate: string;
+  meetingSchedule: string;
 }
 
 export interface PushContact {
@@ -85,23 +89,33 @@ export function formatMonthLabel(year: number, month: number): string {
   return `${String(year).slice(-2)}年${month}月`;
 }
 
-function requirementLabel(item: PushRequirementItem, markdown: boolean): string {
-  if (!item.onesId) return `「${item.name}」`;
-  if (markdown && item.onesUrl) {
-    const safeId = item.onesId.replace(/[[\]()]/g, "");
-    return `「${item.name}」 ([${safeId}](${item.onesUrl}))`;
-  }
-  const onesSuffix = item.onesUrl ? `${item.onesId} ${item.onesUrl}` : item.onesId;
-  return `「${item.name}」（${onesSuffix}）`;
+export function onesTaskUrl(onesId: string, fallbackUrl = ""): string {
+  const id = normalizeOnesId(onesId);
+  if (id) return `${ONES_TASK_URL_PREFIX}${id}`;
+  return fallbackUrl;
 }
 
-function formatRequirementBlock(item: PushRequirementItem, markdown: boolean): string {
-  const bullets = item.reasons.map((reason) => `  · ${reason}`).join("\n");
-  return `${requirementLabel(item, markdown)}\n${bullets}`;
+function formatPushHeader(context: PushContext): string {
+  const date = context.meetingDate.trim() || "未找到";
+  const schedule = context.meetingSchedule.trim() || "待补充";
+  return [
+    "【排期会准入审计提醒】",
+    "",
+    `以下需求未满足${context.monthLabel}排期会准入条件，请您关注并尽快处理：`,
+    `${context.monthLabel}排期会的日期为：${date}`,
+    `${context.monthLabel}排期会的日程为：${schedule}`,
+    "",
+  ].join("\n");
 }
 
-function formatRecipientBody(recipient: PushRecipient, markdown: boolean): string {
-  return recipient.items.map((item) => formatRequirementBlock(item, markdown)).join("\n\n");
+function formatRequirementBlock(item: PushRequirementItem, index: number): string {
+  const onesLink = onesTaskUrl(item.onesId, item.onesUrl) || "无";
+  const reasons = item.reasons.map((reason) => `· ${reason}`).join("\n");
+  return `${index + 1}. **标题**:${item.name}\nones链接：${onesLink}\n${reasons}`;
+}
+
+function formatRecipientBody(recipient: PushRecipient): string {
+  return recipient.items.map((item, index) => formatRequirementBlock(item, index)).join("\n\n");
 }
 
 export function formatPushMessagePreview(
@@ -109,8 +123,8 @@ export function formatPushMessagePreview(
   context: PushContext,
   contactName: string,
 ): string {
-  const header = `【排期会准入审计提醒】\n\n以下需求未满足${context.monthLabel}排期会准入条件，请您关注并尽快处理：\n\n`;
-  const body = formatRecipientBody(recipient, false);
+  const header = formatPushHeader(context);
+  const body = formatRecipientBody(recipient);
   return `${header}${body}\n\n如有疑问请联系 @${contactName}。`;
 }
 
@@ -120,8 +134,8 @@ function formatPushMessage(
   contact: PushContact,
   markdown: boolean,
 ): string {
-  const header = `【排期会准入审计提醒】\n\n以下需求未满足${context.monthLabel}排期会准入条件，请您关注并尽快处理：\n\n`;
-  const body = formatRecipientBody(recipient, markdown);
+  const header = formatPushHeader(context);
+  const body = formatRecipientBody(recipient);
   const footer = markdown
     ? `\n\n如有疑问请联系 <at id="${CONTACT_MENTION_ID}">${contact.userName}</at>。`
     : `\n\n如有疑问请联系 @${contact.userName}。`;
@@ -323,6 +337,8 @@ function formatReceipt(
     "",
     `发送时间：${now}（北京时间）`,
     `审计月份：${context.monthLabel}`,
+    `排期会日期：${context.meetingDate.trim() || "未找到"}`,
+    `排期会日程：${context.meetingSchedule.trim() || "待补充"}`,
     `推送对象 ${recipients.length} 人：成功 ${sentList.length}，失败 ${failed.length}。`,
   ];
   if (sentList.length > 0) {
