@@ -53,7 +53,7 @@ describe("formatPushMessagePreview", () => {
     expect(text).toContain("以下需求未满足26年9月排期会准入条件，请您关注并尽快处理：");
     expect(text).toContain("26年9月排期会的日期为：2026年9月8日");
     expect(text).toContain("26年9月排期会的日程为：14:00-16:00 金山会议");
-    expect(text).toContain("1. **标题**:示例需求");
+    expect(text).toContain("1. 标题：示例需求");
     expect(text).toContain("ones链接：https://ones.dig.kso.net/om/v1/gs/task/2445069");
     expect(text).toContain("· 开发计划工作量为空");
     expect(text).toContain("· 带出版本线为空");
