@@ -164,6 +164,7 @@ export function DashboardPage() {
   const [wps, setWps] = useState<Wps365Client | null>(null);
   const [requirements, setRequirements] = useState<ReqRow[]>([]);
   const [rawRequirements, setRawRequirements] = useState<DbsheetRecord[]>([]);
+  const [rawMilestones, setRawMilestones] = useState<DbsheetRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
   const [risks, setRisks] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,7 +263,9 @@ export function DashboardPage() {
         }
       }
       if (milRes?.data?.records) {
-        const mils = parseMils(milRes.data.records as RawRec[]);
+        const recs = milRes.data.records as RawRec[];
+        setRawMilestones(recs);
+        const mils = parseMils(recs);
         setMilestones(mils);
         if (!silent && milRes.data.records.length > 0) {
           const raw = milRes.data.records.slice(0, 5).map((row) => {
@@ -1763,7 +1766,7 @@ export function DashboardPage() {
           )}
 
           {/* ============ TAB 4: 里程碑 ============ */}
-          {tab === TAB_PM_AUDIT && <PmScheduleAuditTab records={rawRequirements} loading={loading} />}
+          {tab === TAB_PM_AUDIT && <PmScheduleAuditTab records={rawRequirements} milestoneRecords={rawMilestones} loading={loading} />}
 
           {tab === TAB_MILESTONE && (
             <div className="space-y-4">

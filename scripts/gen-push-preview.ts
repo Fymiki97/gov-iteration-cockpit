@@ -50,19 +50,21 @@ if (items.length === 0 && anyAll.length > 0) {
 
 // 复刻 pm-audit-push.ts 的纯文本格式（与线上发送/预览完全一致）
 const MAX = 5000;
-function reqLabel(item) {
-  if (!item.onesId) return `「${item.name}」`;
-  const safeId = ""; // 纯文本无 markdown 链接
-  const onesSuffix = item.onesUrl ? `${item.onesId} ${item.onesUrl}` : item.onesId;
-  return `「${item.name}」（${onesSuffix}）`;
+const contactName = "冯雨檬";
+const monthLabel = "26年9月";
+const meetingDate = "2026年9月8日";
+const meetingSchedule = "待补充";
+function onesLink(item) {
+  const id = String(item.onesId || "").replace(/^ones-?/i, "").replace(/^#/, "");
+  if (id) return `https://ones.dig.kso.net/om/v1/gs/task/${id}`;
+  return item.onesUrl || "无";
 }
-function block(item) {
-  const bullets = item.reasons.map((r) => `  · ${r}`).join("\n");
-  return `${reqLabel(item)}\n${bullets}`;
+function block(item, index) {
+  const reasons = item.reasons.map((r) => `· ${r}`).join("\n");
+  return `${index + 1}. **标题**:${item.name}\nones链接：${onesLink(item)}\n${reasons}`;
 }
 const body = items.map(block).join("\n\n");
-const contactName = "冯雨檬";
-const header = `【排期会准入审计提醒】\n\n以下需求未满足26年9月排期会准入条件，请您关注并尽快处理：\n\n`;
+const header = `【排期会准入审计提醒】\n\n以下需求未满足${monthLabel}排期会准入条件，请您关注并尽快处理：\n${monthLabel}排期会的日期为：${meetingDate}\n${monthLabel}排期会的日程为：${meetingSchedule}\n\n`;
 const footer = `\n\n如有疑问请联系 @${contactName}。`;
 let full = header + body + footer;
 if (full.length > MAX) {

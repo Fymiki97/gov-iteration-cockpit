@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -33,6 +35,7 @@ import {
   failReasonsByRole,
   groupByProductLine,
   ONES_ID_FORMAT_HINT,
+  lookupScheduleMeetingPlanDate,
   matchesExpectedVersion,
   matchesOnesId,
   matchesPlanMonth,
@@ -53,7 +56,11 @@ const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 type FilterTab = "belong" | "plan" | "ones";
 
-export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: boolean }) {
+export function PmScheduleAuditTab(props: {
+  records: DbsheetRecord[];
+  milestoneRecords?: DbsheetRecord[];
+  loading?: boolean;
+}) {
   const [filterTab, setFilterTab] = useState<FilterTab>("belong");
   const [belongYear, setBelongYear] = useState(2026);
   const [belongMonth, setBelongMonth] = useState(9);
@@ -71,14 +78,17 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
   const [pushPreview, setPushPreview] = useState<PushPreview | null>(null);
   const [pushing, setPushing] = useState(false);
   const [pushContactName, setPushContactName] = useState("PM");
+  const [meetingDate, setMeetingDate] = useState("");
+  const [meetingSchedule, setMeetingSchedule] = useState("");
 
-  const pushMonthLabel = filterTab === "belong"
-    ? formatMonthLabel(belongYear, belongMonth)
-    : filterTab === "plan"
-      ? formatMonthLabel(planYear, planMonth)
-      : appliedOnesId.trim()
-        ? `ONES ${appliedOnesId.trim()}`
-        : "按 ONES ID";
+  const auditYear = filterTab === "plan" ? planYear : belongYear;
+  const auditMonth = filterTab === "plan" ? planMonth : belongMonth;
+  const pushMonthLabel = formatMonthLabel(auditYear, auditMonth);
+  const pushContext = {
+    monthLabel: pushPreview?.monthLabel ?? pushMonthLabel,
+    meetingDate,
+    meetingSchedule,
+  };
 
   const inScope = parseAuditRequirements(props.records)
     .filter((item) => !SKIP_SCHED_CONCLUSIONS.has(item.scheduleConclusion));
@@ -114,7 +124,11 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
   }).length;
 
   const openPushDialog = async () => {
-    const preview = buildPushPreview(inScope, selectedIds, { monthLabel: pushMonthLabel });
+    const preview = buildPushPreview(inScope, selectedIds, {
+      monthLabel: pushMonthLabel,
+      meetingDate: "",
+      meetingSchedule: "",
+    });
     if (preview.skippedNoSelection) {
       toast.info("请先勾选要推送的未达标需求");
       return;
@@ -125,6 +139,8 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
     }
     const contact = await fetchPushContact();
     setPushContactName(contact?.userName || "PM");
+    setMeetingDate(lookupScheduleMeetingPlanDate(props.milestoneRecords ?? [], auditMonth));
+    setMeetingSchedule("");
     setPushPreview(preview);
     setPushOpen(true);
   };
@@ -146,7 +162,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
         setPushOpen(false);
         return;
       }
-      const result = await sendPushToRecipients(resolved.recipients, { monthLabel: pushPreview.monthLabel }, contact);
+      const result = await sendPushToRecipients(resolved.recipients, pushContext, contact);
       if (result.sent > 0) {
         toast.success(`已向 ${result.sent} 位负责人发送 WPS 消息`);
       }
@@ -387,7 +403,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
       </Dialog>
 
       <Dialog open={pushOpen} onOpenChange={(open) => { if (!open && !pushing) { setPushOpen(false); setPushPreview(null); } }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>推送到个人</DialogTitle>
             <DialogDescription>
@@ -395,15 +411,39 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               {pushPreview && pushPreview.skippedPassed > 0 && ` 已跳过 ${pushPreview.skippedPassed} 条达标需求。`}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="meeting-date" className="text-sm text-[#0F172A]">排期会日期</Label>
+              <Input
+                id="meeting-date"
+                value={meetingDate}
+                onChange={(e) => setMeetingDate(e.target.value)}
+                placeholder="未在迭代里程碑中找到，请手动填写"
+                className="h-9 text-sm border-[#E4ECFC]"
+              />
+              <p className="text-[11px] text-[#94A3B8]">来自《迭代里程碑》「需求排期会」的{auditMonth}月计划完成日期，可修改</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="meeting-schedule" className="text-sm text-[#0F172A]">排期会日程</Label>
+              <Textarea
+                id="meeting-schedule"
+                value={meetingSchedule}
+                onChange={(e) => setMeetingSchedule(e.target.value)}
+                placeholder="例如 14:00-16:00 金山会议，链接：https://..."
+                className="min-h-16 text-sm border-[#E4ECFC]"
+              />
+              <p className="text-[11px] text-[#94A3B8]">每次发送前填写，将写入推送文案</p>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-[40vh] overflow-y-auto">
             {pushPreview?.recipients.map((recipient) => (
               <div key={`${recipient.person}-${recipient.userId}`} className="rounded-lg border border-[#E4ECFC] px-3 py-2">
                 <p className="text-sm font-medium text-[#0F172A]">
                   {recipient.person}
                   <span className="ml-2 text-xs font-normal text-[#64748B]">{recipient.requirementCount} 条待办项</span>
                 </p>
-                <p className="text-xs text-[#64748B] mt-1 whitespace-pre-wrap line-clamp-6">
-                  {formatPushMessagePreview(recipient, { monthLabel: pushPreview.monthLabel }, pushContactName)}
+                <p className="text-xs text-[#64748B] mt-1 whitespace-pre-wrap">
+                  {formatPushMessagePreview(recipient, pushContext, pushContactName)}
                 </p>
               </div>
             ))}

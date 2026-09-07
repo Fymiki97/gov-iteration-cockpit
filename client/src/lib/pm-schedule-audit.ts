@@ -48,6 +48,7 @@ export interface RoleFailBlock {
 export const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
 export const SUB_REQ_WITH_CHILDREN = "需求-有子需求";
 export const PRODUCT_LINE_ORDER = ["政务AI", "政务协作", "医疗版", "安全版", "WPS政务365", "统一平台"];
+export const SCHEDULE_MEETING_MILESTONE = "需求排期会";
 
 const ILLEGAL_STATUS = new Set([
   "未开始", "需求变更", "挂起", "需求立项中", "需求分析中", "需求终止", "UX设计中",
@@ -307,6 +308,74 @@ export function failReasonsByRole(row: AuditRequirement): RoleFailBlock[] {
     buckets[roleOfCriterion(c.name)].reasons.push(formatFailReason(c));
   }
   return (["pm", "dev", "qa"] as RoleKey[]).map((key) => buckets[key]).filter((block) => block.reasons.length > 0);
+}
+
+function fieldByName(f: Record<string, unknown>, name: string): unknown {
+  if (name in f) return f[name];
+  const key = Object.keys(f).find((k) => k.trim() === name);
+  return key ? f[key] : undefined;
+}
+
+function dateValueToString(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "number") {
+    const ms = v > 1e12 ? v : v * 1000;
+    const d = new Date(ms);
+    if (!Number.isNaN(d.getTime())) return formatDateInShanghai(d);
+  }
+  if (typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    for (const k of ["displayText", "text", "value", "date", "data"]) {
+      if (o[k] == null || o[k] === v) continue;
+      const nested = dateValueToString(o[k]);
+      if (nested) return nested;
+    }
+  }
+  const raw = str(v).trim();
+  if (!raw) return "";
+  const matched = raw.match(/(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})/);
+  if (matched) {
+    const d = new Date(Number(matched[1]), Number(matched[2]) - 1, Number(matched[3]));
+    if (!Number.isNaN(d.getTime())) return formatDateInShanghai(d);
+  }
+  if (/^\d{10,13}$/.test(raw)) {
+    const n = Number(raw);
+    const ms = n > 1e12 ? n : n * 1000;
+    const d = new Date(ms);
+    if (!Number.isNaN(d.getTime())) return formatDateInShanghai(d);
+  }
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) return formatDateInShanghai(parsed);
+  return raw;
+}
+
+function formatDateInShanghai(d: Date): string {
+  return d.toLocaleDateString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function planDateFieldNames(month: number): string[] {
+  const prefixed = `${month}月计划完成日期`;
+  if (month === 6) return [prefixed, "计划完成日期"];
+  return [prefixed];
+}
+
+/** 从「迭代里程碑」表中取「需求排期会」对应月份的计划完成日期 */
+export function lookupScheduleMeetingPlanDate(records: DbsheetRecord[], month: number): string {
+  for (const record of records) {
+    const f = fld(record);
+    const name = str(fieldByName(f, "里程碑")).trim();
+    if (name !== SCHEDULE_MEETING_MILESTONE && !name.includes(SCHEDULE_MEETING_MILESTONE)) continue;
+    for (const fieldName of planDateFieldNames(month)) {
+      const formatted = dateValueToString(fieldByName(f, fieldName));
+      if (formatted) return formatted;
+    }
+  }
+  return "";
 }
 
 export function groupByProductLine(rows: AuditRequirement[]): { productLine: string; rows: AuditRequirement[] }[] {
