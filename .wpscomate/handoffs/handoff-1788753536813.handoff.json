@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1788753536813",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788753536814,
+  "note": {
+    "completed": [
+      "第 8 次重部署完成：拉取远端新代码 a2116eb（PM 排期审计按 ONES ID 顿号分隔批量查询，V2.4），与本地 9c90027（handoff+缩略图）merge 无冲突，合并提交 403b766",
+      "lint 0 error、typecheck 通过、pack 成功",
+      "发布 version 20260907115616 deployed（version_id 2838968112543448）",
+      "缩略图已重新截图上传，远程验证看板 V2.4 正常显示、数据更新于 11:58"
+    ],
+    "remaining": [
+      "用户线上验证：PM 排期审计第三个筛选项按 ONES ID（2445069 / #2445069）顿号分隔批量查询"
+    ],
+    "decisions": [
+      "本地 divergent branch 用 merge（--no-rebase）而非 rebase：本地提交只是 handoff/缩略图元数据，rebase 会重写已推送历史"
+    ],
+    "issues": [
+      "本地合并提交 403b766 尚未推送到 origin/main（用户未要求 push）",
+      "client lint 有 5 个已知 warnings（历史遗留，无 error）"
+    ],
+    "files_changed": [
+      "thumbnail_760386581358207.png"
+    ]
+  }
+}
