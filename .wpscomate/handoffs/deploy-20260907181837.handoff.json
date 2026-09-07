@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "handoffId": "deploy-20260907181837",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788776377513,
+  "note": {
+    "completed": [
+      "第 11 次重部署完成：远端无新代码（origin/main 仍为 0aae6b9），pack 产物与上次部署一致，发布 version 20260907181837 deployed（version_id 3020434616971580）",
+      "补写了 comate-cli 会话追踪配置：session_id=1690533110-…（local 模式）",
+      "首捾 74 秒后成功：GitHub fetch 首次超时为瞬时抖动，重试即好"
+    ],
+    "remaining": [
+      "用户线上验证：推送消息准入提醒模板、推送弹窗填写排期会日程（V2.4 功能）"
+    ],
+    "decisions": [
+      "code publish 在应用模式（comate.json 有 meta.projectId）下必须带 --version 参数，生成时间戳版本号重试成功",
+      "代码无变更且 cover=true，按规则跳过缩略图截图"
+    ],
+    "issues": [
+      "GitHub 直连存在瞬时超时（75s），重试即可，与 mitm-proxy 无关（git 未配置代理）",
+      "client lint 有 5 个已知 warnings（历史遗留，无 error）"
+    ]
+  },
+  "reason": "第 11 次重部署完成：无新代码，重发布 20260907181837；确认 publish 需带 --version"
+}
