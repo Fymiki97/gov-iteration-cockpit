@@ -1,7 +1,19 @@
 {
   "version": "1",
   "meta": {
-    "projectId": "760386581358207"
+    "projectId": "760386581358207",
+    "framework": "react"
   },
-  "command": {}
+  "command": {
+    "install": "pnpm install --ignore-scripts",
+    "dev": "pnpm run dev",
+    "build": "pnpm run pack",
+    "zip": "node scripts/zip-dir.mjs client/dist .publish/dist-frontend.zip && node scripts/zip-dir.mjs server/.output .publish/dist-server.zip .output"
+  },
+  "scopes": [
+    "kso.dbsheet.readwrite",
+    "kso.user_base.read"
+  ],
+  "redirect_url": "https://o.wpsgo.com/app/41000207/9w1qvC8NVtKs/api/oauth/callback",
+  "cover": true
 }
