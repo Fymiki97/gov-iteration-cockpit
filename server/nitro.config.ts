@@ -14,15 +14,10 @@ export default defineNitroConfig({
     logLevel: '3',
     projectId: '',
     appBaseEndpoint: 'https://o.wpsgo.com/app/app-base',
-<<<<<<< HEAD
     // 会话签名密钥（仅服务端使用）。与 WPS_APP_ID/SECRET 齐备时 capability
     // 服务启用 OAuth2 JWT 模式：/api/oauth/callback 才会注册，前端才能触发授权页。
     SESSION_SECRET: '54229e9b3594705a4f1db32599c5086a7b89ad5465707c3b686dd7d40a85c887',
     WPS_APP_ID: 'AK20251127ECOXII',
-=======
-    SESSION_SECRET: '7sK9dF2gP5aR8jL3zQ1bN6cV4mH0tG7wE',
-    WPS_APP_ID: 'AK20260401JJOYXC',
->>>>>>> cloudsync/main
     WPS_APP_SECRET: 'f59d077c03b8d65fa9f257c5ae3155e9',
     nitro: {
       envPrefix: '',
