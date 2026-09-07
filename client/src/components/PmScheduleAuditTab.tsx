@@ -48,7 +48,7 @@ import {
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-type FilterTab = "belong" | "plan";
+type FilterTab = "belong" | "plan" | "ones";
 
 function matchesOnesId(onesId: string, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -79,7 +79,11 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
 
   const pushMonthLabel = filterTab === "belong"
     ? formatMonthLabel(belongYear, belongMonth)
-    : formatMonthLabel(planYear, planMonth);
+    : filterTab === "plan"
+      ? formatMonthLabel(planYear, planMonth)
+      : appliedOnesId.trim()
+        ? `ONES ${appliedOnesId.trim()}`
+        : "按 ONES 查询";
 
   const inScope = parseAuditRequirements(props.records)
     .filter((item) => !SKIP_SCHED_CONCLUSIONS.has(item.scheduleConclusion));
@@ -97,10 +101,12 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
 
   const filtered = inScope.filter((item) => {
     if (filterTab === "belong") {
-      if (!matchesExpectedVersion(item.expectedVersion, belongYear, belongMonth)) return false;
-    } else if (!matchesPlanMonth(item.month, planYear, planMonth)) {
-      return false;
+      return matchesExpectedVersion(item.expectedVersion, belongYear, belongMonth);
     }
+    if (filterTab === "plan") {
+      return matchesPlanMonth(item.month, planYear, planMonth);
+    }
+    if (!appliedOnesId.trim()) return false;
     return matchesOnesId(item.onesId, appliedOnesId);
   });
 
@@ -165,17 +171,24 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
     }
   };
 
-  const runSearch = () => setAppliedOnesId(onesId);
+  const runOnesSearch = () => {
+    if (!onesId.trim()) {
+      toast.info("请输入 ONES ID");
+      return;
+    }
+    setAppliedOnesId(onesId);
+  };
   const resetFilters = () => {
     if (filterTab === "belong") {
       setBelongYear(2026);
       setBelongMonth(9);
-    } else {
+    } else if (filterTab === "plan") {
       setPlanYear(2026);
       setPlanMonth(9);
+    } else {
+      setOnesId("");
+      setAppliedOnesId("");
     }
-    setOnesId("");
-    setAppliedOnesId("");
   };
 
   return (
@@ -188,6 +201,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
           <TabsList>
             <TabsTrigger value="belong" className="px-3">按所属月份</TabsTrigger>
             <TabsTrigger value="plan" className="px-3">按规划月份</TabsTrigger>
+            <TabsTrigger value="ones" className="px-3">查询 ONES</TabsTrigger>
           </TabsList>
           <TabsContent value="belong" className="mt-3">
             <div className="flex items-end gap-3 flex-wrap">
@@ -203,8 +217,13 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               <span className="text-sm font-medium text-[#059669] whitespace-nowrap pb-2">
                 匹配 {matchedVersions.length} 个版本
               </span>
-              <OnesIdSearch onesId={onesId} setOnesId={setOnesId} onClear={() => { setOnesId(""); setAppliedOnesId(""); }} onSearch={runSearch} />
-              <FilterActions onSearch={runSearch} onReset={resetFilters} />
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center h-9 px-3 text-sm font-medium text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC] rounded-lg border border-[#E4ECFC] transition-colors shrink-0 self-end"
+              >
+                重置
+              </button>
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
               数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
@@ -224,12 +243,28 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
               <span className="text-sm font-medium text-[#059669] whitespace-nowrap pb-2">
                 匹配 {matchedPlanCount} 条需求
               </span>
-              <OnesIdSearch onesId={onesId} setOnesId={setOnesId} onClear={() => { setOnesId(""); setAppliedOnesId(""); }} onSearch={runSearch} />
-              <FilterActions onSearch={runSearch} onReset={resetFilters} />
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center h-9 px-3 text-sm font-medium text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC] rounded-lg border border-[#E4ECFC] transition-colors shrink-0 self-end"
+              >
+                重置
+              </button>
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
               数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。「需求-有子需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
+          </TabsContent>
+          <TabsContent value="ones" className="mt-3">
+            <OnesQueryPanel
+              onesId={onesId}
+              appliedOnesId={appliedOnesId}
+              matchCount={filtered.length}
+              onOnesIdChange={setOnesId}
+              onClear={() => { setOnesId(""); setAppliedOnesId(""); }}
+              onSearch={runOnesSearch}
+              onReset={resetFilters}
+            />
           </TabsContent>
         </Tabs>
       </div>
@@ -449,6 +484,41 @@ function YearMonthSelect(props: {
   );
 }
 
+function OnesQueryPanel(props: {
+  onesId: string;
+  appliedOnesId: string;
+  matchCount: number;
+  onOnesIdChange: (value: string) => void;
+  onClear: () => void;
+  onSearch: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-end gap-3 flex-wrap">
+        <div className="space-y-1 flex-1 min-w-[280px]">
+          <p className="text-sm font-medium text-[#2563EB]">ONES ID</p>
+          <OnesIdSearch
+            onesId={props.onesId}
+            setOnesId={props.onOnesIdChange}
+            onClear={props.onClear}
+            onSearch={props.onSearch}
+          />
+        </div>
+        {props.appliedOnesId.trim() && (
+          <span className="text-sm font-medium text-[#059669] whitespace-nowrap pb-2">
+            匹配 {props.matchCount} 条需求
+          </span>
+        )}
+        <FilterActions onSearch={props.onSearch} onReset={props.onReset} />
+      </div>
+      <p className="text-[11px] text-[#94A3B8]">
+        在全库需求中按 ONES ID 精确查询（支持 10231 或 ONES-10231 等写法，不限所属月份与规划月份）。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」统一列为达标。
+      </p>
+    </div>
+  );
+}
+
 function OnesIdSearch(props: {
   onesId: string;
   setOnesId: (value: string) => void;
@@ -456,10 +526,10 @@ function OnesIdSearch(props: {
   onSearch: () => void;
 }) {
   return (
-    <div className="relative flex-1 min-w-[220px] self-end">
+    <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
       <Input
-        placeholder="按 ONES ID 筛选，如 10231 或 ONES-10231"
+        placeholder="输入 ONES ID，如 10231 或 ONES-10231"
         value={props.onesId}
         onChange={(e) => props.setOnesId(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") props.onSearch(); }}
@@ -538,15 +608,26 @@ function AuditGroup(props: {
   onSelectedIdsChange: (ids: string[]) => void;
 }) {
   const productGroups = groupByProductLine(props.rows);
+  const ids = props.rows.map((row) => row.id);
+  const allSelected = ids.length > 0 && ids.every((id) => props.selectedIds.includes(id));
+  const someSelected = ids.some((id) => props.selectedIds.includes(id));
+
+  const toggleAll = () => {
+    if (allSelected) {
+      props.onSelectedIdsChange(props.selectedIds.filter((id) => !ids.includes(id)));
+      return;
+    }
+    props.onSelectedIdsChange([...new Set([...props.selectedIds, ...ids])]);
+  };
 
   return (
     <Card className="shadow-sm border-[#E4ECFC] overflow-hidden">
-      <button
-        type="button"
-        onClick={props.onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 bg-[#F8FAFC] border-b border-[#E4ECFC] text-left"
-      >
-        <div className="flex items-center gap-2">
+      <div className="w-full flex items-center justify-between px-4 py-3 bg-[#F8FAFC] border-b border-[#E4ECFC]">
+        <button
+          type="button"
+          onClick={props.onToggle}
+          className="flex items-center gap-2 text-left flex-1 min-w-0"
+        >
           {props.open ? <ChevronDown className="w-4 h-4 text-[#94A3B8]" /> : <ChevronRight className="w-4 h-4 text-[#94A3B8]" />}
           {props.passed
             ? <CheckCircle2 className="w-4 h-4 text-[#059669]" />
@@ -555,8 +636,20 @@ function AuditGroup(props: {
           <Badge className={props.passed ? "bg-emerald-50 text-emerald-600 border-none" : "bg-red-50 text-red-600 border-none"}>
             数量：{props.count}
           </Badge>
-        </div>
-      </button>
+        </button>
+        {!props.passed && (
+          <label className="inline-flex items-center gap-1.5 text-sm text-[#334155] cursor-pointer select-none shrink-0 ml-3">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              disabled={ids.length === 0}
+              ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+              onChange={toggleAll}
+            />
+            一键全选
+          </label>
+        )}
+      </div>
       {props.open && (
         <div>
           {props.rows.length === 0 ? (
@@ -592,6 +685,7 @@ function ProductLineTable(props: {
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const ids = props.rows.map((row) => row.id);
   const allSelected = ids.every((id) => props.selectedIds.includes(id));
   const someSelected = ids.some((id) => props.selectedIds.includes(id));
@@ -614,11 +708,29 @@ function ProductLineTable(props: {
 
   return (
     <div className="border-b border-[#E4ECFC] last:border-b-0">
-      <div className="px-4 py-2 bg-[#EEF4FF] flex items-center gap-2">
-        <span className="text-sm font-semibold text-[#1E3A5F]">{props.productLine}</span>
-        <Badge className="bg-white text-[#2563EB] border-[#BFDBFE]">所属产品线 · {props.rows.length}</Badge>
+      <div className="px-4 py-2 bg-[#EEF4FF] flex items-center gap-2 hover:bg-[#E4ECFC] transition-colors">
+        {!props.passed && (
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+            onChange={toggleAll}
+            aria-label={`全选 ${props.productLine}`}
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 text-left flex-1 min-w-0"
+          aria-expanded={open}
+        >
+          {open ? <ChevronDown className="w-4 h-4 text-[#64748B]" /> : <ChevronRight className="w-4 h-4 text-[#64748B]" />}
+          <span className="text-sm font-semibold text-[#1E3A5F]">{props.productLine}</span>
+          <Badge className="bg-white text-[#2563EB] border-[#BFDBFE]">所属产品线 · {props.rows.length}</Badge>
+        </button>
       </div>
-      <div className="overflow-x-auto">
+      {open && (
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b-2 border-[#E4ECFC] bg-[#F8FAFC] text-left">
@@ -680,6 +792,7 @@ function ProductLineTable(props: {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
