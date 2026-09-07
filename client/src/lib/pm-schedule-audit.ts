@@ -250,6 +250,30 @@ export function matchesPlanMonth(planMonth: string, year: number, month: number)
   return planMonth === "2&3月" && (month === 2 || month === 3);
 }
 
+const ONES_ID_TOKEN = /^#?\d+$/;
+export const ONES_ID_FORMAT_HINT = "查询格式仅支持 2445069 或 #2445069，多个 ID 请用、分隔";
+
+export function parseOnesIdQuery(query: string): { ok: true; ids: string[] } | { ok: false; error: string } {
+  const tokens = query.split("、").map((part) => part.trim()).filter((part) => part.length > 0);
+  if (tokens.length === 0) {
+    return { ok: false, error: "请输入 ONES ID" };
+  }
+  if (tokens.some((token) => !ONES_ID_TOKEN.test(token))) {
+    return { ok: false, error: ONES_ID_FORMAT_HINT };
+  }
+  return { ok: true, ids: [...new Set(tokens.map((token) => token.replace(/^#/, "")))] };
+}
+
+export function normalizeOnesId(onesId: string): string {
+  return onesId.trim().replace(/^ones-?/i, "").replace(/^#/, "");
+}
+
+export function matchesOnesId(onesId: string, queryIds: string[]): boolean {
+  const stored = normalizeOnesId(onesId);
+  if (!stored) return false;
+  return queryIds.includes(stored);
+}
+
 export function roleOfCriterion(name: string): RoleKey {
   if (name === DEV_WORKLOAD_CRITERION || name === "开发负责人") return "dev";
   if (name === TEST_WORKLOAD_CRITERION || name === "测试负责人") return "qa";

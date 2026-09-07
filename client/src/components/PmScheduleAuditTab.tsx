@@ -32,9 +32,12 @@ import {
   SUB_REQ_WITH_CHILDREN,
   failReasonsByRole,
   groupByProductLine,
+  ONES_ID_FORMAT_HINT,
   matchesExpectedVersion,
+  matchesOnesId,
   matchesPlanMonth,
   parseAuditRequirements,
+  parseOnesIdQuery,
 } from "@/lib/pm-schedule-audit";
 import {
   buildPushPreview,
@@ -49,14 +52,6 @@ import {
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 type FilterTab = "belong" | "plan" | "ones";
-
-function matchesOnesId(onesId: string, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const normalized = onesId.toLowerCase().replace(/^ones-/, "");
-  const qNorm = q.replace(/^ones-/, "");
-  return onesId.toLowerCase().includes(q) || normalized.includes(qNorm);
-}
 
 export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: boolean }) {
   const [filterTab, setFilterTab] = useState<FilterTab>("belong");
@@ -83,7 +78,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
       ? formatMonthLabel(planYear, planMonth)
       : appliedOnesId.trim()
         ? `ONES ${appliedOnesId.trim()}`
-        : "按 ONES 查询";
+        : "按 ONES ID";
 
   const inScope = parseAuditRequirements(props.records)
     .filter((item) => !SKIP_SCHED_CONCLUSIONS.has(item.scheduleConclusion));
@@ -99,6 +94,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
     (item) => matchesPlanMonth(item.month, planYear, planMonth),
   ).length;
 
+  const onesQuery = parseOnesIdQuery(appliedOnesId);
   const filtered = inScope.filter((item) => {
     if (filterTab === "belong") {
       return matchesExpectedVersion(item.expectedVersion, belongYear, belongMonth);
@@ -106,8 +102,8 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
     if (filterTab === "plan") {
       return matchesPlanMonth(item.month, planYear, planMonth);
     }
-    if (!appliedOnesId.trim()) return false;
-    return matchesOnesId(item.onesId, appliedOnesId);
+    if (!onesQuery.ok) return false;
+    return matchesOnesId(item.onesId, onesQuery.ids);
   });
 
   const passed = filtered.filter((item) => item.passed);
@@ -172,8 +168,9 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
   };
 
   const runOnesSearch = () => {
-    if (!onesId.trim()) {
-      toast.info("请输入 ONES ID");
+    const parsed = parseOnesIdQuery(onesId);
+    if (!parsed.ok) {
+      toast.info(parsed.error);
       return;
     }
     setAppliedOnesId(onesId);
@@ -201,7 +198,7 @@ export function PmScheduleAuditTab(props: { records: DbsheetRecord[]; loading?: 
           <TabsList>
             <TabsTrigger value="belong" className="px-3">按所属月份</TabsTrigger>
             <TabsTrigger value="plan" className="px-3">按规划月份</TabsTrigger>
-            <TabsTrigger value="ones" className="px-3">查询 ONES</TabsTrigger>
+            <TabsTrigger value="ones" className="px-3">按ONES ID</TabsTrigger>
           </TabsList>
           <TabsContent value="belong" className="mt-3">
             <div className="flex items-end gap-3 flex-wrap">
@@ -513,7 +510,7 @@ function OnesQueryPanel(props: {
         <FilterActions onSearch={props.onSearch} onReset={props.onReset} />
       </div>
       <p className="text-[11px] text-[#94A3B8]">
-        在全库需求中按 ONES ID 精确查询（支持 10231 或 ONES-10231 等写法，不限所属月份与规划月份）。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」统一列为达标。
+        在全库需求中按 ONES ID 查询。{ONES_ID_FORMAT_HINT}。不限所属月份与规划月份。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」统一列为达标。
       </p>
     </div>
   );
@@ -529,7 +526,7 @@ function OnesIdSearch(props: {
     <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
       <Input
-        placeholder="输入 ONES ID，如 10231 或 ONES-10231"
+        placeholder="如 2445069、#2445069"
         value={props.onesId}
         onChange={(e) => props.setOnesId(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") props.onSearch(); }}
