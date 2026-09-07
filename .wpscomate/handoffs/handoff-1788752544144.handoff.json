@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1788752544144",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788752544145,
+  "note": {
+    "completed": [
+      "第 7 次重部署完成：发布 version 20260907113940 deployed（version_id 4712642811307401）",
+      "本地已是最新代码（领先 origin/main 34 个提交，远端无新代码可拉），lint 0 error、typecheck 通过、pack 成功",
+      "定位并修复上次发布失败根因：sync 提交 e088923 把 comate.json 覆盖为残缺版（丢失 command/scopes/redirect_url），导致发布流水线不打 zip、服务端报 'index.html 不存在'；已按 commit 4362788 恢复（zip 命令 scripts/zip-dir.mjs、scopes、redirect_url）",
+      "缩略图已重新截图并上传（thumbnail_key projects/760386581358207/thumbnails/thumbnail_760386581358207.png），远程验证看板正常显示、数据更新于 11:41"
+    ],
+    "remaining": [
+      "用户线上验证新版本：一键全选、产品线折叠、负责人为空检测"
+    ],
+    "decisions": [
+      "comate.json 恢复为 4362788 部署验证版而非重写新配置：历史部署成功记录优先",
+      "thumbnail_760386581358207.png 的 git 修改未提交：用户未要求 commit"
+    ],
+    "issues": [
+      "工作区 comate.json 此前被 sync 提交破坏过一次——下次 sync 冲突合并后需再检查 comate.json 是否完整",
+      "client lint 有 5 个已知 warnings（历史遗留，无 error）"
+    ],
+    "files_changed": [
+      "comate.json",
+      "thumbnail_760386581358207.png"
+    ]
+  }
+}
