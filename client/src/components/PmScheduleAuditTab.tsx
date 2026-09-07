@@ -68,6 +68,8 @@ export function PmScheduleAuditTab(props: {
   const [planMonth, setPlanMonth] = useState(9);
   const [onesId, setOnesId] = useState("");
   const [appliedOnesId, setAppliedOnesId] = useState("");
+  const [onesYear, setOnesYear] = useState(2026);
+  const [onesMonth, setOnesMonth] = useState(9);
   const [passOpen, setPassOpen] = useState(false);
   const [failOpen, setFailOpen] = useState(true);
   const [detail, setDetail] = useState<AuditRequirement | null>(null);
@@ -80,14 +82,26 @@ export function PmScheduleAuditTab(props: {
   const [pushContactName, setPushContactName] = useState("PM");
   const [meetingDate, setMeetingDate] = useState("");
   const [meetingSchedule, setMeetingSchedule] = useState("");
+  const [pushYear, setPushYear] = useState(2026);
+  const [pushMonth, setPushMonth] = useState(9);
 
-  const auditYear = filterTab === "plan" ? planYear : belongYear;
-  const auditMonth = filterTab === "plan" ? planMonth : belongMonth;
-  const pushMonthLabel = formatMonthLabel(auditYear, auditMonth);
+  const auditYear = filterTab === "plan" ? planYear : filterTab === "ones" ? onesYear : belongYear;
+  const auditMonth = filterTab === "plan" ? planMonth : filterTab === "ones" ? onesMonth : belongMonth;
+  const pushMonthLabel = formatMonthLabel(pushYear, pushMonth);
   const pushContext = {
-    monthLabel: pushPreview?.monthLabel ?? pushMonthLabel,
+    monthLabel: pushMonthLabel,
     meetingDate,
     meetingSchedule,
+  };
+
+  const applyPushMeetingMonth = (year: number, month: number) => {
+    setPushYear(year);
+    setPushMonth(month);
+    if (filterTab === "ones") {
+      setOnesYear(year);
+      setOnesMonth(month);
+    }
+    setMeetingDate(lookupScheduleMeetingPlanDate(props.milestoneRecords ?? [], month));
   };
 
   const inScope = parseAuditRequirements(props.records)
@@ -125,7 +139,7 @@ export function PmScheduleAuditTab(props: {
 
   const openPushDialog = async () => {
     const preview = buildPushPreview(inScope, selectedIds, {
-      monthLabel: pushMonthLabel,
+      monthLabel: formatMonthLabel(auditYear, auditMonth),
       meetingDate: "",
       meetingSchedule: "",
     });
@@ -139,7 +153,7 @@ export function PmScheduleAuditTab(props: {
     }
     const contact = await fetchPushContact();
     setPushContactName(contact?.userName || "PM");
-    setMeetingDate(lookupScheduleMeetingPlanDate(props.milestoneRecords ?? [], auditMonth));
+    applyPushMeetingMonth(auditYear, auditMonth);
     setMeetingSchedule("");
     setPushPreview(preview);
     setPushOpen(true);
@@ -201,6 +215,8 @@ export function PmScheduleAuditTab(props: {
     } else {
       setOnesId("");
       setAppliedOnesId("");
+      setOnesYear(2026);
+      setOnesMonth(9);
     }
   };
 
@@ -273,7 +289,11 @@ export function PmScheduleAuditTab(props: {
               onesId={onesId}
               appliedOnesId={appliedOnesId}
               matchCount={filtered.length}
+              onesYear={onesYear}
+              onesMonth={onesMonth}
               onOnesIdChange={setOnesId}
+              onOnesYearChange={setOnesYear}
+              onOnesMonthChange={setOnesMonth}
               onClear={() => { setOnesId(""); setAppliedOnesId(""); }}
               onSearch={runOnesSearch}
               onReset={resetFilters}
@@ -407,11 +427,23 @@ export function PmScheduleAuditTab(props: {
           <DialogHeader>
             <DialogTitle>推送到个人</DialogTitle>
             <DialogDescription>
-              将通过 WPS 协作向对应负责人发送即时消息，内容为所选未达标需求的不满足原因（{pushPreview?.monthLabel}）。
+              将通过 WPS 协作向对应负责人发送即时消息，内容为所选未达标需求的不满足原因（{pushMonthLabel}）。
               {pushPreview && pushPreview.skippedPassed > 0 && ` 已跳过 ${pushPreview.skippedPassed} 条达标需求。`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            {filterTab === "ones" && (
+              <div className="space-y-1.5">
+                <Label className="text-sm text-[#0F172A]">排期会月份</Label>
+                <YearMonthSelect
+                  year={pushYear}
+                  month={pushMonth}
+                  onYearChange={(year) => applyPushMeetingMonth(year, pushMonth)}
+                  onMonthChange={(month) => applyPushMeetingMonth(pushYear, month)}
+                />
+                <p className="text-[11px] text-[#94A3B8]">按 ONES ID 查询时需指定对应哪一场排期会，将写入推送文案并带出计划日期</p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="meeting-date" className="text-sm text-[#0F172A]">排期会日期</Label>
               <Input
@@ -421,7 +453,7 @@ export function PmScheduleAuditTab(props: {
                 placeholder="未在迭代里程碑中找到，请手动填写"
                 className="h-9 text-sm border-[#E4ECFC]"
               />
-              <p className="text-[11px] text-[#94A3B8]">来自《迭代里程碑》「需求排期会」的{auditMonth}月计划完成日期，可修改</p>
+              <p className="text-[11px] text-[#94A3B8]">来自《迭代里程碑》「需求排期会」的{pushMonth}月计划完成日期，可修改</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="meeting-schedule" className="text-sm text-[#0F172A]">排期会日程</Label>
@@ -525,7 +557,11 @@ function OnesQueryPanel(props: {
   onesId: string;
   appliedOnesId: string;
   matchCount: number;
+  onesYear: number;
+  onesMonth: number;
   onOnesIdChange: (value: string) => void;
+  onOnesYearChange: (year: number) => void;
+  onOnesMonthChange: (month: number) => void;
   onClear: () => void;
   onSearch: () => void;
   onReset: () => void;
@@ -542,6 +578,15 @@ function OnesQueryPanel(props: {
             onSearch={props.onSearch}
           />
         </div>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-[#2563EB]">排期会月份</p>
+          <YearMonthSelect
+            year={props.onesYear}
+            month={props.onesMonth}
+            onYearChange={props.onOnesYearChange}
+            onMonthChange={props.onOnesMonthChange}
+          />
+        </div>
         {props.appliedOnesId.trim() && (
           <span className="text-sm font-medium text-[#059669] whitespace-nowrap pb-2">
             匹配 {props.matchCount} 条需求
@@ -550,7 +595,7 @@ function OnesQueryPanel(props: {
         <FilterActions onSearch={props.onSearch} onReset={props.onReset} />
       </div>
       <p className="text-[11px] text-[#94A3B8]">
-        在全库需求中按 ONES ID 查询。{ONES_ID_FORMAT_HINT}。不限所属月份与规划月份。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」统一列为达标。
+        在全库需求中按 ONES ID 查询。{ONES_ID_FORMAT_HINT}。不限所属月份与规划月份。推送时使用所选「排期会月份」生成文案并读取对应计划日期。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」统一列为达标。
       </p>
     </div>
   );

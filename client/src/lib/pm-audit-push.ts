@@ -111,7 +111,7 @@ function formatPushHeader(context: PushContext): string {
 function formatRequirementBlock(item: PushRequirementItem, index: number): string {
   const onesLink = onesTaskUrl(item.onesId, item.onesUrl) || "无";
   const reasons = item.reasons.map((reason) => `· ${reason}`).join("\n");
-  return `${index + 1}. **标题**:${item.name}\nones链接：${onesLink}\n${reasons}`;
+  return `${index + 1}. 标题：${item.name}\nones链接：${onesLink}\n${reasons}`;
 }
 
 function formatRecipientBody(recipient: PushRecipient): string {
