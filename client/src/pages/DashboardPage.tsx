@@ -139,7 +139,6 @@ interface MonthDetail {
 
 type FilterTag = "total" | "completed" | "risk" | "bar" | null;
 
-<<<<<<< HEAD
 interface SheetPayload {
   data?: { records?: unknown[] };
 }
@@ -153,21 +152,6 @@ interface ServerCache {
 async function readServerCache(): Promise<ServerCache | null> {
   try {
     const res = await fetch(getAppApiUrl("api/dbsheet-data"), { credentials: "include" });
-=======
-/* ==================== 数据加载策略 ==================== */
-type DataResult = { code?: number; data?: { records: { id?: string; fields?: string | Record<string, unknown> }[] } } | null;
-
-interface BulkResponse {
-  requirements: DataResult;
-  milestones: DataResult;
-  risks: DataResult;
-  ts: number;
-}
-
-async function fetchServerCache(): Promise<BulkResponse | null> {
-  try {
-    const res = await fetch("./api/dbsheet-data", { credentials: "include" });
->>>>>>> cloudsync/main
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -175,52 +159,15 @@ async function fetchServerCache(): Promise<BulkResponse | null> {
   }
 }
 
-<<<<<<< HEAD
 /* ==================== 主组件 ==================== */
 export function DashboardPage() {
   const [wps, setWps] = useState<Wps365Client | null>(null);
-=======
-async function fetchViaSdk(client: Wps365Client): Promise<{ reqRes: DataResult; milRes: DataResult; riskRes: DataResult }> {
-  async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 3): Promise<T | null> {
-    for (let i = 0; i <= retries; i++) {
-      try { return await fn(); } catch (err) {
-        const code = (err as { code?: number })?.code;
-        if (code === 403000001 || (err instanceof Error && /403|permission/i.test(err.message))) {
-          if (i < retries) { await new Promise(r => setTimeout(r, (i + 1) * 2000)); continue; }
-        }
-        console.error(`[${label}] 失败 (尝试 ${i + 1}/${retries + 1}):`, err);
-        if (i >= retries) return null;
-      }
-    }
-    return null;
-  }
-
-  const lr = (sheetId: number, body: Record<string, unknown>) =>
-    client.dbsheet.listRecords({ file_id: FILE_ID, sheet_id: sheetId, ...body } as Parameters<typeof client.dbsheet.listRecords>[0]);
-
-  const [reqRes, milRes, riskRes] = await Promise.allSettled([
-    withRetry(() => lr(21, { prefer_id: false, max_records: 2000, page_size: 1000 }), "需求数据"),
-    withRetry(() => lr(23, { prefer_id: false, max_records: 200 }), "里程碑数据"),
-    withRetry(() => lr(24, { prefer_id: false, max_records: 50 }), "风险数据"),
-  ]);
-
-  return {
-    reqRes: reqRes.status === "fulfilled" ? reqRes.value : null,
-    milRes: milRes.status === "fulfilled" ? milRes.value : null,
-    riskRes: riskRes.status === "fulfilled" ? riskRes.value : null,
-  };
-}
-
-/* ==================== 主组件 ==================== */
-export function DashboardPage() {
->>>>>>> cloudsync/main
   const [requirements, setRequirements] = useState<ReqRow[]>([]);
   const [rawRequirements, setRawRequirements] = useState<DbsheetRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
   const [risks, setRisks] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(TAB_OVERVIEW);
-  const sdkRef = useRef<Wps365Client | null>(null);
 
   // 筛选
   const [filterTag, setFilterTag] = useState<FilterTag>(null);
@@ -254,7 +201,6 @@ export function DashboardPage() {
   // 柱状图 hover
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
-<<<<<<< HEAD
   /* === SDK：OAuthProvider 完成授权后，通过应用后端代理按用户拉取数据 === */
   useEffect(() => {
     setWps(createWps365({ proxyBase: getAppApiUrl("api/wps-openapi") }));
@@ -333,96 +279,18 @@ export function DashboardPage() {
       console.error("加载失败:", err);
     } finally {
       if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
-=======
-  /* === 加载数据（silent=true 时不清空已有数据、不显示骨架屏） === */
-  const loadData = useCallback(async (silent = false) => {
-    if (silent) { setSilentRefreshing(true); } else { setLoading(true); }
-
-    let reqRes: DataResult = null;
-    let milRes: DataResult = null;
-    let riskRes: DataResult = null;
-
-    // 策略1：服务端缓存（应用凭证，不依赖用户鉴权）
-    const bulk = await fetchServerCache();
-    if (bulk && (bulk.requirements || bulk.milestones || bulk.risks)) {
-      console.info("[数据策略] 服务端缓存命中");
-      reqRes = bulk.requirements;
-      milRes = bulk.milestones;
-      riskRes = bulk.risks;
-    } else {
-      // 策略2：base-proxy SDK（走网关 gateway_token）
-      console.info("[数据策略] 回退到 base-proxy SDK");
-      if (!sdkRef.current) {
-        sdkRef.current = createWps365({
-          proxyBase: import.meta.env.DEV ? "/base-proxy" : "/app/app-base/base-proxy",
-        });
-        await sdkRef.current.ensureAuthorized({ scope: "kso.dbsheet.readwrite" });
-      }
-      const sdkResult = await fetchViaSdk(sdkRef.current);
-      reqRes = sdkResult.reqRes;
-      milRes = sdkResult.milRes;
-      riskRes = sdkResult.riskRes;
->>>>>>> cloudsync/main
     }
-
-    if (reqRes?.data?.records) {
-      const reqs = parseReqs(reqRes.data.records);
-      setRequirements(reqs);
-      if (!silent) {
-        const monthDist: Record<string, number> = {};
-        reqs.forEach(r => { const m = r.month || "(空)"; monthDist[m] = (monthDist[m] || 0) + 1; });
-        console.log("[需求-月份分布]", monthDist, "| 规则: 读取「排期月度」字段, 空值→「未参与排期」");
-        if (reqRes.data.records.length > 0) {
-          const raw = reqRes.data.records.slice(0, 3).map(r => {
-            const f = fld(r as RawRec);
-            const monthKeys = Object.keys(f).filter(k => k.includes("月") || k.includes("排期") || k.includes("迭代"));
-            const vals: Record<string, string> = {};
-            monthKeys.forEach(k => { vals[k] = str(f[k]).substring(0, 30); });
-            return { id: r.id, monthKeys: vals };
-          });
-          console.log("[需求-含月的字段]", JSON.stringify(raw));
-        }
-        console.log("[Req ONES ID 样本]", reqs.filter(r => r.onesId).slice(0, 5).map(r => ({ title: r.title?.substring(0,20), onesId: r.onesId })));
-      }
-    }
-    if (milRes?.data?.records) {
-      const mils = parseMils(milRes.data.records);
-      setMilestones(mils);
-      if (!silent && milRes.data.records.length > 0) {
-        const raw = milRes.data.records.slice(0, 5).map(r => {
-          const f = fld(r as RawRec);
-          return { id: r.id, keys: Object.keys(f), values: Object.fromEntries(Object.entries(f).map(([k,v]) => [k, str(v).substring(0, 50)])) };
-        });
-        console.log("[里程碑-原始字段样本]", JSON.stringify(raw));
-      }
-    }
-    if (riskRes?.data?.records) setRisks(parseRisks(riskRes.data.records));
-
-    if (reqRes || milRes || riskRes) setLastRefreshTime(new Date());
-
-    if (silent) { setSilentRefreshing(false); } else { setLoading(false); }
-  }, []);
+  }, [wps]);
 
   // 首次加载
-  useEffect(() => { loadData(false); }, [loadData]);
+  useEffect(() => { if (wps) loadData(false); }, [wps, loadData]);
 
   // 自动轮询：每 30 秒刷新当前用户数据
   useEffect(() => {
-<<<<<<< HEAD
     if (!wps) return;
     autoRefreshRef.current = setInterval(() => { loadData(true); }, 30_000);
     return () => { if (autoRefreshRef.current) clearInterval(autoRefreshRef.current); };
   }, [wps, loadData]);
-=======
-    function scheduleNext() {
-      const h = new Date().getHours();
-      const ms = (h >= 8 && h < 21) ? 5 * 60_000 : 60 * 60_000;
-      autoRefreshRef.current = setTimeout(() => { loadData(true).then(scheduleNext); }, ms);
-    }
-    scheduleNext();
-    return () => { if (autoRefreshRef.current) clearTimeout(autoRefreshRef.current); };
-  }, [loadData]);
->>>>>>> cloudsync/main
 
   // 页面可见性恢复时立即刷新
   useEffect(() => {
@@ -747,11 +615,7 @@ export function DashboardPage() {
             <PanelLeftClose className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
             {!sidebarCollapsed && "收起侧栏"}
           </button>
-<<<<<<< HEAD
           {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V2.3</p>}
-=======
-          {!sidebarCollapsed && <p className="text-center text-[10px] text-[#CBD5E1] mt-1">V1.3</p>}
->>>>>>> cloudsync/main
         </div>
       </aside>
 
