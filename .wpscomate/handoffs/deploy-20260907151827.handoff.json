@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "handoffId": "deploy-20260907151827",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788765886999,
+  "note": {
+    "completed": [
+      "第 10 次重部署完成：拉取远端新代码 0aae6b9（推送消息改为准入提醒模板 + 支持填写排期会日程，V2.4），与本地 361fbc3（handoff+缩略图）merge 无冲突，合并提交 41c25f9",
+      "新增测试文件通过（4/4），lint 0 error、typecheck 通过、pack 成功",
+      "发布 version 20260907151827 deployed，缩略图已重新截图上传，远程验证看板 V2.4 正常、数据更新于 15:23"
+    ],
+    "remaining": [
+      "用户线上验证：推送消息为准入提醒模板、推送弹窗支持填写排期会日程"
+    ],
+    "decisions": [
+      "本地 divergent branch 用 merge（--no-rebase）而非 rebase：本地提交只是 handoff/缩略图元数据，rebase 会重写已推送历史",
+      "截图会话凭据改用 keychain wps365 服务条目（2026-09-03 更新，仍然有效），旧 wps365-cli 条目已过期；解码方式 go-keyring-base64 + padding 补齐，直接内存读取不落盘不回显"
+    ],
+    "issues": [
+      "本地合并提交 41c25f9 与缩略图提交 36ad664 尚未推送到 origin/main（用户未要求 push）",
+      "client lint 有 5 个已知 warnings（历史遗留，无 error）"
+    ],
+    "files_changed": [
+      "thumbnail_760386581358207.png"
+    ]
+  },
+  "reason": "第 10 次重部署完成：V2.4 推送模板/排期会日程功能已上线，截图会话凭据来源已切换"
+}
