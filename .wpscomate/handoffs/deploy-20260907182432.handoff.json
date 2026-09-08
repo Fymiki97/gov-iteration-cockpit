@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "handoffId": "deploy-20260907182432",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788777160682,
+  "note": {
+    "completed": [
+      "第 12 次部署完成：拉取远端新提交 174ca3a（推送标题取消加粗 + ONES 查询可指定排期会月份），merge 无冲突（7c2111f），发布 version 20260907182432 deployed",
+      "校验全部通过：lint 0 错误、typecheck 通过、pm-audit-push 测试 4/4",
+      "缩略图截图失败：keychain wps365 凭据已被 wps365 CLI 刷新为 go- 开头新格式 token（86 字符），登录页不认；Chrome Safe Storage 读取卡在 keychain 授权弹窗"
+    ],
+    "remaining": [
+      "用户线上验证：推送标题为普通文本（非加粗）、按 ONES ID 推送时可选择排期会月份"
+    ],
+    "decisions": [
+      "缩略图降级：本次发布未更新截图（cover 已为 true，保留旧缩略图），发布主流程不受影响",
+      "不再尝试读取 Chrome Safe Storage：security 命令会挂起等待 keychain 授权弹窗，阻塞命令 20-120s"
+    ],
+    "issues": [
+      "截图凭据问题未解决：下次部署如需更新缩略图，需用户在弹窗中允许读取 Chrome Safe Storage，或提供新的 wps_sid 凭据（V02 开头格式）",
+      "本地提交 7c2111f（merge）未推送到 origin/main（用户未要求 push）"
+    ]
+  },
+  "reason": "第 12 次部署完成：发布 20260907182432；缩略图因凭据失效降级跳过"
+}
