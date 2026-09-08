@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "handoffId": "deploy-20260908093826",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1788831562694,
+  "note": {
+    "completed": [
+      "第 14 次部署完成：拉取远端新提交 e67ac83（推送文案：排期会日程后增加空行），merge 无冲突（b8e8fb6），发布 version 20260908093826 deployed（version_id 4114637519126789）",
+      "校验全部通过：lint 0 错误、typecheck 通过、pm-audit-push 测试 4/4",
+      "缩略图跳过：凭据仍为 go- 开头失效格式（len=86），且本次改动不影响看板 UI 外观，截图无增益"
+    ],
+    "remaining": [
+      "用户线上验证：推送文案中日程与需求列表之间有空行分隔"
+    ],
+    "decisions": [
+      "缩略图继续降级：凭据未恢复 + UI 无变化，重试截图只会挂起 keychain 弹窗，保留旧缩略图"
+    ],
+    "issues": [
+      "缩略图凭据问题延续：需用户允许 keychain 授权弹窗或提供 V02 开头新凭据",
+      "本地 merge 提交 b8e8fb6 未推送 origin/main"
+    ]
+  },
+  "reason": "第 14 次部署完成：发布 20260908093826，推送文案空行修复上线"
+}
