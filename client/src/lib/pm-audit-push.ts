@@ -105,6 +105,8 @@ function formatPushHeader(context: PushContext): string {
     `${context.monthLabel}排期会的日期为：${date}`,
     `${context.monthLabel}排期会的日程为：${schedule}`,
     "",
+    "",
+    "",
   ].join("\n");
 }
 

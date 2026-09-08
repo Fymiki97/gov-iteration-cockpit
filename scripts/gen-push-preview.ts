@@ -64,7 +64,7 @@ function block(item, index) {
   return `${index + 1}. 标题：${item.name}\nones链接：${onesLink(item)}\n${reasons}`;
 }
 const body = items.map(block).join("\n\n");
-const header = `【排期会准入审计提醒】\n\n以下需求未满足${monthLabel}排期会准入条件，请您关注并尽快处理：\n${monthLabel}排期会的日期为：${meetingDate}\n${monthLabel}排期会的日程为：${meetingSchedule}\n\n`;
+const header = `【排期会准入审计提醒】\n\n以下需求未满足${monthLabel}排期会准入条件，请您关注并尽快处理：\n${monthLabel}排期会的日期为：${meetingDate}\n${monthLabel}排期会的日程为：${meetingSchedule}\n\n\n`;
 const footer = `\n\n如有疑问请联系 @${contactName}。`;
 let full = header + body + footer;
 if (full.length > MAX) {
