@@ -74,8 +74,8 @@ const OPERATOR_NUMERIC_ID_FALLBACK: Record<string, string> = {
 
 /** 测试负责人为空时，测试相关不满足原因推送给此人 */
 const QA_OWNER_FALLBACK = {
-  person: "冯雨檬",
-  userId: OPERATOR_NUMERIC_ID_FALLBACK.fengyumeng,
+  person: "肖诗虎",
+  userId: "",
 };
 
 interface SendResult {
@@ -186,12 +186,27 @@ export async function fetchPushContact(): Promise<PushContact | null> {
   };
 }
 
-function resolvePushTarget(block: RoleFailBlock): { person: string; userId: string } | null {
+function findPersonUserId(items: AuditRequirement[], person: string): string {
+  for (const item of items) {
+    if (item.qaOwner.trim() === person && item.qaOwnerId) return item.qaOwnerId;
+    if (item.devOwner.trim() === person && item.devOwnerId) return item.devOwnerId;
+    if (item.pmOwner.trim() === person && item.pmOwnerId) return item.pmOwnerId;
+  }
+  return "";
+}
+
+function resolvePushTarget(
+  block: RoleFailBlock,
+  fallbackQaUserId: string,
+): { person: string; userId: string } | null {
   if (block.reasons.length === 0) return null;
   const person = block.person.trim();
   if (person) return { person, userId: block.userId };
   if (block.role === "测试负责人") {
-    return { person: QA_OWNER_FALLBACK.person, userId: QA_OWNER_FALLBACK.userId };
+    return {
+      person: QA_OWNER_FALLBACK.person,
+      userId: fallbackQaUserId || QA_OWNER_FALLBACK.userId,
+    };
   }
   return null;
 }
@@ -215,11 +230,12 @@ export function buildPushPreview(
   const failedSelected = selected.filter((item) => !item.passed);
   const skippedPassed = selected.length - failedSelected.length;
 
+  const fallbackQaUserId = findPersonUserId(items, QA_OWNER_FALLBACK.person);
   const bucket = new Map<string, { person: string; userId: string; items: PushRequirementItem[] }>();
 
   for (const item of failedSelected) {
     for (const block of failReasonsByRole(item)) {
-      const target = resolvePushTarget(block);
+      const target = resolvePushTarget(block, fallbackQaUserId);
       if (!target) continue;
       const key = target.userId || target.person;
       const existing = bucket.get(key) ?? { person: target.person, userId: target.userId, items: [] };

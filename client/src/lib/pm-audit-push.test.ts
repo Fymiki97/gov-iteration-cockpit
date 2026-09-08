@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { lookupScheduleMeetingPlanDate } from "@/lib/pm-schedule-audit";
-import { formatPushMessagePreview, onesTaskUrl } from "@/lib/pm-audit-push";
+import { lookupScheduleMeetingPlanDate, parseAuditRequirements } from "@/lib/pm-schedule-audit";
+import { buildPushPreview, formatPushMessagePreview, onesTaskUrl } from "@/lib/pm-audit-push";
 
 describe("onesTaskUrl", () => {
   it("builds canonical ONES task url", () => {
@@ -57,5 +57,67 @@ describe("formatPushMessagePreview", () => {
     expect(text).toContain("ones链接：https://ones.dig.kso.net/om/v1/gs/task/2445069");
     expect(text).toContain("· 开发计划工作量为空");
     expect(text).toContain("· 带出版本线为空");
+  });
+});
+
+describe("buildPushPreview", () => {
+  const context = { monthLabel: "26年9月", meetingDate: "", meetingSchedule: "" };
+
+  it("routes empty QA owner failures to 肖诗虎", () => {
+    const items = parseAuditRequirements([{
+      id: "empty-qa",
+      fields: {
+        标题: "无测试负责人",
+        产品负责人: "张三",
+        开发负责人: "李四",
+        测试负责人: "",
+        是否免测: "否",
+        需求来源: "内部",
+        需求立项评审结论: "通过",
+        状态: "开发中",
+        带出版本线: "政务",
+        "开发计划工作量（人/天）": "3",
+      },
+    }]);
+    const preview = buildPushPreview(items, ["empty-qa"], context);
+    expect(preview.recipients.some((r) => r.person === "肖诗虎")).toBe(true);
+  });
+
+  it("reuses 肖诗虎 user id from other rows when available", () => {
+    const items = parseAuditRequirements([
+      {
+        id: "empty-qa",
+        fields: {
+          标题: "无测试负责人",
+          测试负责人: "",
+          是否免测: "否",
+          产品负责人: "张三",
+          开发负责人: "李四",
+          需求来源: "内部",
+          需求立项评审结论: "通过",
+          状态: "开发中",
+          带出版本线: "政务",
+          "开发计划工作量（人/天）": "3",
+        },
+      },
+      {
+        id: "named-qa",
+        fields: {
+          标题: "已填测试负责人",
+          测试负责人: [{ displayText: "肖诗虎", id: "998877" }],
+          是否免测: "是",
+          产品负责人: "张三",
+          开发负责人: "李四",
+          需求来源: "内部",
+          需求立项评审结论: "通过",
+          状态: "开发中",
+          带出版本线: "政务",
+          "开发计划工作量（人/天）": "3",
+        },
+      },
+    ]);
+    const preview = buildPushPreview(items, ["empty-qa"], context);
+    const qa = preview.recipients.find((r) => r.person === "肖诗虎");
+    expect(qa?.userId).toBe("998877");
   });
 });
