@@ -297,6 +297,125 @@ export function formatFailReason(c: AuditCriterion): string {
   return `${c.name}为「${c.current}」（标准: ${c.standard}）`;
 }
 
+export function failedCriterionNames(row: AuditRequirement): string[] {
+  return row.criteria.filter((c) => !c.passed).map((c) => c.name);
+}
+
+/** 未选时展示全部；多选为或关系，命中任一不合规项即保留 */
+export function matchesFailCriteria(row: AuditRequirement, selected: string[]): boolean {
+  if (selected.length === 0) return true;
+  const names = new Set(failedCriterionNames(row));
+  return selected.some((name) => names.has(name));
+}
+
+export type CountedOption = { value: string; label: string; count: number };
+export type FailGroupBy = "team" | "criterion";
+
+export interface AuditRowGroup {
+  key: string;
+  title: string;
+  badge: string;
+  rows: AuditRequirement[];
+}
+
+function orderedKeys(keys: Iterable<string>, preferredOrder: string[]): string[] {
+  const present = new Set(keys);
+  const extras = [...present]
+    .filter((name) => !preferredOrder.includes(name))
+    .sort((a, b) => a.localeCompare(b, "zh"));
+  return [...preferredOrder, ...extras].filter((name) => present.has(name));
+}
+
+function countedFromMap(counts: Map<string, number>, preferredOrder: string[]): CountedOption[] {
+  return orderedKeys(counts.keys(), preferredOrder)
+    .map((name) => ({ value: name, label: name, count: counts.get(name) ?? 0 }));
+}
+
+export function failCriterionOptions(rows: AuditRequirement[]): CountedOption[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const name of failedCriterionNames(row)) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+  return countedFromMap(counts, DEFAULT_RULES.map((rule) => rule.label));
+}
+
+export function productLineKey(row: AuditRequirement): string {
+  return row.productLine.trim() || "未填写";
+}
+
+export function matchesProductLines(row: AuditRequirement, selected: string[]): boolean {
+  if (selected.length === 0) return true;
+  return selected.includes(productLineKey(row));
+}
+
+export function productLineOptions(rows: AuditRequirement[]): CountedOption[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = productLineKey(row);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return countedFromMap(counts, PRODUCT_LINE_ORDER);
+}
+
+export function ownerNames(row: AuditRequirement): string[] {
+  return [...new Set([row.pmOwner, row.devOwner, row.qaOwner].map((name) => name.trim()).filter(Boolean))];
+}
+
+export function matchesOwners(row: AuditRequirement, selected: string[]): boolean {
+  if (selected.length === 0) return true;
+  const names = new Set(ownerNames(row));
+  return selected.some((name) => names.has(name));
+}
+
+export function ownerOptions(rows: AuditRequirement[]): CountedOption[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const name of ownerNames(row)) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+  return countedFromMap(counts, []);
+}
+
+export function filterFailedRequirements(rows: AuditRequirement[], filters: {
+  productLines: string[];
+  failCriteria: string[];
+  owners: string[];
+}): AuditRequirement[] {
+  return rows.filter((row) => (
+    matchesProductLines(row, filters.productLines)
+    && matchesFailCriteria(row, filters.failCriteria)
+    && matchesOwners(row, filters.owners)
+  ));
+}
+
+export function groupByFailCriterion(rows: AuditRequirement[], selected: string[] = []): AuditRowGroup[] {
+  const allow = new Set(selected);
+  const map = new Map<string, AuditRequirement[]>();
+  for (const row of rows) {
+    for (const name of failedCriterionNames(row)) {
+      if (allow.size > 0 && !allow.has(name)) continue;
+      const list = map.get(name) ?? [];
+      list.push(row);
+      map.set(name, list);
+    }
+  }
+  return orderedKeys(map.keys(), DEFAULT_RULES.map((rule) => rule.label))
+    .map((name) => ({
+      key: name,
+      title: name,
+      badge: "不合规项",
+      rows: map.get(name) ?? [],
+    }));
+}
+
+export function groupAuditRows(rows: AuditRequirement[], groupBy: FailGroupBy, selectedCriteria: string[] = []): AuditRowGroup[] {
+  if (groupBy === "criterion") return groupByFailCriterion(rows, selectedCriteria);
+  return groupByProductLine(rows);
+}
+
 export function failReasonsByRole(row: AuditRequirement): RoleFailBlock[] {
   const buckets: Record<RoleKey, RoleFailBlock> = {
     pm: { role: "产品负责人", person: row.pmOwner, userId: row.pmOwnerId, reasons: [] },
@@ -378,19 +497,19 @@ export function lookupScheduleMeetingPlanDate(records: DbsheetRecord[], month: n
   return "";
 }
 
-export function groupByProductLine(rows: AuditRequirement[]): { productLine: string; rows: AuditRequirement[] }[] {
+export function groupByProductLine(rows: AuditRequirement[]): AuditRowGroup[] {
   const map = new Map<string, AuditRequirement[]>();
   for (const row of rows) {
-    const key = row.productLine.trim() || "未填写";
+    const key = productLineKey(row);
     const list = map.get(key) ?? [];
     list.push(row);
     map.set(key, list);
   }
-  return [...map.keys()]
-    .sort((a, b) => {
-      const ia = PRODUCT_LINE_ORDER.indexOf(a);
-      const ib = PRODUCT_LINE_ORDER.indexOf(b);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, "zh");
-    })
-    .map((productLine) => ({ productLine, rows: map.get(productLine) ?? [] }));
+  return orderedKeys(map.keys(), PRODUCT_LINE_ORDER)
+    .map((productLine) => ({
+      key: productLine,
+      title: productLine,
+      badge: "所属产品线",
+      rows: map.get(productLine) ?? [],
+    }));
 }
