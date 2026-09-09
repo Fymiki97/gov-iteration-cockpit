@@ -8,6 +8,7 @@ import {
   Settings2,
   CheckCircle2,
   XCircle,
+  Check,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -27,20 +28,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { AuditRequirement, DbsheetRecord, RoleFailBlock } from "@/lib/pm-schedule-audit";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { AuditRequirement, CountedOption, DbsheetRecord, FailGroupBy, RoleFailBlock } from "@/lib/pm-schedule-audit";
 import {
   DEFAULT_RULES,
   SKIP_SCHED_CONCLUSIONS,
   SUB_REQ_WITH_CHILDREN,
+  failCriterionOptions,
   failReasonsByRole,
-  groupByProductLine,
+  filterFailedRequirements,
+  groupAuditRows,
   ONES_ID_FORMAT_HINT,
   lookupScheduleMeetingPlanDate,
   matchesExpectedVersion,
   matchesOnesId,
   matchesPlanMonth,
+  ownerOptions,
   parseAuditRequirements,
   parseOnesIdQuery,
+  productLineOptions,
 } from "@/lib/pm-schedule-audit";
 import {
   buildPushPreview,
@@ -54,6 +60,10 @@ import {
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const FAIL_GROUP_BY_OPTIONS: { value: FailGroupBy; label: string }[] = [
+  { value: "team", label: "所属产品线" },
+  { value: "criterion", label: "不合规项" },
+];
 type FilterTab = "belong" | "plan" | "ones";
 
 export function PmScheduleAuditTab(props: {
@@ -84,6 +94,10 @@ export function PmScheduleAuditTab(props: {
   const [meetingSchedule, setMeetingSchedule] = useState("");
   const [pushYear, setPushYear] = useState(2026);
   const [pushMonth, setPushMonth] = useState(9);
+  const [failGroupBy, setFailGroupBy] = useState<FailGroupBy>("team");
+  const [selectedFailCriteria, setSelectedFailCriteria] = useState<string[]>([]);
+  const [selectedProductLines, setSelectedProductLines] = useState<string[]>([]);
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
 
   const auditYear = filterTab === "plan" ? planYear : filterTab === "ones" ? onesYear : belongYear;
   const auditMonth = filterTab === "plan" ? planMonth : filterTab === "ones" ? onesMonth : belongMonth;
@@ -132,6 +146,14 @@ export function PmScheduleAuditTab(props: {
 
   const passed = filtered.filter((item) => item.passed);
   const failed = filtered.filter((item) => !item.passed);
+  const displayedFailed = filterFailedRequirements(failed, {
+    productLines: selectedProductLines,
+    failCriteria: selectedFailCriteria,
+    owners: selectedOwners,
+  });
+  const failOptions = failCriterionOptions(failed);
+  const teamOptions = productLineOptions(failed);
+  const peopleOptions = ownerOptions(failed);
   const selectedFailedCount = selectedIds.filter((id) => {
     const item = inScope.find((row) => row.id === id);
     return item && !item.passed;
@@ -206,6 +228,10 @@ export function PmScheduleAuditTab(props: {
     setAppliedOnesId(onesId);
   };
   const resetFilters = () => {
+    setFailGroupBy("team");
+    setSelectedFailCriteria([]);
+    setSelectedProductLines([]);
+    setSelectedOwners([]);
     if (filterTab === "belong") {
       setBelongYear(2026);
       setBelongMonth(9);
@@ -324,7 +350,7 @@ export function PmScheduleAuditTab(props: {
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-xs text-[#94A3B8]">排期会准入审计(PM)需求列表 · 按所属产品线分组 · 工作量仅数字政务事业部负责人计入</p>
+        <p className="text-xs text-[#94A3B8]">排期会准入审计(PM)需求列表 · 未达标可按所属产品线/不合规项分组筛选 · 工作量仅数字政务事业部负责人计入</p>
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -380,16 +406,30 @@ export function PmScheduleAuditTab(props: {
       />
       <AuditGroup
         title="2. 未达标需求"
-        count={failed.length}
+        count={displayedFailed.length}
+        totalCount={failed.length}
         passed={false}
         open={failOpen}
         onToggle={() => setFailOpen((v) => !v)}
-        rows={failed}
+        rows={displayedFailed}
         hoveredId={hoveredId}
         onHover={setHoveredId}
         onDetail={setDetail}
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}
+        failView={{
+          groupBy: failGroupBy,
+          onGroupByChange: setFailGroupBy,
+          productLines: selectedProductLines,
+          productLineOptions: teamOptions,
+          onProductLinesChange: setSelectedProductLines,
+          failCriteria: selectedFailCriteria,
+          failCriterionOptions: failOptions,
+          onFailCriteriaChange: setSelectedFailCriteria,
+          owners: selectedOwners,
+          ownerOptions: peopleOptions,
+          onOwnersChange: setSelectedOwners,
+        }}
       />
 
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null); }}>
@@ -676,9 +716,119 @@ function SummaryCard(props: {
   );
 }
 
+function ChecklistFilter(props: {
+  allLabel: string;
+  emptyLabel: string;
+  options: CountedOption[];
+  value: string[];
+  onChange: (vals: string[]) => void;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = props.value;
+  const display = selected.length === 0
+    ? props.allLabel
+    : selected.length <= 2
+      ? selected.join("、")
+      : `已选 ${selected.length} 项`;
+  const keyword = query.trim().toLowerCase();
+  const visible = keyword
+    ? props.options.filter((opt) => (
+      opt.label.toLowerCase().includes(keyword) || opt.value.toLowerCase().includes(keyword)
+    ))
+    : props.options;
+
+  const toggle = (v: string) => {
+    if (selected.includes(v)) {
+      props.onChange(selected.filter((s) => s !== v));
+      return;
+    }
+    props.onChange([...selected, v]);
+  };
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            className={`h-8 px-2.5 text-xs rounded-lg border flex items-center gap-1.5 transition-colors max-w-[200px] ${
+              selected.length > 0
+                ? "border-[#2563EB]/40 bg-[#F1F5FD] text-[#2563EB]"
+                : "border-[#E4ECFC] bg-white text-[#64748B] hover:border-[#CBD5E1]"
+            }`}
+          />
+        }
+      >
+        <span className="truncate">{display}</span>
+        {selected.length > 0 ? (
+          <X
+            className="w-3.5 h-3.5 shrink-0 hover:text-[#1D4ED8]"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); props.onChange([]); }}
+          />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg p-1 w-64 gap-0" align="start" side="bottom">
+        {props.searchable && props.options.length > 0 && (
+          <div className="px-1 pt-1 pb-1.5 border-b border-[#E4ECFC]">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#94A3B8]" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={props.searchPlaceholder || "搜索"}
+                className="h-8 pl-8 text-xs border-[#E4ECFC]"
+              />
+            </div>
+          </div>
+        )}
+        <div className="max-h-64 overflow-y-auto overscroll-contain py-0.5">
+          {props.options.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-[#94A3B8]">{props.emptyLabel}</p>
+          ) : visible.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-[#94A3B8]">没有匹配项</p>
+          ) : (
+            visible.map((opt) => {
+              const checked = selected.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggle(opt.value)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-[#F8FAFC] ${
+                    checked ? "text-[#2563EB] font-medium" : "text-[#0F172A]"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    checked ? "bg-[#2563EB] border-[#2563EB]" : "border-[#CBD5E1]"
+                  }`}>
+                    {checked && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <span className="truncate flex-1 text-left">{opt.label}</span>
+                  <span className="text-xs text-[#94A3B8] tabular-nums">{opt.count}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function AuditGroup(props: {
   title: string;
   count: number;
+  totalCount?: number;
   passed: boolean;
   open: boolean;
   onToggle: () => void;
@@ -688,11 +838,26 @@ function AuditGroup(props: {
   onDetail: (row: AuditRequirement) => void;
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
+  failView?: {
+    groupBy: FailGroupBy;
+    onGroupByChange: (value: FailGroupBy) => void;
+    productLines: string[];
+    productLineOptions: CountedOption[];
+    onProductLinesChange: (vals: string[]) => void;
+    failCriteria: string[];
+    failCriterionOptions: CountedOption[];
+    onFailCriteriaChange: (vals: string[]) => void;
+    owners: string[];
+    ownerOptions: CountedOption[];
+    onOwnersChange: (vals: string[]) => void;
+  };
 }) {
-  const productGroups = groupByProductLine(props.rows);
-  const ids = props.rows.map((row) => row.id);
+  const groups = groupAuditRows(props.rows, props.failView?.groupBy ?? "team", props.failView?.failCriteria ?? []);
+  const ids = [...new Set(props.rows.map((row) => row.id))];
   const allSelected = ids.length > 0 && ids.every((id) => props.selectedIds.includes(id));
   const someSelected = ids.some((id) => props.selectedIds.includes(id));
+  const filteredCount = props.totalCount != null && props.totalCount !== props.count;
+  const countLabel = filteredCount ? `数量：${props.count} / ${props.totalCount}` : `数量：${props.count}`;
 
   const toggleAll = () => {
     if (allSelected) {
@@ -704,7 +869,7 @@ function AuditGroup(props: {
 
   return (
     <Card className="shadow-sm border-[#E4ECFC] overflow-hidden">
-      <div className="w-full flex items-center justify-between px-4 py-3 bg-[#F8FAFC] border-b border-[#E4ECFC]">
+      <div className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-[#F8FAFC] border-b border-[#E4ECFC] flex-wrap">
         <button
           type="button"
           onClick={props.onToggle}
@@ -716,11 +881,11 @@ function AuditGroup(props: {
             : <XCircle className="w-4 h-4 text-[#DC2626]" />}
           <span className="text-sm font-semibold text-[#0F172A]">{props.title}</span>
           <Badge className={props.passed ? "bg-emerald-50 text-emerald-600 border-none" : "bg-red-50 text-red-600 border-none"}>
-            数量：{props.count}
+            {countLabel}
           </Badge>
         </button>
         {!props.passed && (
-          <label className="inline-flex items-center gap-1.5 text-sm text-[#334155] cursor-pointer select-none shrink-0 ml-3">
+          <label className="inline-flex items-center gap-1.5 text-sm text-[#334155] cursor-pointer select-none shrink-0">
             <input
               type="checkbox"
               checked={allSelected}
@@ -732,15 +897,65 @@ function AuditGroup(props: {
           </label>
         )}
       </div>
+      {props.failView && (
+        <div className="px-4 py-2 border-b border-[#E4ECFC] bg-white flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-[#64748B] shrink-0">分组</span>
+            <Select
+              value={props.failView.groupBy}
+              onValueChange={(val) => props.failView?.onGroupByChange(val as FailGroupBy)}
+              items={Object.fromEntries(FAIL_GROUP_BY_OPTIONS.map((opt) => [opt.value, opt.label]))}
+            >
+              <SelectTrigger className="h-8 w-[148px] text-xs border-[#E4ECFC] bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FAIL_GROUP_BY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <span className="text-xs text-[#64748B] shrink-0">筛选</span>
+            <ChecklistFilter
+              allLabel="全部所属产品线"
+              emptyLabel="暂无所属产品线"
+              options={props.failView.productLineOptions}
+              value={props.failView.productLines}
+              onChange={props.failView.onProductLinesChange}
+            />
+            <ChecklistFilter
+              allLabel="全部不合规项"
+              emptyLabel="暂无不合规项"
+              options={props.failView.failCriterionOptions}
+              value={props.failView.failCriteria}
+              onChange={props.failView.onFailCriteriaChange}
+            />
+            <ChecklistFilter
+              allLabel="全部负责人"
+              emptyLabel="暂无负责人"
+              options={props.failView.ownerOptions}
+              value={props.failView.owners}
+              onChange={props.failView.onOwnersChange}
+              searchable
+              searchPlaceholder="搜索负责人"
+            />
+          </div>
+        </div>
+      )}
       {props.open && (
         <div>
           {props.rows.length === 0 ? (
-            <p className="text-sm text-[#94A3B8] text-center py-8">暂无需求</p>
+            <p className="text-sm text-[#94A3B8] text-center py-8">
+              {filteredCount ? "没有命中当前筛选条件的需求" : "暂无需求"}
+            </p>
           ) : (
-            productGroups.map((group) => (
+            groups.map((group) => (
               <ProductLineTable
-                key={group.productLine}
-                productLine={group.productLine}
+                key={group.key}
+                title={group.title}
+                badge={group.badge}
                 rows={group.rows}
                 passed={props.passed}
                 hoveredId={props.hoveredId}
@@ -758,7 +973,8 @@ function AuditGroup(props: {
 }
 
 function ProductLineTable(props: {
-  productLine: string;
+  title: string;
+  badge: string;
   rows: AuditRequirement[];
   passed: boolean;
   hoveredId: string | null;
@@ -797,7 +1013,7 @@ function ProductLineTable(props: {
             checked={allSelected}
             ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
             onChange={toggleAll}
-            aria-label={`全选 ${props.productLine}`}
+            aria-label={`全选 ${props.title}`}
           />
         )}
         <button
@@ -807,8 +1023,8 @@ function ProductLineTable(props: {
           aria-expanded={open}
         >
           {open ? <ChevronDown className="w-4 h-4 text-[#64748B]" /> : <ChevronRight className="w-4 h-4 text-[#64748B]" />}
-          <span className="text-sm font-semibold text-[#1E3A5F]">{props.productLine}</span>
-          <Badge className="bg-white text-[#2563EB] border-[#BFDBFE]">所属产品线 · {props.rows.length}</Badge>
+          <span className="text-sm font-semibold text-[#1E3A5F]">{props.title}</span>
+          <Badge className="bg-white text-[#2563EB] border-[#BFDBFE]">{props.badge} · {props.rows.length}</Badge>
         </button>
       </div>
       {open && (
