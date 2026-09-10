@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AuditCriterion, AuditRequirement } from "@/lib/pm-schedule-audit";
 import {
+  QA_OWNER_CRITERION,
+  TEST_WORKLOAD_CRITERION,
   failCriterionOptions,
   failedCriterionNames,
   filterFailedRequirements,
@@ -9,6 +11,7 @@ import {
   matchesOwners,
   matchesProductLines,
   ownerOptions,
+  parseAuditRequirements,
   productLineOptions,
 } from "@/lib/pm-schedule-audit";
 
@@ -160,5 +163,33 @@ describe("groupAuditRows", () => {
       req("a", ["需求来源", "开发计划工作量"]),
     ], "criterion", ["开发计划工作量"]);
     expect(groups.map((group) => group.title)).toEqual(["开发计划工作量"]);
+  });
+});
+
+describe("免测需求豁免测试门禁", () => {
+  const baseFields = {
+    标题: "示例需求",
+    产品负责人: "张三",
+    开发负责人: "李四",
+    测试负责人: "",
+    需求来源: "内部",
+    需求立项评审结论: "通过",
+    状态: "开发中",
+    带出版本线: "政务",
+    "开发计划工作量（人/天）": "3",
+    "测试计划工作量（人/天）": "",
+  };
+
+  it("does not require 测试负责人 or 测试计划工作量 when 是否免测 is 是", () => {
+    const [item] = parseAuditRequirements([{ id: "no-test", fields: { ...baseFields, 是否免测: "是" } }]);
+    expect(item?.criteria.some((c) => c.name === QA_OWNER_CRITERION)).toBe(false);
+    expect(item?.criteria.some((c) => c.name === TEST_WORKLOAD_CRITERION)).toBe(false);
+    expect(item?.passed).toBe(true);
+  });
+
+  it("still requires 测试负责人 when 是否免测 is 否", () => {
+    const [item] = parseAuditRequirements([{ id: "need-qa", fields: { ...baseFields, 是否免测: "否" } }]);
+    expect(item?.criteria.find((c) => c.name === QA_OWNER_CRITERION)?.passed).toBe(false);
+    expect(item?.passed).toBe(false);
   });
 });
