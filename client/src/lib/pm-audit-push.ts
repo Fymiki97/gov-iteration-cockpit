@@ -37,6 +37,7 @@ export interface PushPreview {
   recipients: PushRecipient[];
   skippedPassed: number;
   skippedNoSelection: boolean;
+  needsQaFallback: boolean;
   unresolved: string[];
   monthLabel: string;
 }
@@ -72,11 +73,8 @@ const OPERATOR_NUMERIC_ID_FALLBACK: Record<string, string> = {
   fengyumeng: "1690533110",
 };
 
-/** 测试负责人为空时，测试相关不满足原因推送给此人 */
-const QA_OWNER_FALLBACK = {
-  person: "肖诗虎",
-  userId: "",
-};
+/** 测试负责人为空时，测试相关不满足原因可推送给所选兜底负责人 */
+export const QA_OWNER_FALLBACK_OPTIONS = ["肖诗虎", "别业创"] as const;
 
 interface SendResult {
   code?: number;
@@ -197,15 +195,15 @@ function findPersonUserId(items: AuditRequirement[], person: string): string {
 
 function resolvePushTarget(
   block: RoleFailBlock,
-  fallbackQaUserId: string,
+  fallbackQa: { person: string; userId: string } | null,
 ): { person: string; userId: string } | null {
   if (block.reasons.length === 0) return null;
   const person = block.person.trim();
   if (person) return { person, userId: block.userId };
-  if (block.role === "测试负责人") {
+  if (block.role === "测试负责人" && fallbackQa?.person) {
     return {
-      person: QA_OWNER_FALLBACK.person,
-      userId: fallbackQaUserId || QA_OWNER_FALLBACK.userId,
+      person: fallbackQa.person,
+      userId: fallbackQa.userId,
     };
   }
   return null;
@@ -215,27 +213,34 @@ export function buildPushPreview(
   items: AuditRequirement[],
   selectedIds: string[],
   context: PushContext,
+  options?: { qaFallbackPerson?: string },
 ): PushPreview {
-  if (selectedIds.length === 0) {
-    return {
-      recipients: [],
-      skippedPassed: 0,
-      skippedNoSelection: true,
-      unresolved: [],
-      monthLabel: context.monthLabel,
-    };
-  }
+  const emptyPreview = {
+    recipients: [] as PushRecipient[],
+    skippedPassed: 0,
+    skippedNoSelection: selectedIds.length === 0,
+    needsQaFallback: false,
+    unresolved: [] as string[],
+    monthLabel: context.monthLabel,
+  };
+  if (selectedIds.length === 0) return emptyPreview;
 
   const selected = items.filter((item) => selectedIds.includes(item.id));
   const failedSelected = selected.filter((item) => !item.passed);
   const skippedPassed = selected.length - failedSelected.length;
+  const needsQaFallback = failedSelected.some((item) => (
+    failReasonsByRole(item).some((block) => block.role === "测试负责人" && !block.person.trim())
+  ));
 
-  const fallbackQaUserId = findPersonUserId(items, QA_OWNER_FALLBACK.person);
+  const qaFallbackPerson = options?.qaFallbackPerson?.trim() ?? "";
+  const fallbackQa = qaFallbackPerson
+    ? { person: qaFallbackPerson, userId: findPersonUserId(items, qaFallbackPerson) }
+    : null;
   const bucket = new Map<string, { person: string; userId: string; items: PushRequirementItem[] }>();
 
   for (const item of failedSelected) {
     for (const block of failReasonsByRole(item)) {
-      const target = resolvePushTarget(block, fallbackQaUserId);
+      const target = resolvePushTarget(block, fallbackQa);
       if (!target) continue;
       const key = target.userId || target.person;
       const existing = bucket.get(key) ?? { person: target.person, userId: target.userId, items: [] };
@@ -261,6 +266,7 @@ export function buildPushPreview(
     recipients,
     skippedPassed,
     skippedNoSelection: false,
+    needsQaFallback,
     unresolved: [],
     monthLabel: context.monthLabel,
   };

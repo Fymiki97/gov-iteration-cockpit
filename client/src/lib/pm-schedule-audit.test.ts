@@ -235,10 +235,26 @@ describe("WPS协作自动达标", () => {
     expect(item?.criteria.every((c) => c.passed)).toBe(true);
   });
 
+  it("does not auto-pass when only 产品类别 is WPS协作", () => {
+    const [item] = parseAuditRequirements([{
+      id: "wps-collab-category",
+      fields: { 标题: "协作需求", 所属项目: "Office", 产品类别: "WPS协作" },
+    }]);
+    expect(item?.passed).toBe(false);
+  });
+
   it("auto-passes when WPS协作 is one of multiple projects", () => {
     const [item] = parseAuditRequirements([{
       id: "wps-collab-multi",
       fields: { 标题: "协作需求", 所属项目: "WPS协作、Office" },
+    }]);
+    expect(item?.passed).toBe(true);
+  });
+
+  it("auto-passes select object and spaced labels", () => {
+    const [item] = parseAuditRequirements([{
+      id: "wps-collab-object",
+      fields: { 标题: "协作需求", 所属项目: { text: "WPS 协作" } },
     }]);
     expect(item?.passed).toBe(true);
   });
