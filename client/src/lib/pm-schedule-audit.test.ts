@@ -224,3 +224,30 @@ describe("免测技术需求自动达标", () => {
     expect(item?.passed).toBe(false);
   });
 });
+
+describe("WPS协作自动达标", () => {
+  it("auto-passes when 所属项目 is WPS协作", () => {
+    const [item] = parseAuditRequirements([{
+      id: "wps-collab",
+      fields: { 标题: "协作需求", 所属项目: "WPS协作" },
+    }]);
+    expect(item?.passed).toBe(true);
+    expect(item?.criteria.every((c) => c.passed)).toBe(true);
+  });
+
+  it("auto-passes when WPS协作 is one of multiple projects", () => {
+    const [item] = parseAuditRequirements([{
+      id: "wps-collab-multi",
+      fields: { 标题: "协作需求", 所属项目: "WPS协作、Office" },
+    }]);
+    expect(item?.passed).toBe(true);
+  });
+
+  it("does not auto-pass other projects with missing fields", () => {
+    const [item] = parseAuditRequirements([{
+      id: "other-project",
+      fields: { 标题: "其他需求", 所属项目: "政务AI" },
+    }]);
+    expect(item?.passed).toBe(false);
+  });
+});

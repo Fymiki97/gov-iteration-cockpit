@@ -39,6 +39,7 @@ import {
   filterFailedRequirements,
   groupAuditRows,
   isTechNoTestAutoPass,
+  isWpsCollabAutoPass,
   ONES_ID_FORMAT_HINT,
   lookupScheduleMeetingPlanDate,
   matchesExpectedVersion,
@@ -282,7 +283,7 @@ export function PmScheduleAuditTab(props: {
               </button>
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
+              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」「WPS协作」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
           <TabsContent value="plan" className="mt-3">
@@ -308,7 +309,7 @@ export function PmScheduleAuditTab(props: {
               </button>
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。「需求-有子需求」「免测技术需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
+              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。「需求-有子需求」「免测技术需求」「WPS协作」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
           <TabsContent value="ones" className="mt-3">
@@ -441,6 +442,7 @@ export function PmScheduleAuditTab(props: {
               {detail?.onesId} · {detail?.expectedVersion} · {detail?.month} · 所属项目 {detail?.project} · 所属产品线 {detail?.productLine} · 产品 {detail?.pmOwner}
               {detail?.subRequirementType === SUB_REQ_WITH_CHILDREN && " · 需求-有子需求（自动达标）"}
               {detail && isTechNoTestAutoPass(detail) && " · 免测技术需求（自动达标）"}
+              {detail && isWpsCollabAutoPass(detail) && " · WPS协作（自动达标）"}
             </DialogDescription>
           </DialogHeader>
           {detail?.subRequirementType === SUB_REQ_WITH_CHILDREN && (
@@ -451,6 +453,11 @@ export function PmScheduleAuditTab(props: {
           {detail && isTechNoTestAutoPass(detail) && (
             <p className="text-xs text-[#059669] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-3 py-2">
               该需求为免测技术需求，不参与门禁审计，统一列为达标。
+            </p>
+          )}
+          {detail && isWpsCollabAutoPass(detail) && (
+            <p className="text-xs text-[#059669] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-3 py-2">
+              该需求所属项目为「WPS协作」，不参与门禁审计，统一列为达标。
             </p>
           )}
           <div className="space-y-2 max-h-[50vh] overflow-y-auto">
@@ -642,7 +649,7 @@ function OnesQueryPanel(props: {
         <FilterActions onSearch={props.onSearch} onReset={props.onReset} />
       </div>
       <p className="text-[11px] text-[#94A3B8]">
-        在全库需求中按 ONES ID 查询。{ONES_ID_FORMAT_HINT}。不限所属月份与规划月份。推送时使用所选「排期会月份」生成文案并读取对应计划日期。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」统一列为达标。
+        在全库需求中按 ONES ID 查询。{ONES_ID_FORMAT_HINT}。不限所属月份与规划月份。推送时使用所选「排期会月份」生成文案并读取对应计划日期。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」「WPS协作」统一列为达标。
       </p>
     </div>
   );
