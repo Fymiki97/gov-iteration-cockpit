@@ -32,6 +32,7 @@ export interface AuditRequirement {
   deadline: string;
   scheduleConclusion: string;
   subRequirementType: string;
+  requirementType: string;
   passed: boolean;
   criteria: AuditCriterion[];
 }
@@ -47,6 +48,7 @@ export interface RoleFailBlock {
 
 export const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
 export const SUB_REQ_WITH_CHILDREN = "需求-有子需求";
+export const TECH_REQUIREMENT = "技术需求";
 export const PRODUCT_LINE_ORDER = ["政务AI", "政务协作", "医疗版", "安全版", "WPS政务365", "统一平台"];
 export const SCHEDULE_MEETING_MILESTONE = "需求排期会";
 
@@ -172,6 +174,11 @@ export function applyAuditScope(item: AuditRequirement, autoPass = false): Audit
   return { ...item, criteria, passed: autoPass || criteria.every((c) => c.passed) };
 }
 
+export function isTechNoTestAutoPass(item: Pick<AuditRequirement, "requirementType" | "criteria">): boolean {
+  const noTest = item.criteria.find((c) => c.name === "是否免测")?.current === "是";
+  return noTest && item.requirementType === TECH_REQUIREMENT;
+}
+
 export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequirement[] {
   return records.map((r, index) => {
     const f = fld(r);
@@ -198,7 +205,9 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const devInDigitalGov = isInDigitalGovDept(f["开发负责人·部门"]);
     const qaInDigitalGov = isInDigitalGovDept(f["测试负责人·部门"]);
     const subRequirementType = str(f["需求类型（子需求）"]);
+    const requirementType = str(f["需求类型"]);
     const isParentWithChildren = subRequirementType === SUB_REQ_WITH_CHILDREN;
+    const autoPass = isParentWithChildren || (notest === "是" && requirementType === TECH_REQUIREMENT);
     const criteria = [
       criterion("需求状态流转", status, "不在不合规状态池", !!status && !ILLEGAL_STATUS.has(status)),
       criterion("需求立项评审结论", review, "不为空且不为「无」", filled(review) && review !== "无"),
@@ -232,9 +241,10 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       deadline: str(f["计划提测时间"]),
       scheduleConclusion: str(f["排期结论"]),
       subRequirementType,
+      requirementType,
       passed: criteria.every((c) => c.passed),
       criteria,
-    }, isParentWithChildren);
+    }, autoPass);
   });
 }
 

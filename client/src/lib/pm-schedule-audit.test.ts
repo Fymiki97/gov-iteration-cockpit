@@ -42,6 +42,7 @@ function req(id: string, failed: string[], extra: Partial<AuditRequirement> = {}
     deadline: "",
     scheduleConclusion: "",
     subRequirementType: "",
+    requirementType: "",
     passed: failed.length === 0,
     criteria: failed.map((name) => criterion(name, false)),
     ...extra,
@@ -190,6 +191,36 @@ describe("免测需求豁免测试门禁", () => {
   it("still requires 测试负责人 when 是否免测 is 否", () => {
     const [item] = parseAuditRequirements([{ id: "need-qa", fields: { ...baseFields, 是否免测: "否" } }]);
     expect(item?.criteria.find((c) => c.name === QA_OWNER_CRITERION)?.passed).toBe(false);
+    expect(item?.passed).toBe(false);
+  });
+});
+
+describe("免测技术需求自动达标", () => {
+  const incomplete = {
+    标题: "技术免测",
+    是否免测: "是",
+    需求类型: "技术需求",
+  };
+
+  it("auto-passes when 是否免测 is 是 and 需求类型 is 技术需求", () => {
+    const [item] = parseAuditRequirements([{ id: "tech-no-test", fields: incomplete }]);
+    expect(item?.passed).toBe(true);
+    expect(item?.criteria.every((c) => c.passed)).toBe(true);
+  });
+
+  it("does not auto-pass a 技术需求 that is not 免测", () => {
+    const [item] = parseAuditRequirements([{
+      id: "tech-need-test",
+      fields: { ...incomplete, 是否免测: "否" },
+    }]);
+    expect(item?.passed).toBe(false);
+  });
+
+  it("does not auto-pass a 免测 product requirement with missing fields", () => {
+    const [item] = parseAuditRequirements([{
+      id: "product-no-test",
+      fields: { 标题: "产品免测", 是否免测: "是", 需求类型: "产品需求" },
+    }]);
     expect(item?.passed).toBe(false);
   });
 });
