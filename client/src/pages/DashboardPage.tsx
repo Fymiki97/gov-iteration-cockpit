@@ -1766,7 +1766,15 @@ export function DashboardPage() {
           )}
 
           {/* ============ TAB 4: 里程碑 ============ */}
-          {tab === TAB_PM_AUDIT && <PmScheduleAuditTab records={rawRequirements} milestoneRecords={rawMilestones} loading={loading} />}
+          {tab === TAB_PM_AUDIT && (
+            <PmScheduleAuditTab
+              records={rawRequirements}
+              milestoneRecords={rawMilestones}
+              loading={loading}
+              wps={wps}
+              onGateSynced={() => loadData(true)}
+            />
+          )}
 
           {tab === TAB_MILESTONE && (
             <div className="space-y-4">

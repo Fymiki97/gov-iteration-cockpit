@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import type { Wps365Client } from "@ks-open/capability/client/wps365";
 import { toast } from "sonner";
 import {
   Search,
@@ -13,6 +14,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   Send,
+  ListChecks,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -60,6 +62,7 @@ import {
   sendPushToRecipients,
   type PushPreview,
 } from "@/lib/pm-audit-push";
+import { syncGateCheckboxes } from "@/lib/pm-audit-gate-sync";
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -73,6 +76,8 @@ export function PmScheduleAuditTab(props: {
   records: DbsheetRecord[];
   milestoneRecords?: DbsheetRecord[];
   loading?: boolean;
+  wps?: Wps365Client | null;
+  onGateSynced?: () => void;
 }) {
   const [filterTab, setFilterTab] = useState<FilterTab>("belong");
   const [belongYear, setBelongYear] = useState(2026);
@@ -102,6 +107,7 @@ export function PmScheduleAuditTab(props: {
   const [selectedFailCriteria, setSelectedFailCriteria] = useState<string[]>([]);
   const [selectedProductLines, setSelectedProductLines] = useState<string[]>([]);
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
+  const [syncingGate, setSyncingGate] = useState(false);
 
   const auditYear = filterTab === "plan" ? planYear : filterTab === "ones" ? onesYear : belongYear;
   const auditMonth = filterTab === "plan" ? planMonth : filterTab === "ones" ? onesMonth : belongMonth;
@@ -191,6 +197,31 @@ export function PmScheduleAuditTab(props: {
   const applyQaFallback = (person: string) => {
     setQaFallbackPerson(person);
     setPushPreview(buildCurrentPushPreview(person));
+  };
+
+  const writeGateCheckboxes = async () => {
+    if (!props.wps) {
+      toast.error("无法写回多维表，请确认已登录 WPS");
+      return;
+    }
+    if (filtered.length === 0) {
+      toast.info("当前没有可写回的需求");
+      return;
+    }
+    setSyncingGate(true);
+    try {
+      const result = await syncGateCheckboxes(props.wps, filtered);
+      if (result.updated === 0) {
+        toast.info("当前筛选结果与「是否满足排期会门禁」已一致");
+        return;
+      }
+      toast.success(`已写回 ${result.updated} 条：达标勾选，未达标清空`);
+      props.onGateSynced?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "写回排期会门禁失败");
+    } finally {
+      setSyncingGate(false);
+    }
   };
 
   const confirmPush = async () => {
@@ -366,8 +397,17 @@ export function PmScheduleAuditTab(props: {
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-xs text-[#94A3B8]">排期会准入审计(PM)需求列表 · 未达标可按所属产品线/不合规项分组筛选 · 工作量仅数字政务事业部负责人计入</p>
+        <p className="text-xs text-[#94A3B8]">排期会准入审计(PM)需求列表 · 未达标可按所属产品线/不合规项分组筛选 · 「写回门禁结果」会把当前筛选的达标勾选、未达标清空到「是否满足排期会门禁」</p>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            disabled={syncingGate || filtered.length === 0 || props.loading}
+            onClick={writeGateCheckboxes}
+            className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+          >
+            <ListChecks className="w-4 h-4" />
+            {syncingGate ? "写回中…" : "写回门禁结果"}
+          </button>
           <button
             type="button"
             disabled={selectedFailedCount === 0}

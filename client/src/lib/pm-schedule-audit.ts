@@ -33,6 +33,7 @@ export interface AuditRequirement {
   scheduleConclusion: string;
   subRequirementType: string;
   requirementType: string;
+  gateMet: boolean;
   passed: boolean;
   criteria: AuditCriterion[];
 }
@@ -50,6 +51,7 @@ export const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
 export const SUB_REQ_WITH_CHILDREN = "需求-有子需求";
 export const TECH_REQUIREMENT = "技术需求";
 export const WPS_COLLAB_PROJECT = "WPS协作";
+export const GATE_CHECKBOX_FIELD = "是否满足排期会门禁";
 export const PRODUCT_LINE_ORDER = ["政务AI", "政务协作", "医疗版", "安全版", "WPS政务365", "统一平台"];
 export const SCHEDULE_MEETING_MILESTONE = "需求排期会";
 
@@ -123,6 +125,23 @@ function parseOnes(f: Record<string, unknown>): { id: string; url: string } {
 function filled(value: string): boolean {
   const t = value.trim();
   return t !== "" && t !== "空" && t !== "未填" && t !== "-" && t !== "/";
+}
+
+export function isCheckboxChecked(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const t = value.trim().toLowerCase();
+    return t === "true" || t === "1" || t === "是" || t === "checked" || t === "yes";
+  }
+  if (Array.isArray(value)) return value.some(isCheckboxChecked);
+  if (value && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    for (const k of ["value", "checked", "selected"]) {
+      if (k in o) return isCheckboxChecked(o[k]);
+    }
+  }
+  return false;
 }
 
 function hasProject(project: string, name: string): boolean {
@@ -257,6 +276,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       scheduleConclusion: str(f["排期结论"]),
       subRequirementType,
       requirementType,
+      gateMet: isCheckboxChecked(fieldByName(f, GATE_CHECKBOX_FIELD)),
       passed: criteria.every((c) => c.passed),
       criteria,
     }, autoPass);
