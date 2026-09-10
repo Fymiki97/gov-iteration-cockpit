@@ -268,3 +268,30 @@ describe("WPS协作自动达标", () => {
     expect(item?.passed).toBe(false);
   });
 });
+
+describe("统一平台自动达标", () => {
+  it("auto-passes when 所属产品线 is 统一平台", () => {
+    const [item] = parseAuditRequirements([{
+      id: "unified-platform",
+      fields: { 标题: "平台需求", 所属产品线: "统一平台" },
+    }]);
+    expect(item?.passed).toBe(true);
+    expect(item?.criteria.every((c) => c.passed)).toBe(true);
+  });
+
+  it("auto-passes select object labels", () => {
+    const [item] = parseAuditRequirements([{
+      id: "unified-platform-object",
+      fields: { 标题: "平台需求", 所属产品线: { text: "统一平台" } },
+    }]);
+    expect(item?.passed).toBe(true);
+  });
+
+  it("does not auto-pass other product lines with missing fields", () => {
+    const [item] = parseAuditRequirements([{
+      id: "other-line",
+      fields: { 标题: "其他需求", 所属产品线: "政务AI" },
+    }]);
+    expect(item?.passed).toBe(false);
+  });
+});
