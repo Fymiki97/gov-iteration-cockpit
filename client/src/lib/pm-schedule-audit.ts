@@ -57,6 +57,7 @@ const ILLEGAL_STATUS = new Set([
 export const DIGITAL_GOV_DEPT = "数字政务事业部";
 export const DEV_WORKLOAD_CRITERION = "开发计划工作量";
 export const TEST_WORKLOAD_CRITERION = "测试计划工作量";
+export const QA_OWNER_CRITERION = "测试负责人";
 
 export const DEFAULT_RULES = [
   { key: "status", label: "需求状态流转", standard: "不在：未开始 / 需求变更 / 挂起 / 需求立项中 / 需求分析中 / 需求终止 / UX设计中" },
@@ -64,7 +65,7 @@ export const DEFAULT_RULES = [
   { key: "source", label: "需求来源", standard: "不为空" },
   { key: "devOwner", label: "开发负责人", standard: "不为空" },
   { key: "dev", label: "开发计划工作量", standard: "不为空；负责人为空时仍检测；已填写且非数字政务事业部人员时豁免" },
-  { key: "qaOwner", label: "测试负责人", standard: "不为空" },
+  { key: "qaOwner", label: "测试负责人", standard: "不为空；免测需求豁免" },
   { key: "test", label: "测试计划工作量", standard: "不为空；免测需求豁免；负责人为空时仍检测；已填写且非数字政务事业部人员时豁免" },
   { key: "notest", label: "是否免测", standard: "已填写" },
   { key: "line", label: "带出版本线", standard: "Office 项目须包含「国际」或豁免轻审批有链接；其他项目不为空" },
@@ -159,6 +160,9 @@ export function applyAuditScope(item: AuditRequirement, autoPass = false): Audit
   if (!shouldCheckDevWorkload(item.devOwner, item.devInDigitalGov)) {
     criteria = criteria.filter((c) => c.name !== DEV_WORKLOAD_CRITERION);
   }
+  if (noTest) {
+    criteria = criteria.filter((c) => c.name !== QA_OWNER_CRITERION);
+  }
   if (!shouldCheckTestWorkload(item.qaOwner, item.qaInDigitalGov, noTest)) {
     criteria = criteria.filter((c) => c.name !== TEST_WORKLOAD_CRITERION);
   }
@@ -201,7 +205,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       criterion("需求来源", source, "不为空", filled(source)),
       criterion("开发负责人", devOwner, "不为空", filled(devOwner)),
       criterion(DEV_WORKLOAD_CRITERION, dev, "不为空", filled(dev)),
-      criterion("测试负责人", qaOwner, "不为空", filled(qaOwner)),
+      criterion(QA_OWNER_CRITERION, qaOwner, "不为空", filled(qaOwner)),
       criterion(TEST_WORKLOAD_CRITERION, test, "不为空", filled(test)),
       criterion("是否免测", notest, "已填写", filled(notest)),
       criterion("带出版本线", lineCurrent, lineStandard, linePass),
@@ -277,7 +281,7 @@ export function matchesOnesId(onesId: string, queryIds: string[]): boolean {
 
 export function roleOfCriterion(name: string): RoleKey {
   if (name === DEV_WORKLOAD_CRITERION || name === "开发负责人") return "dev";
-  if (name === TEST_WORKLOAD_CRITERION || name === "测试负责人") return "qa";
+  if (name === TEST_WORKLOAD_CRITERION || name === QA_OWNER_CRITERION) return "qa";
   return "pm";
 }
 
