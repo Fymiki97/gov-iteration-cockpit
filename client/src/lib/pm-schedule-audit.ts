@@ -51,6 +51,7 @@ export const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
 export const SUB_REQ_WITH_CHILDREN = "需求-有子需求";
 export const TECH_REQUIREMENT = "技术需求";
 export const WPS_COLLAB_PROJECT = "WPS协作";
+export const UNIFIED_PLATFORM_LINE = "统一平台";
 export const GATE_CHECKBOX_FIELD = "是否满足排期会门禁";
 export const PRODUCT_LINE_ORDER = ["政务AI", "政务协作", "医疗版", "安全版", "WPS政务365", "统一平台"];
 export const SCHEDULE_MEETING_MILESTONE = "需求排期会";
@@ -160,6 +161,14 @@ export function isWpsCollabAutoPass(item: Pick<AuditRequirement, "project">): bo
   return hasWpsCollabProject(item.project);
 }
 
+export function hasUnifiedPlatformLine(productLine: string): boolean {
+  return productLine.split(/[,，、/\n|]/).some((part) => part.trim() === UNIFIED_PLATFORM_LINE);
+}
+
+export function isUnifiedPlatformAutoPass(item: Pick<AuditRequirement, "productLine">): boolean {
+  return hasUnifiedPlatformLine(item.productLine);
+}
+
 function isInDigitalGovDept(fieldValue: unknown): boolean {
   if (fieldValue == null) return false;
   const items = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
@@ -224,6 +233,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const line = str(f["带出版本线"]);
     const exemption = str(f["豁免轻审批"]);
     const project = str(fieldByName(f, "所属项目"));
+    const productLine = str(fieldByName(f, "所属产品线"));
     const isOffice = isOfficeProject(project);
     const linePass = isOffice
       ? line.includes("国际") || filled(exemption)
@@ -241,7 +251,8 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const isParentWithChildren = subRequirementType === SUB_REQ_WITH_CHILDREN;
     const autoPass = isParentWithChildren
       || (notest === "是" && requirementType === TECH_REQUIREMENT)
-      || hasWpsCollabProject(project);
+      || hasWpsCollabProject(project)
+      || hasUnifiedPlatformLine(productLine);
     const criteria = [
       criterion("需求状态流转", status, "不在不合规状态池", !!status && !ILLEGAL_STATUS.has(status)),
       criterion("需求立项评审结论", review, "不为空且不为「无」", filled(review) && review !== "无"),
@@ -265,7 +276,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       devInDigitalGov,
       qaInDigitalGov,
       project,
-      productLine: str(f["所属产品线"]),
+      productLine,
       expectedVersion: str(f["期望带出版本"]),
       versionLine: line,
       month: str(f["规划月度"]),
