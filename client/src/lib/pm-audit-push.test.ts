@@ -63,7 +63,7 @@ describe("formatPushMessagePreview", () => {
 describe("buildPushPreview", () => {
   const context = { monthLabel: "26年9月", meetingDate: "", meetingSchedule: "" };
 
-  it("routes empty QA owner failures to 肖诗虎", () => {
+  it("does not route empty QA owner failures until a fallback is chosen", () => {
     const items = parseAuditRequirements([{
       id: "empty-qa",
       fields: {
@@ -80,10 +80,31 @@ describe("buildPushPreview", () => {
       },
     }]);
     const preview = buildPushPreview(items, ["empty-qa"], context);
-    expect(preview.recipients.some((r) => r.person === "肖诗虎")).toBe(true);
+    expect(preview.needsQaFallback).toBe(true);
+    expect(preview.recipients.some((r) => r.person === "肖诗虎")).toBe(false);
   });
 
-  it("reuses 肖诗虎 user id from other rows when available", () => {
+  it("routes empty QA owner failures to the selected fallback", () => {
+    const items = parseAuditRequirements([{
+      id: "empty-qa",
+      fields: {
+        标题: "无测试负责人",
+        产品负责人: "张三",
+        开发负责人: "李四",
+        测试负责人: "",
+        是否免测: "否",
+        需求来源: "内部",
+        需求立项评审结论: "通过",
+        状态: "开发中",
+        带出版本线: "政务",
+        "开发计划工作量（人/天）": "3",
+      },
+    }]);
+    const preview = buildPushPreview(items, ["empty-qa"], context, { qaFallbackPerson: "别业创" });
+    expect(preview.recipients.some((r) => r.person === "别业创")).toBe(true);
+  });
+
+  it("reuses selected fallback user id from other rows when available", () => {
     const items = parseAuditRequirements([
       {
         id: "empty-qa",
@@ -116,7 +137,7 @@ describe("buildPushPreview", () => {
         },
       },
     ]);
-    const preview = buildPushPreview(items, ["empty-qa"], context);
+    const preview = buildPushPreview(items, ["empty-qa"], context, { qaFallbackPerson: "肖诗虎" });
     const qa = preview.recipients.find((r) => r.person === "肖诗虎");
     expect(qa?.userId).toBe("998877");
   });

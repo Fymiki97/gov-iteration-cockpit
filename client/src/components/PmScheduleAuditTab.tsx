@@ -39,6 +39,7 @@ import {
   filterFailedRequirements,
   groupAuditRows,
   isTechNoTestAutoPass,
+  isWpsCollabAutoPass,
   ONES_ID_FORMAT_HINT,
   lookupScheduleMeetingPlanDate,
   matchesExpectedVersion,
@@ -54,6 +55,7 @@ import {
   fetchPushContact,
   formatMonthLabel,
   formatPushMessagePreview,
+  QA_OWNER_FALLBACK_OPTIONS,
   resolvePushRecipients,
   sendPushToRecipients,
   type PushPreview,
@@ -95,6 +97,7 @@ export function PmScheduleAuditTab(props: {
   const [meetingSchedule, setMeetingSchedule] = useState("");
   const [pushYear, setPushYear] = useState(2026);
   const [pushMonth, setPushMonth] = useState(9);
+  const [qaFallbackPerson, setQaFallbackPerson] = useState("");
   const [failGroupBy, setFailGroupBy] = useState<FailGroupBy>("team");
   const [selectedFailCriteria, setSelectedFailCriteria] = useState<string[]>([]);
   const [selectedProductLines, setSelectedProductLines] = useState<string[]>([]);
@@ -160,17 +163,19 @@ export function PmScheduleAuditTab(props: {
     return item && !item.passed;
   }).length;
 
+  const buildCurrentPushPreview = (fallbackPerson: string) => buildPushPreview(inScope, selectedIds, {
+    monthLabel: formatMonthLabel(auditYear, auditMonth),
+    meetingDate: "",
+    meetingSchedule: "",
+  }, { qaFallbackPerson: fallbackPerson });
+
   const openPushDialog = async () => {
-    const preview = buildPushPreview(inScope, selectedIds, {
-      monthLabel: formatMonthLabel(auditYear, auditMonth),
-      meetingDate: "",
-      meetingSchedule: "",
-    });
+    const preview = buildCurrentPushPreview("");
     if (preview.skippedNoSelection) {
       toast.info("请先勾选要推送的未达标需求");
       return;
     }
-    if (preview.recipients.length === 0) {
+    if (preview.recipients.length === 0 && !preview.needsQaFallback) {
       toast.info(preview.skippedPassed > 0 ? "所选需求均已达标，无需推送" : "所选需求没有可推送的不满足原因");
       return;
     }
@@ -178,12 +183,22 @@ export function PmScheduleAuditTab(props: {
     setPushContactName(contact?.userName || "PM");
     applyPushMeetingMonth(auditYear, auditMonth);
     setMeetingSchedule("");
+    setQaFallbackPerson("");
     setPushPreview(preview);
     setPushOpen(true);
   };
 
+  const applyQaFallback = (person: string) => {
+    setQaFallbackPerson(person);
+    setPushPreview(buildCurrentPushPreview(person));
+  };
+
   const confirmPush = async () => {
     if (!pushPreview) return;
+    if (pushPreview.needsQaFallback && !qaFallbackPerson) {
+      toast.info("请选择测试兜底负责人");
+      return;
+    }
     setPushing(true);
     try {
       const contact = await fetchPushContact();
@@ -282,7 +297,7 @@ export function PmScheduleAuditTab(props: {
               </button>
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
+              数据来源：金山文档《2026年政务产研版本管理》「需求管理」表。按「期望带出版本」匹配：含 26xx（如 2604）或同时含 26 与「x月」。例如「后端20260409」只算 4 月，不会因日期 09 误入 9 月。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」「WPS协作」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
           <TabsContent value="plan" className="mt-3">
@@ -308,7 +323,7 @@ export function PmScheduleAuditTab(props: {
               </button>
             </div>
             <p className="text-[11px] text-[#94A3B8] mt-2">
-              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。「需求-有子需求」「免测技术需求」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
+              数据来源：金山文档《2026年政务产研版本管理》。按「规划月度」匹配所选月份（2&3月会同时命中 2月和 3月）。自动排除「取消」「排期后下车」。「需求-有子需求」「免测技术需求」「WPS协作」统一列为达标。按「所属产品线」分组；工作量仅数字政务事业部负责人计入。
             </p>
           </TabsContent>
           <TabsContent value="ones" className="mt-3">
@@ -441,6 +456,7 @@ export function PmScheduleAuditTab(props: {
               {detail?.onesId} · {detail?.expectedVersion} · {detail?.month} · 所属项目 {detail?.project} · 所属产品线 {detail?.productLine} · 产品 {detail?.pmOwner}
               {detail?.subRequirementType === SUB_REQ_WITH_CHILDREN && " · 需求-有子需求（自动达标）"}
               {detail && isTechNoTestAutoPass(detail) && " · 免测技术需求（自动达标）"}
+              {detail && isWpsCollabAutoPass(detail) && " · WPS协作（自动达标）"}
             </DialogDescription>
           </DialogHeader>
           {detail?.subRequirementType === SUB_REQ_WITH_CHILDREN && (
@@ -451,6 +467,11 @@ export function PmScheduleAuditTab(props: {
           {detail && isTechNoTestAutoPass(detail) && (
             <p className="text-xs text-[#059669] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-3 py-2">
               该需求为免测技术需求，不参与门禁审计，统一列为达标。
+            </p>
+          )}
+          {detail && isWpsCollabAutoPass(detail) && (
+            <p className="text-xs text-[#059669] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-3 py-2">
+              该需求属于「WPS协作」，不参与门禁审计，统一列为达标。
             </p>
           )}
           <div className="space-y-2 max-h-[50vh] overflow-y-auto">
@@ -469,7 +490,7 @@ export function PmScheduleAuditTab(props: {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pushOpen} onOpenChange={(open) => { if (!open && !pushing) { setPushOpen(false); setPushPreview(null); } }}>
+      <Dialog open={pushOpen} onOpenChange={(open) => { if (!open && !pushing) { setPushOpen(false); setPushPreview(null); setQaFallbackPerson(""); } }}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>推送到个人</DialogTitle>
@@ -513,6 +534,26 @@ export function PmScheduleAuditTab(props: {
               />
               <p className="text-[11px] text-[#94A3B8]">每次发送前填写，将写入推送文案</p>
             </div>
+            {pushPreview?.needsQaFallback && (
+              <div className="space-y-1.5">
+                <Label className="text-sm text-[#0F172A]">测试兜底负责人</Label>
+                <Select
+                  value={qaFallbackPerson || null}
+                  onValueChange={(val) => applyQaFallback(String(val ?? ""))}
+                  items={Object.fromEntries(QA_OWNER_FALLBACK_OPTIONS.map((name) => [name, name]))}
+                >
+                  <SelectTrigger className="h-9 w-full text-sm border-[#E4ECFC] bg-white">
+                    <SelectValue placeholder="请选择肖诗虎或别业创" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {QA_OWNER_FALLBACK_OPTIONS.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-[#94A3B8]">测试负责人为空的不合规项将发给此人，每次推送需手动选择</p>
+              </div>
+            )}
           </div>
           <div className="space-y-2 max-h-[40vh] overflow-y-auto">
             {pushPreview?.recipients.map((recipient) => (
@@ -531,14 +572,14 @@ export function PmScheduleAuditTab(props: {
             <button
               type="button"
               disabled={pushing}
-              onClick={() => { setPushOpen(false); setPushPreview(null); }}
+              onClick={() => { setPushOpen(false); setPushPreview(null); setQaFallbackPerson(""); }}
               className="h-9 px-4 text-sm font-medium text-[#64748B] border border-[#E4ECFC] rounded-lg hover:bg-[#F8FAFC] disabled:opacity-50"
             >
               取消
             </button>
             <button
               type="button"
-              disabled={pushing || !pushPreview?.recipients.length}
+              disabled={pushing || !pushPreview?.recipients.length || (Boolean(pushPreview?.needsQaFallback) && !qaFallbackPerson)}
               onClick={confirmPush}
               className="h-9 px-4 text-sm font-medium text-white bg-[#059669] hover:bg-[#047857] rounded-lg disabled:opacity-50"
             >
@@ -642,7 +683,7 @@ function OnesQueryPanel(props: {
         <FilterActions onSearch={props.onSearch} onReset={props.onReset} />
       </div>
       <p className="text-[11px] text-[#94A3B8]">
-        在全库需求中按 ONES ID 查询。{ONES_ID_FORMAT_HINT}。不限所属月份与规划月份。推送时使用所选「排期会月份」生成文案并读取对应计划日期。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」统一列为达标。
+        在全库需求中按 ONES ID 查询。{ONES_ID_FORMAT_HINT}。不限所属月份与规划月份。推送时使用所选「排期会月份」生成文案并读取对应计划日期。自动排除排期结论为「取消」「排期后下车」。「需求-有子需求」「免测技术需求」「WPS协作」统一列为达标。
       </p>
     </div>
   );

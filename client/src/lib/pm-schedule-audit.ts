@@ -49,6 +49,7 @@ export interface RoleFailBlock {
 export const SKIP_SCHED_CONCLUSIONS = new Set(["取消", "排期后下车"]);
 export const SUB_REQ_WITH_CHILDREN = "需求-有子需求";
 export const TECH_REQUIREMENT = "技术需求";
+export const WPS_COLLAB_PROJECT = "WPS协作";
 export const PRODUCT_LINE_ORDER = ["政务AI", "政务协作", "医疗版", "安全版", "WPS政务365", "统一平台"];
 export const SCHEDULE_MEETING_MILESTONE = "需求排期会";
 
@@ -124,8 +125,20 @@ function filled(value: string): boolean {
   return t !== "" && t !== "空" && t !== "未填" && t !== "-" && t !== "/";
 }
 
+function hasProject(project: string, name: string): boolean {
+  return project.split(/[,，、/\n|]/).some((part) => part.trim() === name);
+}
+
 function isOfficeProject(project: string): boolean {
-  return project.split(/[,，、]/).some((part) => part.trim() === "Office");
+  return hasProject(project, "Office");
+}
+
+export function hasWpsCollabProject(project: string): boolean {
+  return project.replace(/\s+/g, "").includes(WPS_COLLAB_PROJECT);
+}
+
+export function isWpsCollabAutoPass(item: Pick<AuditRequirement, "project">): boolean {
+  return hasWpsCollabProject(item.project);
 }
 
 function isInDigitalGovDept(fieldValue: unknown): boolean {
@@ -191,7 +204,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const notest = str(f["是否免测"]);
     const line = str(f["带出版本线"]);
     const exemption = str(f["豁免轻审批"]);
-    const project = str(f["所属项目"]);
+    const project = str(fieldByName(f, "所属项目"));
     const isOffice = isOfficeProject(project);
     const linePass = isOffice
       ? line.includes("国际") || filled(exemption)
@@ -207,7 +220,9 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
     const subRequirementType = str(f["需求类型（子需求）"]);
     const requirementType = str(f["需求类型"]);
     const isParentWithChildren = subRequirementType === SUB_REQ_WITH_CHILDREN;
-    const autoPass = isParentWithChildren || (notest === "是" && requirementType === TECH_REQUIREMENT);
+    const autoPass = isParentWithChildren
+      || (notest === "是" && requirementType === TECH_REQUIREMENT)
+      || hasWpsCollabProject(project);
     const criteria = [
       criterion("需求状态流转", status, "不在不合规状态池", !!status && !ILLEGAL_STATUS.has(status)),
       criterion("需求立项评审结论", review, "不为空且不为「无」", filled(review) && review !== "无"),
@@ -230,7 +245,7 @@ export function parseAuditRequirements(records: DbsheetRecord[]): AuditRequireme
       qaOwnerId: contactId(f["测试负责人"]),
       devInDigitalGov,
       qaInDigitalGov,
-      project: str(f["所属项目"]),
+      project,
       productLine: str(f["所属产品线"]),
       expectedVersion: str(f["期望带出版本"]),
       versionLine: line,
