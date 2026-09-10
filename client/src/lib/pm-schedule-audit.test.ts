@@ -43,6 +43,7 @@ function req(id: string, failed: string[], extra: Partial<AuditRequirement> = {}
     scheduleConclusion: "",
     subRequirementType: "",
     requirementType: "",
+    gateMet: false,
     passed: failed.length === 0,
     criteria: failed.map((name) => criterion(name, false)),
     ...extra,
