@@ -114,6 +114,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1788943349168,
       "file": "deploy-20260909164104.handoff.json"
+    },
+    {
+      "handoffId": "deploy-20260910095956",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1789005636896,
+      "file": "deploy-20260910095956.handoff.json"
     }
   ]
 }
