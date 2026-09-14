@@ -49,6 +49,7 @@ import {
   Download,
   ImageDown,
   ClipboardCheck,
+  Bug,
 } from "lucide-react";
 import {
   buildExcelExportFilename,
@@ -59,6 +60,7 @@ import {
 import { BarTopLabel, LineTopLabel, PieOutsideLabel, PieLegendTable } from "@/lib/chart-labels";
 import { getAppApiUrl } from "@/lib/oauth-redirect";
 import { PmScheduleAuditTab } from "@/components/PmScheduleAuditTab";
+import { DefectListTab } from "@/components/DefectListTab";
 import type { DbsheetRecord } from "@/lib/pm-schedule-audit";
 
 /* ==================== 常量 ==================== */
@@ -68,6 +70,7 @@ const TAB_MONTHLY = "monthly";
 const TAB_LIST = "list";
 const TAB_MILESTONE = "milestone";
 const TAB_PM_AUDIT = "pm-audit";
+const TAB_DEFECT = "defect";
 
 const STATUS_COLORS = [
   "#2563EB", "#059669", "#F59E0B", "#DC2626", "#8B5CF6",
@@ -525,6 +528,7 @@ export function DashboardPage() {
     { key: TAB_OVERVIEW, label: "迭代概览", icon: BarChart3 },
     { key: TAB_MONTHLY, label: "月度迭代情况", icon: CalendarDays },
     { key: TAB_LIST, label: "需求列表", icon: ListChecks },
+    { key: TAB_DEFECT, label: "缺陷列表", icon: Bug },
     { key: TAB_MILESTONE, label: "里程碑", icon: Milestone },
     { key: TAB_PM_AUDIT, label: "排期会准入审计(PM)", icon: ClipboardCheck },
   ] as const;
@@ -542,6 +546,9 @@ export function DashboardPage() {
     }
     if (tab === TAB_PM_AUDIT) {
       return `${base} · 数据来源《2026年政务产研版本管理》`;
+    }
+    if (tab === TAB_DEFECT) {
+      return `${base} · 未修复缺陷催办`;
     }
     return base;
   })();
@@ -1774,6 +1781,10 @@ export function DashboardPage() {
               wps={wps}
               onGateSynced={() => loadData(true)}
             />
+          )}
+
+          {tab === TAB_DEFECT && (
+            <DefectListTab />
           )}
 
           {tab === TAB_MILESTONE && (
