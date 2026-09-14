@@ -61,12 +61,13 @@ const FILTER_ALL = "__all__";
 const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证", "已修复", "已关闭"];
 
 function exportDefectsCsv(rows: DefectRow[]) {
-  const headers = ["缺陷ID", "缺陷标题", "优先级", "严重级别", "状态", "所属模块", "负责人", "创建时间", "截止日期"];
+  const headers = ["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重级别", "状态", "所属模块", "负责人", "创建时间", "截止日期"];
   const lines = [
     headers.join(","),
     ...rows.map((item) => [
       item.bugId,
       `"${item.title.replaceAll("\"", "\"\"")}"`,
+      item.iteration,
       item.priority,
       item.severity,
       item.status,
@@ -94,6 +95,7 @@ export function DefectListTab() {
   const [status, setStatus] = useState(FILTER_ALL);
   const [priority, setPriority] = useState(FILTER_ALL);
   const [moduleName, setModuleName] = useState(FILTER_ALL);
+  const [iteration, setIteration] = useState(FILTER_ALL);
   const [unrepairedOnly, setUnrepairedOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
@@ -108,6 +110,7 @@ export function DefectListTab() {
     severity: "A-严重" as DefectSeverity,
     status: "待处理" as DefectStatus,
     module: "",
+    iteration: "",
     owner: "",
     deadline: "",
   });
@@ -120,9 +123,11 @@ export function DefectListTab() {
     statuses: status === FILTER_ALL ? [] : [status],
     priorities: priority === FILTER_ALL ? [] : [priority],
     modules: moduleName === FILTER_ALL ? [] : [moduleName],
+    iterations: iteration === FILTER_ALL ? [] : [iteration],
   }).filter((item) => !unrepairedOnly || isUnrepaired(item.status));
   const stats = computeDefectStats(teamDefects);
   const modules = uniqueValues(teamDefects.map((item) => item.module));
+  const iterations = uniqueValues(teamDefects.map((item) => item.iteration));
   const allFilteredSelected = filtered.length > 0 && filtered.every((item) => selectedIds.includes(item.id));
   const selectedRows = defects.filter((item) => selectedIds.includes(item.id));
 
@@ -211,6 +216,7 @@ export function DefectListTab() {
       status: draft.status,
       team: currentTeam,
       module: draft.module.trim(),
+      iteration: draft.iteration.trim(),
       owner: draft.owner.trim(),
       reporter: draft.owner.trim(),
       createdAt: new Date().toLocaleString("zh-CN", { hour12: false }).replace(/\//g, "-"),
@@ -220,7 +226,7 @@ export function DefectListTab() {
     saveExtraDefects(nextExtras);
     setDefects(mergeDefects(SEED_DEFECTS, nextExtras));
     setCreateOpen(false);
-    setDraft({ title: "", priority: "较高", severity: "A-严重", status: "待处理", module: "", owner: "", deadline: "" });
+    setDraft({ title: "", priority: "较高", severity: "A-严重", status: "待处理", module: "", iteration: "", owner: "", deadline: "" });
     setCreating(false);
     toast.success(`已新建 ${created.bugId}`);
   };
@@ -346,6 +352,7 @@ export function DefectListTab() {
             <FilterSelect value={status} onChange={(val) => { setStatus(val); setUnrepairedOnly(false); }} allLabel="全部状态" options={STATUSES} />
             <FilterSelect value={priority} onChange={setPriority} allLabel="全部优先级" options={[...PRIORITY_OPTIONS]} />
             <FilterSelect value={moduleName} onChange={setModuleName} allLabel="全部模块" options={modules} />
+            <FilterSelect value={iteration} onChange={setIteration} allLabel="全部迭代" options={iterations} />
             {unrepairedOnly && (
               <Badge
                 className="h-9 gap-1 cursor-pointer bg-[#FFFAEB] text-[#B54708] border-[#FEDF89] font-normal"
@@ -395,7 +402,7 @@ export function DefectListTab() {
                         onCheckedChange={(checked) => toggleAll(checked === true)}
                       />
                     </th>
-                    {["缺陷ID", "缺陷标题", "优先级", "严重级别", "状态", "所属模块", "负责人", "创建时间", "截止日期", "操作"].map((head) => (
+                    {["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重级别", "状态", "所属模块", "负责人", "创建时间", "截止日期", "操作"].map((head) => (
                       <th key={head} className="py-0 h-12 px-3 font-medium whitespace-nowrap">{head}</th>
                     ))}
                   </tr>
@@ -422,6 +429,7 @@ export function DefectListTab() {
                         <td className="px-3 whitespace-nowrap">
                           <Badge className={`border font-normal ${STATUS_COLORS[item.status]}`}>{item.status}</Badge>
                         </td>
+                        <td className="px-3 whitespace-nowrap text-[#344054]">{item.iteration || "-"}</td>
                         <td className="px-3 whitespace-nowrap text-[#344054]">{item.module}</td>
                         <td className="px-3 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1.5">
@@ -475,10 +483,11 @@ export function DefectListTab() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{detail?.bugId} {detail?.title}</DialogTitle>
-            <DialogDescription>{detail?.team} · {detail?.module} · {detail?.owner} · {detail?.status}</DialogDescription>
+            <DialogDescription>{detail?.team} · {detail?.iteration || "-"} · {detail?.module} · {detail?.owner} · {detail?.status}</DialogDescription>
           </DialogHeader>
           {detail && (
             <div className="grid grid-cols-2 gap-3 text-sm">
+              <p className="text-[#94A3B8]">所属迭代</p><p className="text-[#0F172A]">{detail.iteration || "-"}</p>
               <p className="text-[#94A3B8]">优先级</p><p className="text-[#0F172A]">{detail.priority}</p>
               <p className="text-[#94A3B8]">严重级别</p><p className="text-[#0F172A]">{detail.severity}</p>
               <p className="text-[#94A3B8]">提交人</p><p className="text-[#0F172A]">{detail.reporter}</p>
@@ -513,6 +522,10 @@ export function DefectListTab() {
               <div className="space-y-1.5">
                 <Label htmlFor="new-module">所属模块</Label>
                 <Input id="new-module" value={draft.module} onChange={(e) => setDraft({ ...draft, module: e.target.value })} placeholder="例如 用户认证" className="h-9 border-[#E4ECFC]" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-iteration">所属迭代</Label>
+                <Input id="new-iteration" value={draft.iteration} onChange={(e) => setDraft({ ...draft, iteration: e.target.value })} placeholder="例如 V2.5" className="h-9 border-[#E4ECFC]" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="new-owner">负责人</Label>

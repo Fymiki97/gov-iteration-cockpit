@@ -15,6 +15,7 @@ export interface DefectRow {
   severity: DefectSeverity;
   status: DefectStatus;
   team: DefectTeam;
+  iteration: string;
   module: string;
   owner: string;
   reporter: string;
@@ -212,11 +213,12 @@ export function filterDefects(options: {
   statuses?: string[];
   priorities?: string[];
   modules?: string[];
+  iterations?: string[];
 }): DefectRow[] {
   const search = options.search?.trim().toLowerCase() ?? "";
   return options.defects.filter((item) => {
     if (search) {
-      const hay = `${item.bugId} ${item.title} ${item.owner} ${item.team} ${item.module}`.toLowerCase();
+      const hay = `${item.bugId} ${item.title} ${item.owner} ${item.team} ${item.iteration} ${item.module}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     if (options.teams?.length && !options.teams.includes(item.team)) return false;
@@ -224,6 +226,7 @@ export function filterDefects(options: {
     if (options.statuses?.length && !options.statuses.includes(item.status)) return false;
     if (options.priorities?.length && !options.priorities.includes(item.priority)) return false;
     if (options.modules?.length && !options.modules.includes(item.module)) return false;
+    if (options.iterations?.length && !options.iterations.includes(item.iteration)) return false;
     return true;
   });
 }
@@ -380,6 +383,7 @@ export function loadExtraDefects(): DefectRow[] {
       severity: normalizeSeverity(item.severity),
       status: (item.status ?? "待处理") as DefectStatus,
       team: DEFECT_TEAMS.includes(item.team as DefectTeam) ? item.team as DefectTeam : DEFECT_TEAMS[0],
+      iteration: String(item.iteration ?? ""),
       module: String(item.module ?? ""),
       owner: String(item.owner ?? ""),
       reporter: String(item.reporter ?? item.owner ?? ""),
