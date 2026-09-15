@@ -48,6 +48,8 @@ const CLOSED_STATUS_NAMES = new Set(["关闭", "不必修复", "草稿"]);
 function teamOfSprint(sprintName: string): string {
   if (sprintName.startsWith("政务AI")) return "政务AI";
   if (sprintName.startsWith("政务协作")) return "政务协作";
+  // V3.X 系列是政务AI产品线的迭代，但 ONES 迭代名无前缀
+  if (sprintName.startsWith("V3.")) return "政务AI";
   return "WPS政务365";
 }
 
