@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
   const code = url.searchParams.get("code");
   if (!code) {
     event.node.res.statusCode = 400;
-    return "Missing code parameter";
+    return "Missing code parameter (custom-callback-v2)";
   }
 
   const config = useRuntimeConfig();
