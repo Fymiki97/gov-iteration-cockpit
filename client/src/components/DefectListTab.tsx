@@ -607,8 +607,13 @@ function FilterSelect(props: {
   options: string[];
   hideAll?: boolean;
 }) {
+  // Base UI 的 SelectValue 需要显式 items 映射才能在弹层未打开时渲染 label
+  const items: Record<string, ReactNode> = {
+    ...(!props.hideAll ? { [FILTER_ALL]: props.allLabel } : {}),
+    ...Object.fromEntries(props.options.map((item) => [item, item])),
+  };
   return (
-    <Select value={props.value} onValueChange={(val) => props.onChange(String(val ?? (props.hideAll ? props.options[0] : FILTER_ALL)))}>
+    <Select value={props.value} items={items} onValueChange={(val) => props.onChange(String(val ?? (props.hideAll ? props.options[0] : FILTER_ALL)))}>
       <SelectTrigger className="w-[150px] h-9 border-[#E4ECFC] bg-white">
         <SelectValue />
       </SelectTrigger>
