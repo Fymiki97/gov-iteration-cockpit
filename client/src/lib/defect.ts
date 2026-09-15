@@ -21,6 +21,8 @@ export interface DefectRow {
   reporter: string;
   createdAt: string;
   deadline: string;
+  /** ONES 缺陷详情页链接（SEED 回退数据无此字段） */
+  onesUrl?: string;
 }
 
 export interface DefectRemindTask {

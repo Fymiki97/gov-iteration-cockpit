@@ -39,6 +39,7 @@ export interface ApiDefectRow {
   reporter: string;
   createdAt: string;
   deadline: string;
+  onesUrl?: string;
 }
 
 // 视为"未关闭"的排除状态（终态）；其余状态都返回给前端
@@ -81,11 +82,17 @@ function formatDeadline(ts: number | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function mapRow(task: OnesTask): ApiDefectRow {
+// ONES 缺陷详情页：team/project 均取自配置，issue 详情用 task uuid
+function issueDetailUrl(cfg: OnesConfig, projectUuid: string, taskUuid: string): string {
+  return `${cfg.base_url.replace(/\/+$/, "")}/project/#/team/${cfg.team_uuid}/project/${projectUuid}/issue/detail/${taskUuid}`;
+}
+
+function mapRow(cfg: OnesConfig, projectUuid: string, task: OnesTask): ApiDefectRow {
   const team = task.sprint?.name ? teamOfSprint(task.sprint.name) : "政务AI";
   return {
     id: `ones_${task.number}`,
     bugId: `BUG-${task.number}`,
+    onesUrl: issueDetailUrl(cfg, projectUuid, task.uuid),
     title: task.name,
     priority: task.priority?.value ?? "普通",
     severity: task.severity?.value ?? "B-一般",
@@ -154,9 +161,12 @@ async function loadDefects(): Promise<ApiDefectRow[]> {
     inFlight = (async () => {
       const cfg = await loadConfig();
       const tasks = await fetchOpenBugs(cfg);
+      const projectUuid = Array.isArray(cfg.default_project_uuid)
+        ? cfg.default_project_uuid[0]
+        : cfg.default_project_uuid;
       const rows = tasks
         .filter((task) => !(task.status?.name && CLOSED_STATUS_NAMES.has(task.status.name)))
-        .map(mapRow);
+        .map((task) => mapRow(cfg, projectUuid, task));
       cache = { rows, ts: Date.now() };
       return rows;
     })().finally(() => {

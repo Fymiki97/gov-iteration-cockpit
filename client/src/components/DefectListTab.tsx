@@ -472,7 +472,13 @@ export function DefectListTab() {
                             onCheckedChange={(checked) => toggleOne(item.id, checked === true)}
                           />
                         </td>
-                        <td className="px-3 whitespace-nowrap font-medium text-[#2A6FDB]">{item.bugId}</td>
+                        <td className="px-3 whitespace-nowrap font-medium">
+                          {item.onesUrl ? (
+                            <a href={item.onesUrl} target="_blank" rel="noreferrer" className="text-[#2A6FDB] hover:underline" title="在 ONES 中打开缺陷详情">{item.bugId}</a>
+                          ) : (
+                            <span className="text-[#2A6FDB]">{item.bugId}</span>
+                          )}
+                        </td>
                         <td className="px-3 text-[#0F172A] max-w-[280px] truncate" title={item.title}>{item.title}</td>
                         <td className="px-3 whitespace-nowrap">
                           <Badge className={`border font-normal ${PRIORITY_COLORS[item.priority]}`}>{item.priority}</Badge>
@@ -536,7 +542,12 @@ export function DefectListTab() {
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{detail?.bugId} {detail?.title}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {detail?.bugId} {detail?.title}
+              {detail?.onesUrl && (
+                <a href={detail.onesUrl} target="_blank" rel="noreferrer" className="text-sm font-normal text-[#2A6FDB] hover:underline">在 ONES 中打开 ↗</a>
+              )}
+            </DialogTitle>
             <DialogDescription>{detail?.team} · {detail?.iteration || "-"} · {detail?.module} · {detail?.owner} · {detail?.status}</DialogDescription>
           </DialogHeader>
           {detail && (
