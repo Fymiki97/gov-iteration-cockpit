@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "handoffId": "oauth-loop-fixed",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789445295382,
+  "note": {
+    "completed": [
+      "修复登录无限请求授权死循环并部署上线（version 2105006049172871），Playwright 实测一轮授权后 isAuthorized:true，看板正常加载",
+      "根因：capability 库默认 callback 把 session cookie 写在 o.wpsgo.com（host-only），应用页面在 comate.wpsgo.com 读不到 → status 永远 false 无限重新授权；直接写父域 cookie 方案被中间层剥离 Domain 属性（实测确认不可靠）",
+      "最终方案：callback 换 token 后把 JWT 放 URL fragment（#cbt=）带回 return_url，前端读 hash 后调用同域 POST /api/oauth/claim 验签并写 host-only cookie；JWT 格式（HS256+payload.act）与 cookie 名（capa_session_<appId>）与库完全兼容，status/能力调用零改动",
+      "新增 claim.post.ts 验签接口（HMAC 比对+exp 校验），本地实测 200+正确 Set-Cookie；前端 OAuthProvider 在 checkStatus 前先 claimFromHash",
+      "缩略图已重新上传（thumbnail_key projects/.../thumbnail.png），comate.json cover 保持 true",
+      "lint 0 错误、typecheck 通过、测试 55/55、pnpm run pack 完成、git 提交（3 files, 117 insertions）"
+    ],
+    "remaining": [
+      "代码已提交未推送远程（等用户指令，用户习惯单独发「推送代码」）",
+      "建议用户线上强刷验证：首轮授权后不再循环，直接进看板"
+    ],
+    "decisions": [
+      "放弃写父域 cookie：观测发现线上 Set-Cookie 的 Domain=.wpsgo.com 被中间层剥成 host-only（cookie store 只出现 o.wpsgo.com 域条目），改为 fragment+claim 方案彻底绕开",
+      "JWT 经 URL fragment 回传安全可接受：fragment 不发送到服务器/不进 Referer，前端 claim 后立即 history.replaceState 清 hash，JWT 短时效（expires_in）",
+      "claim 写 Secure（https 时）+SameSite=Lax+HttpOnly，本地 localhost 自动省略 Secure",
+      "验证手段：先伪造本地 secret 的 JWT 测 claim 闭环（成功），再 Playwright 实测线上整链路"
+    ],
+    "issues": [
+      "o.wpsgo.com 网关行为复杂：/app/* 静态路径 302 到 comate 会话域、/api/* 带 code 的 POST/GET 豁免 gateway_token、curl 顶层导航 401 —— 未来调试网关相关问题时不要依赖 curl，用 Playwright 顶层导航或页面内同域 fetch",
+      "线上服务端日志不可见，本次通过 cookie store domain 值推断网关剥 Domain 属性（假设 B），未 100% 证实，但 fragment+claim 方案对两种假设都免疫",
+      "SESSION_SECRET 硬编码在 server/nitro.config.ts（模板既有行为），已知安全隐患未改动"
+    ],
+    "files_changed": [
+      "server/routes/api/oauth/callback.ts",
+      "server/routes/api/oauth/claim.post.ts",
+      "client/src/components/OAuthProvider.tsx"
+    ]
+  },
+  "reason": "OAuth 登录死循环修复完成并部署验证通过"
+}

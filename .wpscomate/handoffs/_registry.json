@@ -168,6 +168,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1789441999453,
       "file": "deploy-bugid-20260915.handoff.json"
+    },
+    {
+      "handoffId": "oauth-loop-fixed",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1789445295382,
+      "file": "oauth-loop-fixed.handoff.json"
     }
   ]
 }
