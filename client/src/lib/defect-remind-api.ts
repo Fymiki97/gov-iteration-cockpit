@@ -39,6 +39,13 @@ export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
   return data.tasks ?? [];
 }
 
+/** 从后端拉取 ONES 项目的活跃缺陷（服务端已过滤已关闭/不必修复/草稿） */
+export async function fetchOnesDefects(): Promise<DefectRow[]> {
+  const res = await fetch(getAppApiUrl("api/ones-defects"), { credentials: "include" });
+  const data = await parseJson<{ ok: boolean; rows: DefectRow[] }>(res);
+  return data.rows ?? [];
+}
+
 export async function createRemindTask(input: DefectRemindTaskInput): Promise<DefectRemindTask> {
   const res = await fetch(getAppApiUrl("api/defect-remind-tasks"), {
     method: "POST",

@@ -55,7 +55,7 @@ import {
   type DefectSeverity,
   type DefectStatus,
 } from "@/lib/defect";
-import { fetchRemindTasks, runRemindTask } from "@/lib/defect-remind-api";
+import { fetchOnesDefects, fetchRemindTasks, runRemindTask } from "@/lib/defect-remind-api";
 
 const FILTER_ALL = "__all__";
 const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证", "已修复", "已关闭"];
@@ -88,6 +88,8 @@ function exportDefectsCsv(rows: DefectRow[]) {
 
 export function DefectListTab() {
   const [defects, setDefects] = useState<DefectRow[]>(() => mergeDefects(SEED_DEFECTS, loadExtraDefects()));
+  const [onesRows, setOnesRows] = useState<DefectRow[]>([]);
+  const [onesLoading, setOnesLoading] = useState(false);
   const [currentTeam, setCurrentTeam] = useState<DefectTeam>(DEFECT_TEAMS[0]);
   const [tasks, setTasks] = useState<DefectRemindTask[]>([]);
   const [search, setSearch] = useState("");
@@ -133,11 +135,21 @@ export function DefectListTab() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchRemindTasks()
-      .then(async (loaded) => {
+    (async () => {
+      let currentDefects = mergeDefects(SEED_DEFECTS, loadExtraDefects());
+      try {
+        const rows = await fetchOnesDefects();
+        if (cancelled) return;
+        setOnesRows(rows);
+        currentDefects = mergeDefects(rows, loadExtraDefects());
+        setDefects(currentDefects);
+      } catch {
+        if (!cancelled) toast.error("ONES 缺陷拉取失败，当前显示本地数据");
+      }
+      try {
+        const loaded = await fetchRemindTasks();
         if (cancelled) return;
         setTasks(loaded);
-        const currentDefects = mergeDefects(SEED_DEFECTS, loadExtraDefects());
         const due = loaded.filter((task) => isTaskDue(task));
         if (due.length === 0) return;
         const next = [...loaded];
@@ -160,10 +172,10 @@ export function DefectListTab() {
           }
         }
         if (!cancelled) setTasks(next);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) toast.error("提醒任务加载失败，可稍后在配置中重试");
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -209,7 +221,7 @@ export function DefectListTab() {
     const extras = loadExtraDefects();
     const created: DefectRow = {
       id: `local_${Date.now().toString(36)}`,
-      bugId: nextBugId(mergeDefects(SEED_DEFECTS, extras)),
+      bugId: nextBugId(mergeDefects(onesRows.length > 0 ? onesRows : SEED_DEFECTS, extras)),
       title: draft.title.trim(),
       priority: draft.priority,
       severity: draft.severity,
@@ -224,7 +236,7 @@ export function DefectListTab() {
     };
     const nextExtras = [created, ...extras];
     saveExtraDefects(nextExtras);
-    setDefects(mergeDefects(SEED_DEFECTS, nextExtras));
+    setDefects(mergeDefects(onesRows.length > 0 ? onesRows : SEED_DEFECTS, nextExtras));
     setCreateOpen(false);
     setDraft({ title: "", priority: "较高", severity: "A-严重", status: "待处理", module: "", iteration: "", owner: "", deadline: "" });
     setCreating(false);
@@ -371,10 +383,23 @@ export function DefectListTab() {
               </button>
               <button
                 type="button"
-                onClick={() => { setDefects(mergeDefects(SEED_DEFECTS, loadExtraDefects())); toast.success("已刷新缺陷列表"); }}
-                className="h-9 px-3 inline-flex items-center gap-1.5 text-sm text-[#344054] border border-[#E4ECFC] rounded-lg hover:bg-[#F8FAFC]"
+                disabled={onesLoading}
+                onClick={async () => {
+                  setOnesLoading(true);
+                  try {
+                    const rows = await fetchOnesDefects();
+                    setOnesRows(rows);
+                    setDefects(mergeDefects(rows, loadExtraDefects()));
+                    toast.success(`已刷新，ONES 共 ${rows.length} 条活跃缺陷`);
+                  } catch {
+                    toast.error("ONES 拉取失败，已保留当前数据");
+                  } finally {
+                    setOnesLoading(false);
+                  }
+                }}
+                className="h-9 px-3 inline-flex items-center gap-1.5 text-sm text-[#344054] border border-[#E4ECFC] rounded-lg hover:bg-[#F8FAFC] disabled:opacity-50"
               >
-                <RefreshCw className="w-4 h-4" /> 刷新
+                <RefreshCw className={`w-4 h-4 ${onesLoading ? "animate-spin" : ""}`} /> 刷新
               </button>
               <button
                 type="button"
