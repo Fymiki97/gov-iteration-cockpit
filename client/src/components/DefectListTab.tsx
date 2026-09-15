@@ -118,7 +118,9 @@ export function DefectListTab() {
   });
 
   const teamDefects = defects.filter((item) => item.team === currentTeam);
-  const filtered = filterDefects({
+  // 统计卡片跟随筛选条件（含迭代），但不受「仅看未修复」开关影响，
+  // 避免勾选后修复率/待修复数互相矛盾
+  const scoped = filterDefects({
     defects: teamDefects,
     search,
     severities: severity === FILTER_ALL ? [] : [severity],
@@ -126,8 +128,9 @@ export function DefectListTab() {
     priorities: priority === FILTER_ALL ? [] : [priority],
     modules: moduleName === FILTER_ALL ? [] : [moduleName],
     iterations: iteration === FILTER_ALL ? [] : [iteration],
-  }).filter((item) => !unrepairedOnly || isUnrepaired(item.status));
-  const stats = computeDefectStats(teamDefects);
+  });
+  const filtered = scoped.filter((item) => !unrepairedOnly || isUnrepaired(item.status));
+  const stats = computeDefectStats(scoped);
   const modules = uniqueValues(teamDefects.map((item) => item.module));
   const iterations = uniqueValues(teamDefects.map((item) => item.iteration));
   const allFilteredSelected = filtered.length > 0 && filtered.every((item) => selectedIds.includes(item.id));
