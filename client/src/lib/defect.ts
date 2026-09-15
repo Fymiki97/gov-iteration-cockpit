@@ -70,7 +70,7 @@ export interface DefectStats {
 }
 
 export const UNREPAIRED_STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证"];
-export const RESOLVED_STATUSES: DefectStatus[] = ["已修复"];
+export const RESOLVED_STATUSES: DefectStatus[] = ["已修复", "已关闭"];
 export const ALL_TEAMS = "全部团队";
 export const SEVERITY_OPTIONS: DefectSeverity[] = ["S-致命", "A-严重", "B-一般", "C-低"];
 export const PRIORITY_OPTIONS: DefectPriority[] = ["最高", "较高", "普通", "较低", "最低"];

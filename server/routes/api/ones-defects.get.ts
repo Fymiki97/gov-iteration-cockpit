@@ -42,8 +42,9 @@ export interface ApiDefectRow {
   onesUrl?: string;
 }
 
-// 视为"未关闭"的排除状态（终态）；其余状态都返回给前端
-const CLOSED_STATUS_NAMES = new Set(["关闭", "不必修复", "草稿"]);
+// 仅排除草稿（非正式缺陷）；其余状态都返回给前端，
+// 关闭/不必修复映射为「已关闭」，保证缺陷总数包含已完成缺陷
+const CLOSED_STATUS_NAMES = new Set(["草稿"]);
 
 // ONES 迭代名前缀 → 看板团队
 function teamOfSprint(sprintName: string): string {
@@ -59,6 +60,7 @@ function statusOf(name: string): string {
   if (name === "待修复") return "待处理";
   if (name === "处理中" || name === "修复中" || name === "待回归") return "处理中";
   if (name === "回归通过" || name === "已修复") return "已修复";
+  if (name === "关闭" || name === "不必修复") return "已关闭";
   return "处理中";
 }
 
