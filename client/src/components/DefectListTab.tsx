@@ -98,6 +98,7 @@ export function DefectListTab() {
   const [priority, setPriority] = useState(FILTER_ALL);
   const [moduleName, setModuleName] = useState(FILTER_ALL);
   const [iteration, setIteration] = useState(FILTER_ALL);
+  const [itersExpanded, setItersExpanded] = useState(false);
   const [unrepairedOnly, setUnrepairedOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
@@ -135,7 +136,22 @@ export function DefectListTab() {
     .filter((item) => !unrepairedOnly || isUnrepaired(item.status));
   const stats = computeDefectStats(scoped);
   const modules = uniqueValues(teamDefects.map((item) => item.module));
-  const iterations = uniqueValues(teamDefects.map((item) => item.iteration));
+  // 按迭代内缺陷的最新创建时间降序，默认只展开最新变动的 3 个迭代
+  const latestByIter = new Map<string, string>();
+  for (const item of teamDefects) {
+    if (!item.iteration) continue;
+    const prev = latestByIter.get(item.iteration);
+    if (!prev || item.createdAt > prev) latestByIter.set(item.iteration, item.createdAt);
+  }
+  const iterations = uniqueValues(teamDefects.map((item) => item.iteration))
+    .sort((a, b) => (latestByIter.get(b) ?? "").localeCompare(latestByIter.get(a) ?? ""));
+  const VISIBLE_ITER_COUNT = 3;
+  const selectedIterHidden = iteration !== FILTER_ALL && !iterations.slice(0, VISIBLE_ITER_COUNT).includes(iteration);
+  const visibleIters = itersExpanded || selectedIterHidden ? iterations : iterations.slice(0, VISIBLE_ITER_COUNT);
+  const collapseIters = () => {
+    setItersExpanded(false);
+    if (iteration !== FILTER_ALL && !iterations.slice(0, VISIBLE_ITER_COUNT).includes(iteration)) setIteration(FILTER_ALL);
+  };
   const allFilteredSelected = filtered.length > 0 && filtered.every((item) => selectedIds.includes(item.id));
   const selectedRows = defects.filter((item) => selectedIds.includes(item.id));
 
@@ -279,7 +295,7 @@ export function DefectListTab() {
           >
             全部
           </button>
-          {iterations.map((name) => {
+          {visibleIters.map((name) => {
             const count = teamDefects.filter((item) => item.iteration === name).length;
             const active = iteration === name;
             return (
@@ -294,6 +310,16 @@ export function DefectListTab() {
               </button>
             );
           })}
+          {iterations.length > VISIBLE_ITER_COUNT && (
+            <button
+              type="button"
+              onClick={() => (itersExpanded || selectedIterHidden ? collapseIters() : setItersExpanded(true))}
+              className="h-7 px-3 rounded-full text-xs border border-dashed border-[#CBD5E1] text-[#667085] hover:border-[#2A6FDB] hover:text-[#2A6FDB] transition-colors inline-flex items-center gap-1"
+            >
+              {itersExpanded || selectedIterHidden ? "收起" : `展开全部 ${iterations.length} 个迭代`}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${itersExpanded || selectedIterHidden ? "rotate-180" : ""}`}><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+          )}
         </div>
       )}
 
