@@ -11,7 +11,7 @@ import {
   collectAtUserIds,
   type DefectRemindItem,
 } from "~/utils/defect-remind";
-import { getPeopleMap } from "~/utils/dbsheet-cache";
+import { ensurePeopleMap } from "~/utils/dbsheet-cache";
 
 interface RunBody {
   taskId?: string;
@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
   });
   // 真 @：钉钉（@userid + at 字段）与 WPS（<at id> 标签）通道支持；企微 markdown 不支持 @，降级纯文本 @姓名
   const channel = detectWebhookChannel(task.webhook);
-  const peopleMap = channel === "钉钉" || channel === "WPS" ? getPeopleMap() : null;
+  const peopleMap = channel === "钉钉" || channel === "WPS" ? await ensurePeopleMap() : null;
   const preview = formatRemindMessage({ defects, task, peopleMap, channel });
   if (defects.length === 0) {
     await markRemindTaskRun({ id: task.id, status: "failed", message: "没有匹配的未修复缺陷" });

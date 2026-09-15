@@ -28,6 +28,29 @@ export function getPeopleMap(): Record<string, string> | null {
   return peopleCache;
 }
 
+/**
+ * 确保人员映射可用：缓存为空时拉一次 sheet 28（用于服务端冷启动直接发催办的场景）。
+ * 失败返回 null（降级为纯文本 @姓名）。
+ */
+export async function ensurePeopleMap(): Promise<Record<string, string> | null> {
+  if (peopleCache && Object.keys(peopleCache).length > 0) return peopleCache;
+  if (!savedGatewayToken) return null;
+  const res = await fetchSheet(savedGatewayToken, PEOPLE_SHEET_ID, { prefer_id: false, max_records: 500 });
+  if (!res) return null;
+  const map: Record<string, string> = {};
+  for (const rec of extractRecords(res)) {
+    const name = typeof rec["姓名"] === "string" ? rec["姓名"].trim() : "";
+    const userId = typeof rec["用户ID"] === "string" ? rec["用户ID"].trim() : String(rec["用户ID"] ?? "").trim();
+    if (name && userId) map[name] = userId;
+  }
+  if (Object.keys(map).length > 0) {
+    peopleCache = map;
+    console.info(`[people-map] 懒加载 ${Object.keys(map).length} 条`);
+    return map;
+  }
+  return null;
+}
+
 export function setPeopleMap(map: Record<string, string> | null): void {
   peopleCache = map;
 }
