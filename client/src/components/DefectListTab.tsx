@@ -58,7 +58,7 @@ import {
 import { fetchOnesDefects, fetchRemindTasks, runRemindTask } from "@/lib/defect-remind-api";
 
 const FILTER_ALL = "__all__";
-const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证", "已修复"];
+const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证"];
 
 function exportDefectsCsv(rows: DefectRow[]) {
   const headers = ["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重程度", "状态", "所属模块", "负责人", "创建时间", "截止日期"];
@@ -130,9 +130,10 @@ export function DefectListTab() {
     modules: moduleName === FILTER_ALL ? [] : [moduleName],
     iterations: iteration === FILTER_ALL ? [] : [iteration],
   });
-  // 统计含已关闭缺陷，但列表展示与状态筛选不含已关闭（避免大列表卡顿）
+  // 统计含已关闭缺陷，但列表只展示未完成缺陷（待处理/处理中/待验证），
+  // 已修复与已关闭不再出现在列表（避免大列表卡顿）
   const filtered = scoped
-    .filter((item) => item.status !== "已关闭")
+    .filter((item) => isUnrepaired(item.status))
     .filter((item) => !unrepairedOnly || isUnrepaired(item.status));
   const stats = computeDefectStats(scoped);
   const modules = uniqueValues(teamDefects.map((item) => item.module));
