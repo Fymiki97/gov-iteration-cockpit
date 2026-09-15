@@ -66,6 +66,31 @@ function waitForOpenSDK(timeoutMs = 8000): Promise<boolean> {
   });
 }
 
+// callback 在跨子域场景下无法可靠写会话 cookie，改为把 JWT 放在 URL
+// fragment（#cbt=...）带回本页；这里落成同域 cookie 后再查授权状态。
+async function claimSessionFromHash(): Promise<boolean> {
+  const match = /(?:^|[#&])cbt=([^&]+)/.exec(location.hash);
+  if (!match) return false;
+  let token = match[1];
+  try {
+    token = decodeURIComponent(token);
+  } catch {
+    // 保持原值
+  }
+  history.replaceState(null, "", location.pathname + location.search);
+  try {
+    const res = await fetch(getAppApiUrl("api/oauth/claim"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ token }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function OAuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<OAuthStatus>("checking");
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +166,10 @@ export function OAuthProvider({ children }: { children: ReactNode }) {
   triggerAuthRef.current = triggerAuth;
 
   useEffect(() => {
-    checkStatus();
+    (async () => {
+      await claimSessionFromHash();
+      checkStatus();
+    })();
   }, [checkStatus]);
 
   if (status === "checking" || status === "authorizing") {

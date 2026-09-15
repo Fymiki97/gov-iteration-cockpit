@@ -13,7 +13,6 @@ import { defineEventHandler, getRequestURL, getHeader } from "h3";
  * cookie 名必须保持 getCapaSessionCookieName(appId) 的约定：capa_session_<appId>。
  */
 
-const COOKIE_PREFIX = "capa_session_";
 const PARENT_DOMAIN = ".wpsgo.com";
 
 function b64urlJson(value: unknown): string {
@@ -116,26 +115,30 @@ export default defineEventHandler(async (event) => {
 
   const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
   const jwt = signSessionJwt(accessToken, expiresAt, sessionSecret);
-  const cookieName = `${COOKIE_PREFIX}${appId}`;
+  const cookieName = `capa_session_${appId}`;
 
-  // 线上：提升到父域，让 comate.wpsgo.com 与 o.wpsgo.com 共享会话；
-  // 本地（localhost）：保持 host-only，等价于默认实现。
-  const host = getHeader(event, "x-forwarded-host") ?? url.host;
-  const isWpsgoDomain = /(^|\.)wpsgo\.com$/.test(host.split(":")[0] ?? "");
-  const domainPart = isWpsgoDomain ? `; Domain=${PARENT_DOMAIN}` : "";
-  const setCookie = `${cookieName}=${jwt}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${expiresIn}${domainPart}`;
-
-  event.node.res.setHeader("Set-Cookie", setCookie);
-
+  // 有 return_url：把 JWT 放 URL fragment 带回同域页面（fragment 不会发送到
+  // 服务器，也不进 Referer）。前端负责调用 /api/oauth/claim 落成 cookie。
+  // 直接写父域 cookie 的方案受中间层影响不可靠，不再依赖。
   if (returnUrl && isSafeReturnUrl(returnUrl, url.origin)) {
+    const sep = returnUrl.includes("#") ? "&" : "#";
     event.node.res.statusCode = 302;
-    event.node.res.setHeader("Location", returnUrl);
+    event.node.res.setHeader("Location", `${returnUrl}${sep}cbt=${encodeURIComponent(jwt)}`);
     return null;
   }
-  // 无 return_url（弹窗模式）：与默认实现一致，通知 opener 后关窗
+
+  // 无 return_url（弹窗模式）：直接写 cookie 并通知 opener。
+  // 线上写父域让两个子域共享；本地保持 host-only。
+  const host = (getHeader(event, "x-forwarded-host") ?? url.host).split(":")[0] ?? "";
+  const isWpsgoDomain = /(^|\.)wpsgo\.com$/.test(host);
+  const domainPart = isWpsgoDomain ? `; Domain=${PARENT_DOMAIN}` : "";
+  event.node.res.setHeader(
+    "Set-Cookie",
+    `${cookieName}=${jwt}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${expiresIn}${domainPart}`,
+  );
   event.node.res.setHeader("Content-Type", "text/html; charset=utf-8");
   return `<!DOCTYPE html><html><body><script>
 window.opener.postMessage("wps-oauth-success", "*");
 window.close();
-<\/script></body></html>`;
+</script></body></html>`;
 });
