@@ -8,8 +8,10 @@ import {
   isTaskDue,
   matchTaskDefects,
   postWebhook,
+  collectAtUserIds,
   type DefectRemindItem,
 } from "~/utils/defect-remind";
+import { getPeopleMap } from "~/utils/dbsheet-cache";
 
 interface RunBody {
   taskId?: string;
@@ -39,14 +41,17 @@ export default defineEventHandler(async (event) => {
     team: task.team,
     severities: task.severities,
   });
-  const preview = formatRemindMessage({ defects, task });
+  // 真 @：钉钉（@userid + at 字段）与 WPS（<at id> 标签）通道支持；企微 markdown 不支持 @，降级纯文本 @姓名
+  const channel = detectWebhookChannel(task.webhook);
+  const peopleMap = channel === "钉钉" || channel === "WPS" ? getPeopleMap() : null;
+  const preview = formatRemindMessage({ defects, task, peopleMap, channel });
   if (defects.length === 0) {
     await markRemindTaskRun({ id: task.id, status: "failed", message: "没有匹配的未修复缺陷" });
     throw createError({ statusCode: 400, message: "没有匹配的未修复缺陷" });
   }
 
   try {
-    await postWebhook({ webhook: task.webhook, title: task.name, text: preview });
+    await postWebhook({ webhook: task.webhook, title: task.name, text: preview, atUserIds: channel === "钉钉" ? collectAtUserIds(defects, peopleMap) : [] });
     await markRemindTaskRun({
       id: task.id,
       status: "success",

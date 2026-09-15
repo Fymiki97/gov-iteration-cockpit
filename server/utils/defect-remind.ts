@@ -76,17 +76,30 @@ export function matchTaskDefects(options: {
 
 /** 缺陷 ID 渲染：有链接时用 markdown 超链接，否则纯文本；转义 markdown 特殊字符 */
 function bugIdMarkdown(item: DefectRemindItem): string {
-  const bugId = item.bugId.replace(/[\[\]]/g, "");
+  const bugId = item.bugId.replace(/[[\]]/g, "");
   if (!item.onesUrl) return bugId;
   return `[${bugId}](${item.onesUrl})`;
 }
 
-function formatLine(item: DefectRemindItem, task: DefectRemindTask, now: Date): string {
+/**
+ * 负责人真 @ 渲染（需人员映射姓名→userid；无映射降级纯文本 @姓名）：
+ * - 钉钉：文本写 @userid，配合 body.at.atUserIds 实现真 @（钉钉官方规则）
+ * - WPS：文本内嵌 <at id="userid">姓名</at> 标签（官方消息内容结构说明支持的 at 语法）
+ */
+function ownerMention(item: DefectRemindItem, peopleMap?: Record<string, string> | null, channel?: string): string {
+  const userId = item.owner && peopleMap ? peopleMap[item.owner] : undefined;
+  if (!userId || !item.owner) return `@${item.owner}`;
+  if (channel === "钉钉") return `@${userId}`;
+  if (channel === "WPS") return `<at id="${userId}">${item.owner}</at>`;
+  return `@${item.owner}`;
+}
+
+function formatLine(item: DefectRemindItem, task: DefectRemindTask, now: Date, peopleMap?: Record<string, string> | null, channel?: string): string {
   const overdue = isOverdue(item, now);
   const deadline = task.includeDeadline && item.deadline
     ? `，截止 ${item.deadline.slice(0, 10)}${overdue ? "（已超期）" : ""}`
     : "";
-  const owner = `@${item.owner}`;
+  const owner = ownerMention(item, peopleMap, channel);
   if (task.template === "detailed" || task.includeDetail) {
     return `${bugIdMarkdown(item)} ${item.title}｜${item.severity}/${item.priority}｜${item.status}｜${owner}${deadline}`;
   }
@@ -97,6 +110,10 @@ export function formatRemindMessage(options: {
   defects: DefectRemindItem[];
   task: DefectRemindTask;
   now?: Date;
+  /** 姓名→userid 映射；配合 channel 实现真 @（钉钉 at 字段 / WPS at 标签），不传则纯文本 @姓名 */
+  peopleMap?: Record<string, string> | null;
+  /** 目标通道（detectWebhookChannel 结果），决定真 @ 的语法 */
+  channel?: string;
 }): string {
   const now = options.now ?? new Date();
   const title = options.task.name.trim() || "未修复缺陷提醒";
@@ -115,8 +132,19 @@ export function formatRemindMessage(options: {
     header.push("请相关负责人尽快跟进处理。");
   }
   if (options.defects.length === 0) return `${header.join("\n")}\n\n当前没有匹配的未修复缺陷。`;
-  const lines = options.defects.map((item, index) => `${index + 1}. ${formatLine(item, options.task, now)}`);
+  const lines = options.defects.map((item, index) => `${index + 1}. ${formatLine(item, options.task, now, options.peopleMap, options.channel)}`);
   return `${header.join("\n")}\n\n${lines.join("\n")}`;
+}
+
+/** 收集本次消息需要真 @ 的钉钉 userid（去重保序，仅钉钉通道 at.atUserIds 需要） */
+export function collectAtUserIds(defects: DefectRemindItem[], peopleMap?: Record<string, string> | null): string[] {
+  if (!peopleMap) return [];
+  const ids: string[] = [];
+  for (const item of defects) {
+    const userId = item.owner ? peopleMap[item.owner] : undefined;
+    if (userId && !ids.includes(userId)) ids.push(userId);
+  }
+  return ids;
 }
 
 export function detectWebhookChannel(webhook: string): "钉钉" | "企业微信" | "WPS" | "Webhook" {
@@ -131,10 +159,16 @@ export function buildWebhookBody(options: {
   webhook: string;
   title: string;
   text: string;
+  /** 钉钉通道：真 @ 需要同时传 at.atUserIds 与文本中的 @userid */
+  atUserIds?: string[];
 }): Record<string, unknown> {
   const channel = detectWebhookChannel(options.webhook);
   if (channel === "钉钉") {
-    return { msgtype: "markdown", markdown: { title: options.title, text: options.text } };
+    const body: Record<string, unknown> = { msgtype: "markdown", markdown: { title: options.title, text: options.text } };
+    if (options.atUserIds && options.atUserIds.length > 0) {
+      body.at = { atUserIds: options.atUserIds, isAtAll: false };
+    }
+    return body;
   }
   if (channel === "企业微信") {
     return { msgtype: "markdown", markdown: { content: options.text } };
@@ -171,6 +205,7 @@ export async function postWebhook(options: {
   webhook: string;
   title: string;
   text: string;
+  atUserIds?: string[];
 }): Promise<{ status: number; body: string }> {
   const url = parseWebhookUrl(options.webhook);
   const res = await fetch(url, {
@@ -180,6 +215,7 @@ export async function postWebhook(options: {
       webhook: options.webhook,
       title: options.title,
       text: options.text,
+      atUserIds: options.atUserIds,
     })),
   });
   const body = await res.text().catch(() => "");
