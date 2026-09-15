@@ -62,9 +62,12 @@ function teamOfSprint(sprintName: string): string {
 // ONES 状态 → 看板状态
 function statusOf(name: string): string {
   if (name === "待修复") return "待处理";
-  if (name === "处理中" || name === "修复中" || name === "待回归") return "处理中";
+  if (name === "处理中" || name === "修复中") return "处理中";
+  // 待回归 = 开发已修复、待测试回归验证
+  if (name === "待回归") return "待验证";
   if (name === "回归通过" || name === "已修复") return "已修复";
   if (name === "关闭" || name === "不必修复") return "已关闭";
+  console.warn(`[ones-defects] 未识别的 ONES 状态名: ${JSON.stringify(name)}，按处理中处理`);
   return "处理中";
 }
 
