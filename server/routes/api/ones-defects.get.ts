@@ -42,6 +42,9 @@ export interface ApiDefectRow {
   onesUrl?: string;
 }
 
+// 需求池/待办池类迭代不参与缺陷看板
+const EXCLUDED_SPRINT_NAMES = new Set(["需求池-产品用", "一体机历史需求", "政企反馈待办池"]);
+
 // 仅排除草稿（非正式缺陷）；其余状态都返回给前端，
 // 关闭/不必修复映射为「已关闭」，保证缺陷总数包含已完成缺陷
 const CLOSED_STATUS_NAMES = new Set(["草稿"]);
@@ -50,8 +53,9 @@ const CLOSED_STATUS_NAMES = new Set(["草稿"]);
 function teamOfSprint(sprintName: string): string {
   if (sprintName.startsWith("政务AI")) return "政务AI";
   if (sprintName.startsWith("政务协作")) return "政务协作";
-  // V3.X 系列是政务AI产品线的迭代，但 ONES 迭代名无前缀
-  if (sprintName.startsWith("V3.")) return "政务AI";
+  // Vx.x 系列与电子公文库是政务AI产品线的迭代，但 ONES 迭代名无前缀
+  if (/^V\d+\./.test(sprintName)) return "政务AI";
+  if (sprintName.startsWith("电子公文库")) return "政务AI";
   return "WPS政务365";
 }
 
@@ -168,6 +172,7 @@ async function loadDefects(): Promise<ApiDefectRow[]> {
         : cfg.default_project_uuid;
       const rows = tasks
         .filter((task) => !(task.status?.name && CLOSED_STATUS_NAMES.has(task.status.name)))
+        .filter((task) => !(task.sprint?.name && EXCLUDED_SPRINT_NAMES.has(task.sprint.name)))
         .map((task) => mapRow(cfg, projectUuid, task));
       cache = { rows, ts: Date.now() };
       return rows;
