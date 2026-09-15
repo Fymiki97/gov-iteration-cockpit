@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "handoffId": "iteration-filter-done",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789439957812,
+  "note": {
+    "completed": [
+      "缺陷列表迭代筛选功能完成并实测通过：每个团队 Tab 内有独立「所属迭代」筛选下拉（真实 ONES 迭代名），选「政务AI V4.9.2609」后 40 行过滤为 7 行",
+      "数据源切换到 ONES GraphQL：后端 server/routes/api/ones-defects.get.ts 拉 TcbDiRYGTw4onGCf 项目活跃 BUG（过滤关闭/不必修复/草稿），60s 缓存，116 条（政务AI 40/政务协作 30/WPS政务365 46），团队映射按 sprint 前缀",
+      "修复筛选器触发器显示 __all__ 的 bug：Base UI Select 加 items 映射后正确渲染中文 label",
+      "校验全过：lint 0 错误、typecheck 通过、测试 55/55，pnpm run pack 完成"
+    ],
+    "remaining": [
+      "用户线上验证迭代筛选与真实数据",
+      "缩略图未重新上传（凭据已有 V02 开头 COOKIE，下轮可补）"
+    ],
+    "decisions": [
+      "迭代名自带团队前缀（政务AI*/政务协作_*），团队与迭代同源解析",
+      "ONES 状态映射：待修复→待处理，处理中/修复中/待回归→处理中，回归通过→已修复",
+      "本地 SEED 数据保留为 ONES 拉取失败时的回退"
+    ],
+    "issues": [
+      "ONES token 存于 ~/.ones-config.json，过期时接口返回 502 并在前端提示",
+      "dev server 日志有 nitro sourcemap __dirname 报错，不影响接口"
+    ],
+    "files_changed": [
+      "client/src/lib/defect.ts",
+      "client/src/components/DefectListTab.tsx",
+      "client/src/lib/defect-remind-api.ts",
+      "client/src/lib/defect.test.ts",
+      "server/routes/api/ones-defects.get.ts"
+    ]
+  },
+  "reason": "迭代筛选功能完成并验证，收尾本轮"
+}
