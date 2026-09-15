@@ -254,6 +254,7 @@ export function DefectListTab() {
               setCurrentTeam(team);
               setSelectedIds([]);
               setModuleName(FILTER_ALL);
+              setIteration(FILTER_ALL);
             }}
             className={`pb-3 text-sm ${currentTeam === team ? "font-medium text-[#2A6FDB] border-b-2 border-[#2A6FDB]" : "text-[#94A3B8] hover:text-[#64748B]"}`}
           >
@@ -261,6 +262,34 @@ export function DefectListTab() {
           </button>
         ))}
       </div>
+
+      {iterations.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[#94A3B8] mr-1">所属迭代</span>
+          <button
+            type="button"
+            onClick={() => setIteration(FILTER_ALL)}
+            className={`h-7 px-3 rounded-full text-xs border transition-colors ${iteration === FILTER_ALL ? "bg-[#2A6FDB] border-[#2A6FDB] text-white font-medium" : "bg-white border-[#E4ECFC] text-[#667085] hover:border-[#2A6FDB] hover:text-[#2A6FDB]"}`}
+          >
+            全部
+          </button>
+          {iterations.map((name) => {
+            const count = teamDefects.filter((item) => item.iteration === name).length;
+            const active = iteration === name;
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setIteration(active ? FILTER_ALL : name)}
+                className={`h-7 px-3 rounded-full text-xs border transition-colors inline-flex items-center gap-1.5 ${active ? "bg-[#2A6FDB] border-[#2A6FDB] text-white font-medium" : "bg-white border-[#E4ECFC] text-[#667085] hover:border-[#2A6FDB] hover:text-[#2A6FDB]"}`}
+              >
+                {name}
+                <span className={`px-1.5 rounded-full text-[10px] leading-4 ${active ? "bg-white/20" : "bg-[#F2F4F7] text-[#98A2B3]"}`}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
