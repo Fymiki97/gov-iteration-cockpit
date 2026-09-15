@@ -11,6 +11,8 @@ export interface DefectRemindItem {
   owner: string;
   deadline: string;
   createdAt: string;
+  /** ONES 缺陷详情页链接，存在时消息中缺陷 ID 渲染为超链接 */
+  onesUrl?: string;
 }
 
 const UNREPAIRED = new Set(["待处理", "处理中", "待验证"]);
@@ -72,15 +74,23 @@ export function matchTaskDefects(options: {
   });
 }
 
+/** 缺陷 ID 渲染：有链接时用 markdown 超链接，否则纯文本；转义 markdown 特殊字符 */
+function bugIdMarkdown(item: DefectRemindItem): string {
+  const bugId = item.bugId.replace(/[\[\]]/g, "");
+  if (!item.onesUrl) return bugId;
+  return `[${bugId}](${item.onesUrl})`;
+}
+
 function formatLine(item: DefectRemindItem, task: DefectRemindTask, now: Date): string {
   const overdue = isOverdue(item, now);
   const deadline = task.includeDeadline && item.deadline
     ? `，截止 ${item.deadline.slice(0, 10)}${overdue ? "（已超期）" : ""}`
     : "";
+  const owner = `@${item.owner}`;
   if (task.template === "detailed" || task.includeDetail) {
-    return `${item.bugId} ${item.title}｜${item.severity}/${item.priority}｜${item.status}｜${item.module}｜${item.owner}${deadline}`;
+    return `${bugIdMarkdown(item)} ${item.title}｜${item.severity}/${item.priority}｜${item.status}｜${owner}${deadline}`;
   }
-  return `${item.bugId} ${item.title}（${item.owner}）${deadline}`;
+  return `${bugIdMarkdown(item)} ${item.title}（${owner}）${deadline}`;
 }
 
 export function formatRemindMessage(options: {
@@ -94,11 +104,11 @@ export function formatRemindMessage(options: {
   const overdueCount = options.defects.filter((item) => isOverdue(item, now)).length;
   const fatalCount = options.defects.filter((item) => item.severity === "S-致命" || item.severity === "致命").length;
   const header = [
-    `【${title}】`,
+    `**【${title}】**`,
     `团队：${team} ｜ 未修复 ${options.defects.length} 条 ｜ 致命 ${fatalCount} 条 ｜ 已超期 ${overdueCount} 条`,
   ];
   if (options.task.template === "escalate") {
-    header.push("请优先处理致命及超期缺陷，必要时升级至模块负责人。");
+    header.push("请优先处理致命及超期缺陷，必要时升级至负责人。");
   } else if (options.task.template === "deadline") {
     header.push("请关注截止日期，避免缺陷超期影响版本交付。");
   } else {

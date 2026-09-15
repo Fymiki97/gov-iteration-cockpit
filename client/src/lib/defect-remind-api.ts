@@ -22,6 +22,7 @@ function toRemindItems(defects: DefectRow[]) {
     owner: item.owner,
     deadline: item.deadline,
     createdAt: item.createdAt,
+    onesUrl: item.onesUrl ?? "",
   }));
 }
 

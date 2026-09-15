@@ -316,10 +316,11 @@ function formatDefectLine(item: DefectRow, options: {
   const deadline = options.includeDeadline && item.deadline
     ? `，截止 ${item.deadline.slice(0, 10)}${overdue ? "（已超期）" : ""}`
     : "";
+  const bugId = item.onesUrl ? `[${item.bugId}](${item.onesUrl})` : item.bugId;
   if (options.template === "detailed" || options.includeDetail) {
-    return `${item.bugId} ${item.title}｜${item.severity}/${item.priority}｜${item.status}｜${item.owner}${deadline}`;
+    return `${bugId} ${item.title}｜${item.severity}/${item.priority}｜${item.status}｜@${item.owner}${deadline}`;
   }
-  return `${item.bugId} ${item.title}（${item.owner}）${deadline}`;
+  return `${bugId} ${item.title}（@${item.owner}）${deadline}`;
 }
 
 export function formatRemindMessage(options: {
@@ -340,7 +341,7 @@ export function formatRemindMessage(options: {
   }));
 
   const header = [
-    `【${title}】`,
+    `**【${title}】**`,
     `团队：${team} ｜ 未修复 ${options.defects.length} 条 ｜ 致命 ${fatalCount} 条 ｜ 已超期 ${overdueCount} 条`,
   ];
 
