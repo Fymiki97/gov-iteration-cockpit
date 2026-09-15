@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "handoffId": "deploy-bugid-20260915",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789441999453,
+  "note": {
+    "completed": [
+      "缺陷ID去除 BUG- 前缀：后端 bugId=String(task.number)，nextBugId 返回纯数字，测试同步改纯数字断言（55/55 过）",
+      "缺陷ID跳转：a 标签 target=_blank 打开 ONES issue/detail/{uuid}，详情弹窗加「在 ONES 中打开」链接（上轮已实现，本轮部署上线）",
+      "第 24 次部署成功：version_id 2653585643098669，https://o.wpsgo.com/app/41000207/9w1qvC8NVtKs/",
+      "缩略图重新截图并上传成功（V02 凭据有效）"
+    ],
+    "remaining": [
+      "用户线上验证缺陷ID跳转与纯数字编号"
+    ],
+    "decisions": [
+      "用户看到的旧样式（蓝色 font-medium 纯文本）与新版链接样式相同，判断根因是改动未部署；本次 publish 后线上生效",
+      "bugId 全链路纯数字（列表/弹窗/CSV/催办一致）"
+    ],
+    "issues": [
+      "Comate 预览 webview（Electron）可能拦截 target=_blank 外链，浏览器访问线上版正常"
+    ],
+    "files_changed": [
+      "server/routes/api/ones-defects.get.ts",
+      "client/src/lib/defect.ts",
+      "client/src/lib/defect.test.ts"
+    ]
+  },
+  "reason": "第 24 次部署完成：缺陷ID跳转+去前缀上线"
+}
