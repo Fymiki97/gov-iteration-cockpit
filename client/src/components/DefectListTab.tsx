@@ -96,7 +96,6 @@ export function DefectListTab() {
   const [severity, setSeverity] = useState(FILTER_ALL);
   const [status, setStatus] = useState(FILTER_ALL);
   const [priority, setPriority] = useState(FILTER_ALL);
-  const [moduleName, setModuleName] = useState(FILTER_ALL);
   const [iteration, setIteration] = useState(FILTER_ALL);
   const [itersExpanded, setItersExpanded] = useState(false);
   const [unrepairedOnly, setUnrepairedOnly] = useState(false);
@@ -127,7 +126,6 @@ export function DefectListTab() {
     severities: severity === FILTER_ALL ? [] : [severity],
     statuses: status === FILTER_ALL ? [] : [status],
     priorities: priority === FILTER_ALL ? [] : [priority],
-    modules: moduleName === FILTER_ALL ? [] : [moduleName],
     iterations: iteration === FILTER_ALL ? [] : [iteration],
   });
   // 统计含已关闭缺陷，但列表只展示未完成缺陷（待处理/处理中/待验证），
@@ -136,7 +134,6 @@ export function DefectListTab() {
     .filter((item) => isUnrepaired(item.status))
     .filter((item) => !unrepairedOnly || isUnrepaired(item.status));
   const stats = computeDefectStats(scoped);
-  const modules = uniqueValues(teamDefects.map((item) => item.module));
   // 按迭代内缺陷的最新创建时间降序，默认只展开最新变动的 3 个迭代
   const latestByIter = new Map<string, string>();
   for (const item of teamDefects) {
@@ -276,7 +273,9 @@ export function DefectListTab() {
             onClick={() => {
               setCurrentTeam(team);
               setSelectedIds([]);
-              setModuleName(FILTER_ALL);
+              setSeverity(FILTER_ALL);
+              setStatus(FILTER_ALL);
+              setPriority(FILTER_ALL);
               setIteration(FILTER_ALL);
             }}
             className={`pb-3 text-sm ${currentTeam === team ? "font-medium text-[#2A6FDB] border-b-2 border-[#2A6FDB]" : "text-[#94A3B8] hover:text-[#64748B]"}`}
@@ -425,7 +424,6 @@ export function DefectListTab() {
             <FilterSelect value={severity} onChange={setSeverity} allLabel="全部严重程度" options={[...SEVERITY_OPTIONS]} />
             <FilterSelect value={status} onChange={(val) => { setStatus(val); setUnrepairedOnly(false); }} allLabel="全部状态" options={STATUSES} />
             <FilterSelect value={priority} onChange={setPriority} allLabel="全部优先级" options={[...PRIORITY_OPTIONS]} />
-            <FilterSelect value={moduleName} onChange={setModuleName} allLabel="全部模块" options={modules} />
             <FilterSelect value={iteration} onChange={setIteration} allLabel="全部迭代" options={iterations} />
             {unrepairedOnly && (
               <Badge
