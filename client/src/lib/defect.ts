@@ -317,7 +317,7 @@ function formatDefectLine(item: DefectRow, options: {
     ? `，截止 ${item.deadline.slice(0, 10)}${overdue ? "（已超期）" : ""}`
     : "";
   if (options.template === "detailed" || options.includeDetail) {
-    return `${item.bugId} ${item.title}｜${item.severity}/${item.priority}｜${item.status}｜${item.module}｜${item.owner}${deadline}`;
+    return `${item.bugId} ${item.title}｜${item.severity}/${item.priority}｜${item.status}｜${item.owner}${deadline}`;
   }
   return `${item.bugId} ${item.title}（${item.owner}）${deadline}`;
 }
@@ -345,7 +345,7 @@ export function formatRemindMessage(options: {
   ];
 
   if (options.task.template === "escalate") {
-    header.push("请优先处理致命及超期缺陷，必要时升级至模块负责人。");
+    header.push("请优先处理致命及超期缺陷，必要时升级至负责人。");
   } else if (options.task.template === "deadline") {
     header.push("请关注截止日期，避免缺陷超期影响版本交付。");
   } else {
