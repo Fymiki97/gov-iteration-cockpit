@@ -91,7 +91,7 @@ function mapRow(cfg: OnesConfig, projectUuid: string, task: OnesTask): ApiDefect
   const team = task.sprint?.name ? teamOfSprint(task.sprint.name) : "政务AI";
   return {
     id: `ones_${task.number}`,
-    bugId: `BUG-${task.number}`,
+    bugId: String(task.number),
     onesUrl: issueDetailUrl(cfg, projectUuid, task.uuid),
     title: task.name,
     priority: task.priority?.value ?? "普通",

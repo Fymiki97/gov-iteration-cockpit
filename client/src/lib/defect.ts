@@ -204,7 +204,7 @@ export function nextBugId(defects: DefectRow[]): string {
     const match = item.bugId.match(/(\d+)$/);
     if (match) max = Math.max(max, Number(match[1]));
   }
-  return `BUG-${max + 1}`;
+  return String(max + 1);
 }
 
 export function filterDefects(options: {
