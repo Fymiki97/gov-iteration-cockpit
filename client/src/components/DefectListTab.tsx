@@ -61,7 +61,7 @@ const FILTER_ALL = "__all__";
 const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证", "已修复"];
 
 function exportDefectsCsv(rows: DefectRow[]) {
-  const headers = ["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重级别", "状态", "所属模块", "负责人", "创建时间", "截止日期"];
+  const headers = ["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重程度", "状态", "所属模块", "负责人", "创建时间", "截止日期"];
   const lines = [
     headers.join(","),
     ...rows.map((item) => [
@@ -365,7 +365,7 @@ export function DefectListTab() {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#0F172A]">一键提醒未修复缺陷</p>
-            <p className="text-xs text-[#64748B] mt-1">可配置通知渠道、接收对象、严重级别过滤与消息模板，一键批量催办</p>
+            <p className="text-xs text-[#64748B] mt-1">可配置通知渠道、接收对象、严重程度过滤与消息模板，一键批量催办</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -421,7 +421,7 @@ export function DefectListTab() {
                 </button>
               )}
             </div>
-            <FilterSelect value={severity} onChange={setSeverity} allLabel="全部严重级别" options={[...SEVERITY_OPTIONS]} />
+            <FilterSelect value={severity} onChange={setSeverity} allLabel="全部严重程度" options={[...SEVERITY_OPTIONS]} />
             <FilterSelect value={status} onChange={(val) => { setStatus(val); setUnrepairedOnly(false); }} allLabel="全部状态" options={STATUSES} />
             <FilterSelect value={priority} onChange={setPriority} allLabel="全部优先级" options={[...PRIORITY_OPTIONS]} />
             <FilterSelect value={moduleName} onChange={setModuleName} allLabel="全部模块" options={modules} />
@@ -488,7 +488,7 @@ export function DefectListTab() {
                         onCheckedChange={(checked) => toggleAll(checked === true)}
                       />
                     </th>
-                    {["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重级别", "状态", "所属模块", "负责人", "创建时间", "截止日期", "操作"].map((head) => (
+                    {["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重程度", "状态", "所属模块", "负责人", "创建时间", "截止日期", "操作"].map((head) => (
                       <th key={head} className="py-0 h-12 px-3 font-medium whitespace-nowrap">{head}</th>
                     ))}
                   </tr>
@@ -512,6 +512,7 @@ export function DefectListTab() {
                           )}
                         </td>
                         <td className="px-3 text-[#0F172A] max-w-[280px] truncate" title={item.title}>{item.title}</td>
+                        <td className="px-3 whitespace-nowrap text-[#344054] max-w-[180px] truncate" title={item.iteration}>{item.iteration || "-"}</td>
                         <td className="px-3 whitespace-nowrap">
                           <Badge className={`border font-normal ${PRIORITY_COLORS[item.priority]}`}>{item.priority}</Badge>
                         </td>
@@ -521,7 +522,6 @@ export function DefectListTab() {
                         <td className="px-3 whitespace-nowrap">
                           <Badge className={`border font-normal ${STATUS_COLORS[item.status]}`}>{item.status}</Badge>
                         </td>
-                        <td className="px-3 whitespace-nowrap text-[#344054]">{item.iteration || "-"}</td>
                         <td className="px-3 whitespace-nowrap text-[#344054]">{item.module}</td>
                         <td className="px-3 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1.5">
@@ -586,7 +586,7 @@ export function DefectListTab() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <p className="text-[#94A3B8]">所属迭代</p><p className="text-[#0F172A]">{detail.iteration || "-"}</p>
               <p className="text-[#94A3B8]">优先级</p><p className="text-[#0F172A]">{detail.priority}</p>
-              <p className="text-[#94A3B8]">严重级别</p><p className="text-[#0F172A]">{detail.severity}</p>
+              <p className="text-[#94A3B8]">严重程度</p><p className="text-[#0F172A]">{detail.severity}</p>
               <p className="text-[#94A3B8]">提交人</p><p className="text-[#0F172A]">{detail.reporter}</p>
               <p className="text-[#94A3B8]">创建时间</p><p className="text-[#0F172A]">{detail.createdAt}</p>
               <p className="text-[#94A3B8]">截止日期</p>
@@ -613,7 +613,7 @@ export function DefectListTab() {
                 <FilterSelect value={draft.priority} onChange={(val) => setDraft({ ...draft, priority: val as DefectPriority })} allLabel="较高" options={[...PRIORITY_OPTIONS]} hideAll />
               </div>
               <div className="space-y-1.5">
-                <Label>严重级别</Label>
+                <Label>严重程度</Label>
                 <FilterSelect value={draft.severity} onChange={(val) => setDraft({ ...draft, severity: val as DefectSeverity })} allLabel="A-严重" options={[...SEVERITY_OPTIONS]} hideAll />
               </div>
               <div className="space-y-1.5">
