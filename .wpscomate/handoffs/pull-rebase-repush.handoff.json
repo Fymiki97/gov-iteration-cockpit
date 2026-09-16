@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "handoffId": "pull-rebase-repush",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789567600156,
+  "note": {
+    "completed": [
+      "拉取远端：fetch 发现远端新提交 96f2c7d（fix: 按状态类别拉取 ONES 活跃缺陷，5 文件业务修复）",
+      "本地曾分叉（ahead 1 / behind 1）：本地自动落盘提交 bc2558f（handoff 元文件，提交信息=用户原话）",
+      "git pull --rebase 整合：bc2558f 重放到 96f2c7d 之上，无冲突",
+      "重新提交：amend 规范化提交信息为「chore: 同步 @负责人 回滚发布的交接记录」→ 新 hash 1daf3ed",
+      "git push origin main 成功（96f2c7d..1daf3ed，fast-forward 非 force），main 与 origin/main 一致"
+    ],
+    "remaining": [
+      "远端业务修复 96f2c7d（ONES 活跃缺陷拉取）尚未发布上线，线上仍是 version 2356918348461611（不含此修复）；待用户确认后重新发布",
+      "真@重做仍待定：需可靠 userid 来源"
+    ],
+    "decisions": [
+      "「重新提交」落地为：rebase 后 amend 顶端自动提交的提交信息（安全，仅元文件），而非 force push 改历史",
+      "发布需用户明确要求，本轮未发布"
+    ],
+    "issues": [
+      "若用户长期依赖系统自动提交（用户消息作提交信息），后续还会出现类似 bc2558f 的分叉，需拉取后 rebase 整合"
+    ]
+  },
+  "reason": "拉取远端业务修复并 rebase 整合本地自动提交，重新提交为规范信息后推送"
+}
