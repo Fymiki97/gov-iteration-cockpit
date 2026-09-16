@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "handoffId": "ones-error-visible-deployed",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789570244733,
+  "note": {
+    "completed": [
+      "用户确认后重新发布上线：version 1789570137643，version_id 3018874695351134，status=deployed",
+      "线上现包含 ones-defects 错误可见化修复：服务端 200+ok:false+具体错误（内网不可达/超时/401 诊断），前端展示真实原因",
+      "缩略图已重新截图并上传成功（本轮改了代码，按规则更新）",
+      "重新发布未改可见范围"
+    ],
+    "remaining": [
+      "用户线上刷新页面查看真实错误：若显示内网不可达，需平台层打通网络或接受线上降级（前端有 SEED_DEFECTS 回退）",
+      "ONES token 硬编码在 git 仓库的安全隐患待处理（轮换+环境变量）",
+      "真@重做仍待定：需可靠 userid 来源",
+      "本轮改动未提交 git"
+    ],
+    "decisions": [
+      "版本号沿用上轮毫秒时间戳格式"
+    ],
+    "issues": [
+      "若线上确认内网不可达，代码层无解，需产品/平台决策"
+    ],
+    "files_changed": [
+      "server/routes/api/ones-defects.get.ts",
+      "client/src/lib/defect-remind-api.ts"
+    ]
+  },
+  "reason": "ONES 错误可见化修复已发布上线（版本 1789570137643）"
+}
