@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "handoffId": "at-mention-rollback-deployed",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789566059968,
+  "note": {
+    "completed": [
+      "按用户要求提交并推送上线：git push main（b194eef..75985d5，含回滚后代码 + handoff 元文件提交）",
+      "重新发布线上版本覆盖可能存在的坏版本：version_id 2356918348461611，status=deployed，short_url https://o.wpsgo.com/app/41000207/9w1qvC8NVtKs/",
+      "发布流水线自动 install/build/zip 完成，cover=true 且本轮未改业务代码，按规则跳过截图",
+      "线上现在行为 = 回滚后 b194eef 状态：sheet28 表内映射命中才真@，无映射者纯文本 @姓名，不会再 @ 错人"
+    ],
+    "remaining": [
+      "真@重做未定：需可靠 userid 来源（人工核对通讯录或负责人自填 sheet28），不可再用 user search 自动解析（已证伪）",
+      "建议用户线上验证催办消息格式（应为纯文本 @姓名，无 at 标签）",
+      "注意：HEAD 上的 75985d5 提交（信息=用户消息「我肉眼看到…」）非我创建，疑似系统自动提交 handoff 文件，已随本次推送带到远程"
+    ],
+    "decisions": [
+      "发布描述如实标注「回滚 @负责人 至表内映射版本」，便于追溯",
+      "重新发布不改可见范围（既有规则）"
+    ],
+    "issues": [
+      "如果线上催办定时任务仍启用，在用户验证前若触发会以纯文本 @姓名 提醒（不会再 @ 错人，但也不是真@）"
+    ]
+  },
+  "reason": "回滚后的代码已提交推送并重新发布上线，覆盖线上坏版本"
+}

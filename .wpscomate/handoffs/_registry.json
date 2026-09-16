@@ -180,6 +180,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1789561832422,
       "file": "at-mention-rollback.handoff.json"
+    },
+    {
+      "handoffId": "at-mention-rollback-deployed",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1789566059968,
+      "file": "at-mention-rollback-deployed.handoff.json"
     }
   ]
 }
