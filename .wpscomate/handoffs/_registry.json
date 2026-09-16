@@ -174,6 +174,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1789445295382,
       "file": "oauth-loop-fixed.handoff.json"
+    },
+    {
+      "handoffId": "at-mention-rollback",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1789561832422,
+      "file": "at-mention-rollback.handoff.json"
     }
   ]
 }

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "handoffId": "at-mention-rollback",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789561832422,
+  "note": {
+    "completed": [
+      "应用户要求回滚 @负责人 修复：git reset --hard 到 origin/main (b194eef)，撤销两个未推送提交（内置兑底映射 BUILTIN_PEOPLE_MAP + cookie/fields 解析重构）",
+      "回滚后状态：sheet28 表内映射命中才真@，无映射者纯文本 @姓名 降级，不会再 @ 错人",
+      "typecheck 0 错误、lint 0 错误（5 警告为既有）、pnpm run pack 完成，BUILTIN_PEOPLE_MAP 确认已清除",
+      "两个被撤销提交未推送过远程，可从 reflog 找回（77ca47d、ca3fdce）"
+    ],
+    "remaining": [
+      "若坏版本已部署到线上，需重新发布才生效；发布前建议先停用线上催办任务，避免继续 @ 错人",
+      "用户未决定是否重做真@：重做需可靠 userid 来源（人工核对通讯录或负责人自填 sheet28），不可再用 user search 自动解析（已证实搜出的 userid 是错的人）",
+      "用户习惯单独说「推送代码」，本次回滚未推送"
+    ],
+    "decisions": [
+      "回滚范围=两个未推送提交（reset 到 origin/main），保留已推送的 sheet28 映射/懒加载/at标签基础设施（9164f5a、b194eef）",
+      "user search 实名搜索解析 userid 的方案被证伪：搜出来的数字 id 对应错误的人，全部 @ 错",
+      "不再尝试自动解析 userid，后续真@需求优先走人工数据源"
+    ],
+    "issues": [
+      "用户在群里肉眼看到 @ 的是错误的人（具体哪个字段的 userid 不可靠未深究，可能 user search 返回同姓名/同部门其他人）",
+      "线上若已部署坏版本，定时任务继续跑会持续 @ 错人"
+    ],
+    "files_changed": [
+      "server/utils/dbsheet-cache.ts",
+      "server/routes/api/defect-remind-tasks/run.post.ts"
+    ]
+  },
+  "reason": "@负责人 全部 @ 错人，按用户要求回滚上一轮内置映射修复，恢复纯文本降级"
+}
