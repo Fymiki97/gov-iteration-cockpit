@@ -192,6 +192,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1789567600156,
       "file": "pull-rebase-repush.handoff.json"
+    },
+    {
+      "handoffId": "active-defects-fix-deployed",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1789568800233,
+      "file": "active-defects-fix-deployed.handoff.json"
     }
   ]
 }

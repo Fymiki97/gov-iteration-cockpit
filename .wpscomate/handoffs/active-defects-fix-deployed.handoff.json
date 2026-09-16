@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "handoffId": "active-defects-fix-deployed",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789568800233,
+  "note": {
+    "completed": [
+      "应用户确认发布上线：code publish 成功，version_id 6329169559635244，status=deployed",
+      "线上现包含 96f2c7d 业务修复：按状态类别拉取 ONES 活跃缺陷（zip 体积变化印证新代码生效：前端 +408B、服务端 +2KB）",
+      "cover=true 且本轮未改代码，按规则跳过截图；重新发布未改可见范围"
+    ],
+    "remaining": [
+      "建议用户线上验证缺陷列表加载（96f2c7d 修复点）和催办消息格式（纯文本 @姓名）",
+      "真@重做仍待定：需可靠 userid 来源",
+      "本地 dev server（bb0d1704）有历史错误告警（no_token/404），为本地 Cookie 未授权访问 API 的已知噪音，不影响线上"
+    ],
+    "decisions": [
+      "发布描述如实标注「按状态类别拉取活跃缺陷，修复接口失败」"
+    ]
+  },
+  "reason": "远端业务修复 96f2c7d 已确认发布上线"
+}
