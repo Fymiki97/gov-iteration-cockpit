@@ -15,6 +15,7 @@
  * NOT the project root—it's `/app/deploy-srv/`.
  */
 import { cpSync, readdirSync, copyFileSync, existsSync, mkdirSync, statSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { resolve, dirname, extname, join, sep } from "node:path";
 import { createRequire, isBuiltin } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -247,6 +248,14 @@ while (queue.length > 0) {
 }
 if (copiedPkgs.size > 0) {
   console.log(`  -> Copied ${copiedPkgs.size} runtime dep(s) to ${nmDest}: ${[...copiedPkgs].join(", ")}`);
+}
+
+// 6. Bundle ~/.ones-config.json next to the Nitro output so production
+//    can load ONES credentials without the developer's home directory.
+const onesCfgSrc = join(homedir(), ".ones-config.json");
+if (existsSync(onesCfgSrc)) {
+  copyFileSync(onesCfgSrc, join(serverDir, "ones-config.json"));
+  console.log(`  -> Copied ones-config.json to ${serverDir}`);
 }
 
 console.log("[copy-capability-assets] Done");

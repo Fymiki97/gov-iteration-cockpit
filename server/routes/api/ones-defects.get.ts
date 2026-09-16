@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 interface OnesConfig {
   base_url: string;
@@ -45,9 +46,8 @@ export interface ApiDefectRow {
 // 需求池/待办池类迭代不参与缺陷看板
 const EXCLUDED_SPRINT_NAMES = new Set(["需求池-产品用", "一体机历史需求", "政企反馈待办池"]);
 
-// 仅排除草稿（非正式缺陷）；其余状态都返回给前端，
-// 关闭/不必修复映射为「已关闭」，保证缺陷总数包含已完成缺陷
-const CLOSED_STATUS_NAMES = new Set(["草稿"]);
+// GraphQL 用 statusCategory 排除 done（关闭/不必修复），这里再去掉草稿
+const SKIP_STATUS_NAMES = new Set(["草稿"]);
 
 // ONES 迭代名前缀 → 看板团队
 function teamOfSprint(sprintName: string): string {
@@ -120,11 +120,48 @@ const CACHE_TTL_MS = 60_000;
 let cache: { rows: ApiDefectRow[]; ts: number } | null = null;
 let inFlight: Promise<ApiDefectRow[]> | null = null;
 
+async function readConfigFile(path: string): Promise<OnesConfig | null> {
+  try {
+    return JSON.parse(await readFile(path, "utf-8")) as OnesConfig;
+  } catch {
+    return null;
+  }
+}
+
+function configFromRuntime(): OnesConfig | null {
+  const runtime = useRuntimeConfig();
+  const authToken = String(runtime.ONES_AUTH_TOKEN ?? "");
+  const teamUuid = String(runtime.ONES_TEAM_UUID ?? "");
+  if (!authToken || !teamUuid) return null;
+  const project = String(runtime.ONES_PROJECT_UUID ?? "");
+  return {
+    base_url: String(runtime.ONES_BASE_URL || "https://ones.dig.kso.net"),
+    team_uuid: teamUuid,
+    user_id: String(runtime.ONES_USER_ID ?? ""),
+    auth_token: authToken,
+    default_project_uuid: project.includes(",")
+      ? project.split(",").map((item) => item.trim()).filter(Boolean)
+      : project,
+    bug_issue_type_uuid: String(runtime.ONES_BUG_ISSUE_TYPE_UUID || "") || undefined,
+  };
+}
+
+function bundledConfigPath(): string | null {
+  try {
+    return join(dirname(fileURLToPath(import.meta.url)), "ones-config.json");
+  } catch {
+    return null;
+  }
+}
+
 async function loadConfig(): Promise<OnesConfig> {
-  const raw = await readFile(join(homedir(), ".ones-config.json"), "utf-8");
-  const cfg = JSON.parse(raw) as OnesConfig;
-  if (!cfg.auth_token || !cfg.team_uuid) {
-    throw createError({ statusCode: 500, message: "ONES 配置不完整（~/.ones-config.json 缺少 auth_token / team_uuid）" });
+  const bundled = bundledConfigPath();
+  const cfg =
+    (await readConfigFile(join(homedir(), ".ones-config.json")))
+    ?? (bundled ? await readConfigFile(bundled) : null)
+    ?? configFromRuntime();
+  if (!cfg?.auth_token || !cfg.team_uuid) {
+    throw createError({ statusCode: 500, message: "ONES 配置不完整（缺少 auth_token / team_uuid）" });
   }
   return cfg;
 }
@@ -135,8 +172,10 @@ async function fetchOpenBugs(cfg: OnesConfig): Promise<OnesTask[]> {
     : [cfg.default_project_uuid];
   const project = projects[0];
   const url = `${cfg.base_url.replace(/\/+$/, "")}/project/api/project/team/${cfg.team_uuid}/items/graphql?t=Task`;
+  // 只拉 to_do / in_progress。不按 createTime 取前 2000 条，否则会被已关闭缺陷占满，
+  // 活跃缺陷被挤掉，响应超过 1MB，网关/前端解析失败后回退到本地空数据。
   const query = `{
-    tasks(filter:{project_in:["${project}"],issueType_in:["${cfg.bug_issue_type_uuid ?? "Tk5ypVS8"}"]},orderBy:{createTime:DESC},limit:2000){
+    tasks(filter:{project_in:["${project}"],issueType_in:["${cfg.bug_issue_type_uuid ?? "Tk5ypVS8"}"],statusCategory_in:["to_do","in_progress"]},orderBy:{createTime:DESC},limit:500){
       uuid number name status{name} sprint{name} priority{value} severity:_6Uk19k7i{value} module:_SH5ADjuQ owner{name} createTime deadline
     }
   }`;
@@ -149,6 +188,7 @@ async function fetchOpenBugs(cfg: OnesConfig): Promise<OnesTask[]> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query }),
+    signal: AbortSignal.timeout(20_000),
   });
 
   if (res.status === 401) {
@@ -174,7 +214,7 @@ async function loadDefects(): Promise<ApiDefectRow[]> {
         ? cfg.default_project_uuid[0]
         : cfg.default_project_uuid;
       const rows = tasks
-        .filter((task) => !(task.status?.name && CLOSED_STATUS_NAMES.has(task.status.name)))
+        .filter((task) => !(task.status?.name && SKIP_STATUS_NAMES.has(task.status.name)))
         .filter((task) => !(task.sprint?.name && EXCLUDED_SPRINT_NAMES.has(task.sprint.name)))
         .map((task) => mapRow(cfg, projectUuid, task));
       cache = { rows, ts: Date.now() };
@@ -188,6 +228,8 @@ async function loadDefects(): Promise<ApiDefectRow[]> {
 
 export default defineEventHandler(async (event) => {
   try {
+    const refresh = getQuery(event).refresh;
+    if (refresh === "1" || refresh === "true") cache = null;
     const rows = await loadDefects();
     setHeader(event, "Cache-Control", "no-store");
     return { ok: true, rows, ts: cache?.ts ?? Date.now() };

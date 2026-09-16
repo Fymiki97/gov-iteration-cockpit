@@ -163,8 +163,11 @@ export function DefectListTab() {
         setOnesRows(rows);
         currentDefects = mergeDefects(rows, loadExtraDefects());
         setDefects(currentDefects);
-      } catch {
-        if (!cancelled) toast.error("ONES 缺陷拉取失败，当前显示本地数据");
+      } catch (err) {
+        if (!cancelled) {
+          const detail = err instanceof Error && err.message ? err.message : "";
+          toast.error(detail ? `ONES 缺陷拉取失败：${detail}` : "ONES 缺陷拉取失败，当前显示本地数据");
+        }
       }
       try {
         const loaded = await fetchRemindTasks();
@@ -447,12 +450,13 @@ export function DefectListTab() {
                 onClick={async () => {
                   setOnesLoading(true);
                   try {
-                    const rows = await fetchOnesDefects();
+                    const rows = await fetchOnesDefects({ refresh: true });
                     setOnesRows(rows);
                     setDefects(mergeDefects(rows, loadExtraDefects()));
                     toast.success(`已刷新，ONES 共 ${rows.length} 条活跃缺陷`);
-                  } catch {
-                    toast.error("ONES 拉取失败，已保留当前数据");
+                  } catch (err) {
+                    const detail = err instanceof Error && err.message ? err.message : "";
+                    toast.error(detail ? `ONES 拉取失败：${detail}` : "ONES 拉取失败，已保留当前数据");
                   } finally {
                     setOnesLoading(false);
                   }

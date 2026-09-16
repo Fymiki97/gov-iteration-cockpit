@@ -19,6 +19,14 @@ export default defineNitroConfig({
     SESSION_SECRET: '54229e9b3594705a4f1db32599c5086a7b89ad5465707c3b686dd7d40a85c887',
     WPS_APP_ID: 'AK20251127ECOXII',
     WPS_APP_SECRET: 'f59d077c03b8d65fa9f257c5ae3155e9',
+    // 生产环境没有开发机上的 ~/.ones-config.json，打包后走这份默认配置。
+    // 本地若存在 ~/.ones-config.json 仍优先读文件，方便轮换 token。
+    ONES_BASE_URL: 'https://ones.dig.kso.net',
+    ONES_TEAM_UUID: 'MuZLKcYe',
+    ONES_USER_ID: 'N3T6tnMR',
+    ONES_AUTH_TOKEN: 'spERBIRCA1c012MXNVbSr6kPVixQwVyLq9NZpW1ldtSy1sEdnLB7w7DUrwbdKZyF',
+    ONES_PROJECT_UUID: 'TcbDiRYGTw4onGCf',
+    ONES_BUG_ISSUE_TYPE_UUID: 'Tk5ypVS8',
     nitro: {
       envPrefix: '',
     },
