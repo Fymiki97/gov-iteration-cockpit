@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "handoffId": "ones-defects-error-visible",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789569996920,
+  "note": {
+    "completed": [
+      "诊断：本地 /api/ones-defects 成功、token 未过期、GraphQL 查询正常；线上 5xx 的 message 被 Nitro 生产模式剥离成 statusMessage \"Server Error\"，前端 parseJson 优先取 statusMessage → 用户只见笼统错误",
+      "关键发现：ones.dig.kso.net 解析到 198.19.0.218（内网/fake-ip 保留网段），线上云端容器大概率无法访问内网 ONES → 96f2c7d 补配置后线上开始真正发请求才暴露网络不可达",
+      "修复①：服务端 ones-defects.get.ts 失败改返回 200+{ok:false,error}（200 响应体不被剥离），网络异常翻译为可行动中文诊断（ENOTFOUND/EAI_AGAIN→内网域名提示；TimeoutError→超时；ETIMEDOUT/ECONNREFUSED→网络不通）",
+      "修复②：前端 defect-remind-api.ts fetchOnesDefects 识别 ok:false → throw data.error，toast 展示真实原因",
+      "验证：check:types 0 错误、lint 0 错误（5 既有警告）、pack 完成，本地成功路径 curl ok:true"
+    ],
+    "remaining": [
+      "需用户确认后发布上线：发布后线上刷新页面即可看到真实错误；若显示内网不可达，需平台层面打通网络或接受线上降级（前端已有 SEED_DEFECTS 回退）",
+      "上线前未提交 git（等用户指示）",
+      "真@重做仍待定：需可靠 userid 来源"
+    ],
+    "decisions": [
+      "错误可见化只改 ones-defects 端点，不扩散到其他 API（scope 纪律）",
+      "不改硬编码 token/配置（cursor 已内置），根因是网络可达性而非配置"
+    ],
+    "issues": [
+      "若线上确因内网不可达，代码层面无法让云端容器访问内网 ONES，需产品/平台层面决策",
+      "96f2c7d 把 ONES token 硬编码进 git 仓库（安全隐患），后续建议轮换并改用环境变量"
+    ],
+    "files_changed": [
+      "server/routes/api/ones-defects.get.ts",
+      "client/src/lib/defect-remind-api.ts"
+    ]
+  },
+  "reason": "ONES 拉取 Server Error：定位为线上 5xx message 被剥离 + 内网域名疑似不可达，已做错误可见化修复"
+}

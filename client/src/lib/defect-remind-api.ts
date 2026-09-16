@@ -44,7 +44,11 @@ export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
 export async function fetchOnesDefects(options?: { refresh?: boolean }): Promise<DefectRow[]> {
   const path = options?.refresh ? "api/ones-defects?refresh=1" : "api/ones-defects";
   const res = await fetch(getAppApiUrl(path), { credentials: "include" });
-  const data = await parseJson<{ ok: boolean; rows: DefectRow[] }>(res);
+  // 服务端失败时返回 200 + {ok:false, error}（避免生产模式剥离 5xx message）
+  const data = await parseJson<{ ok: boolean; rows: DefectRow[]; error?: string }>(res);
+  if (data.ok === false) {
+    throw new Error(data.error || "ONES 缺陷接口返回失败");
+  }
   if (!Array.isArray(data.rows)) {
     throw new Error("ONES 缺陷接口返回为空");
   }

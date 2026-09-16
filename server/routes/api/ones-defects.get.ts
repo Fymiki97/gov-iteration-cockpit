@@ -180,16 +180,38 @@ async function fetchOpenBugs(cfg: OnesConfig): Promise<OnesTask[]> {
     }
   }`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Ones-User-Id": cfg.user_id,
-      "Ones-Auth-Token": cfg.auth_token,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query }),
-    signal: AbortSignal.timeout(20_000),
-  });
+  // 网络层异常翻译成可行动的中文诊断，配合 200+ok:false 让前端能看到真实原因
+  function describeFetchError(err: unknown): string {
+    const e = err as { name?: string; message?: string; cause?: { code?: string } };
+    const code = e?.cause?.code ?? "";
+    if (e?.name === "TimeoutError") {
+      return "ONES API 请求超时（20 秒），可能是服务器网络不通或 ONES 服务异常";
+    }
+    if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+      return `ONES 域名解析失败（${code}）。ones.dig.kso.net 是内网域名，服务器需在公司网络/VPN 环境下才能访问`;
+    }
+    if (code === "ETIMEDOUT" || code === "ECONNREFUSED" || code === "EHOSTUNREACH") {
+      return `ONES 网络连接失败（${code}）。服务器当前环境可能无法访问公司内网 ONES`;
+    }
+    if (e?.message && e.message !== "fetch failed") return e.message;
+    return code ? `ONES 网络请求失败（${code}）` : "ONES 网络请求失败（服务器无法访问 ones.dig.kso.net）";
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Ones-User-Id": cfg.user_id,
+        "Ones-Auth-Token": cfg.auth_token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    throw new Error(describeFetchError(err));
+  }
 
   if (res.status === 401) {
     throw createError({ statusCode: 502, message: "ONES Token 已过期，请更新 ~/.ones-config.json" });
@@ -236,6 +258,9 @@ export default defineEventHandler(async (event) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn("[ones-defects] 拉取失败:", message);
-    throw createError({ statusCode: 502, message });
+    // 返回 200 + ok:false：生产模式 Nitro 会把 5xx 的 message 剥离成 statusMessage
+    // "Server Error"，前端只能看到笼统错误；200 响应体不会被剥离。
+    setHeader(event, "Cache-Control", "no-store");
+    return { ok: false, error: message, ts: Date.now() };
   }
 });
