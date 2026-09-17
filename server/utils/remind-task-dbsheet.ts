@@ -215,7 +215,7 @@ async function deleteRecordsById(gatewayToken: string, ids: string[]): Promise<b
   }
 }
 
-async function upsertRecord(
+export async function upsertRecord(
   gatewayToken: string,
   row: Record<string, unknown>,
   existingRecordId?: string,
