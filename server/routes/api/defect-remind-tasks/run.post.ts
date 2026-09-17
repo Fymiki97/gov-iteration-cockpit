@@ -67,6 +67,14 @@ export default defineEventHandler(async (event) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Webhook 发送失败";
     await markRemindTaskRun({ id: task.id, status: "failed", message });
-    throw createError({ statusCode: 502, message });
+    // 返回 200 + ok:false 而非 5xx（Nitro 生产模式会剥离 5xx 的 message）
+    return {
+      ok: false,
+      sent: false,
+      channel: detectWebhookChannel(task.webhook),
+      count: 0,
+      preview: "",
+      error: message,
+    };
   }
 });

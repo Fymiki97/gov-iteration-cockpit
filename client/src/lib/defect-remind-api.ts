@@ -110,5 +110,9 @@ export async function runRemindTask(options: {
       defects: toRemindItems(filtered),
     }),
   });
-  return parseJson<RunRemindResult>(res);
+  const data = await parseJson<{ ok: boolean; sent?: boolean; channel?: string; count?: number; preview?: string; error?: string }>(res);
+  if (data.ok === false) {
+    throw new Error(data.error || "发送失败");
+  }
+  return data as RunRemindResult;
 }
