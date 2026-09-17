@@ -150,7 +150,7 @@ export function mapTasksToRows(cfg: OnesConfig, projectUuid: string, tasks: Ones
 
 export function buildGraphqlQuery(project: string, bugType: string): string {
   return `{
-    tasks(filter:{project_in:["${project}"],issueType_in:["${bugType}"],statusCategory_in:["to_do","in_progress","done"]},orderBy:{createTime:DESC},limit:500){
+    tasks(filter:{project_in:["${project}"],issueType_in:["${bugType}"],statusCategory_in:["to_do","in_progress","done"]},orderBy:{createTime:DESC},limit:5000){
       uuid number name status{name} sprint{name} priority{value} severity:_6Uk19k7i{value} module:_SH5ADjuQ owner{name} createTime deadline
     }
   }`;
