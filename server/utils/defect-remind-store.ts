@@ -72,15 +72,14 @@ export async function syncFromDb(): Promise<void> {
 async function persistToDb(tasks: DefectRemindTask[]): Promise<boolean> {
   if (!dbToken) return false;
   try {
-    const ok = await saveTasks(
-      dbToken,
-      tasks.map((t) => {
-        const { webhook, ...rest } = t as unknown as Record<string, unknown>;
-        return rest;
-      }) as Record<string, unknown>[],
-      dbRecordIds,
-    );
+    console.info(`[remind-store] persistToDb: ${tasks.length} 条, 已知 recordIds: ${dbRecordIds.size}`);
+    const forDb = tasks.map((t) => {
+      const { webhook, ...rest } = t as unknown as Record<string, unknown>;
+      return rest;
+    });
+    const ok = await saveTasks(dbToken, forDb, dbRecordIds);
     if (ok) dbCache = tasks;
+    console.info(`[remind-store] persistToDb result: ${ok}`);
     return ok;
   } catch (err) {
     console.warn("[remind-store] 多维表写入失败:", err instanceof Error ? err.message : err);

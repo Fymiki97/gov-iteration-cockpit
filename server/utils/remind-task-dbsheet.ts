@@ -224,15 +224,21 @@ async function upsertRecord(
   const endpoint = (config.appBaseEndpoint as string) || "https://o.wpsgo.com/app/app-base";
   const url = `${endpoint}/base-proxy/v7/coop/dbsheet/${REMIND_FILE_ID}/sheets/${REMIND_SHEET_ID}/records`;
 
+  const payload = existingRecordId
+    ? { records: [{ _id: existingRecordId, ...row }] }
+    : { records: [row] };
+
   try {
     const res = await fetch(url, {
-      method: "PUT",
+      method: "POST",
       headers: { "Content-Type": "application/json", Cookie: `gateway_token=${gatewayToken}` },
-      body: JSON.stringify(existingRecordId ? { _id: existingRecordId, ...row } : row),
+      body: JSON.stringify(payload),
     });
+    const body = await res.text().catch(() => "");
     if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.warn(`[remind-dbsheet] upsertRecord HTTP ${res.status}:`, errText.slice(0, 200));
+      console.warn(`[remind-dbsheet] upsertRecord HTTP ${res.status}:`, body.slice(0, 300));
+    } else {
+      console.info(`[remind-dbsheet] upsertRecord OK (${existingRecordId ? "update" : "create"}):`, row["H1"]);
     }
     return res.ok;
   } catch (err) {
