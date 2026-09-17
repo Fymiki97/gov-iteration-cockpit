@@ -4,14 +4,19 @@ import { ensureDbToken } from "~/utils/remind-task-auth";
 
 export default defineEventHandler(async (event) => {
   ensureDbToken(event);
-  const body = await readBody<DefectRemindTaskInput>(event);
-  if (!body || typeof body !== "object") {
-    throw createError({ statusCode: 400, message: "缺少任务参数" });
+  try {
+    const body = await readBody<DefectRemindTaskInput>(event);
+    if (!body || typeof body !== "object") {
+      return { ok: false, error: "缺少任务参数" };
+    }
+    if (!String(body.webhook ?? "").trim()) {
+      return { ok: false, error: "请填写 webhook" };
+    }
+    parseWebhookUrl(String(body.webhook));
+    const task = await saveRemindTask(normalizeTaskInput(body));
+    return { ok: true, task };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
   }
-  if (!String(body.webhook ?? "").trim()) {
-    throw createError({ statusCode: 400, message: "请填写 webhook" });
-  }
-  parseWebhookUrl(String(body.webhook));
-  const task = await saveRemindTask(normalizeTaskInput(body));
-  return { task };
 });

@@ -114,11 +114,13 @@ export async function createRemindTask(input: DefectRemindTaskInput): Promise<De
     credentials: "include",
     body: JSON.stringify(input),
   });
-  const data = await parseJson<{ task: DefectRemindTask }>(res);
+  const data = await parseJson<{ ok?: boolean; task?: DefectRemindTask; error?: string }>(res);
+  if (data.ok === false || !data.task) throw new Error(data.error || "创建任务失败");
+  const task = data.task;
   // 同步到 localStorage
   const local = loadLocalTasks();
-  saveLocalTasks([data.task, ...local.filter((t) => t.id !== data.task.id)]);
-  return data.task;
+  saveLocalTasks([task, ...local.filter((t) => t.id !== task.id)]);
+  return task;
 }
 
 export async function updateRemindTask(id: string, input: DefectRemindTaskInput): Promise<DefectRemindTask> {
@@ -128,16 +130,19 @@ export async function updateRemindTask(id: string, input: DefectRemindTaskInput)
     credentials: "include",
     body: JSON.stringify(input),
   });
-  const data = await parseJson<{ task: DefectRemindTask }>(res);
+  const data = await parseJson<{ ok?: boolean; task?: DefectRemindTask; error?: string }>(res);
+  if (data.ok === false || !data.task) throw new Error(data.error || "更新任务失败");
+  const task = data.task;
   // 同步到 localStorage
   const local = loadLocalTasks();
-  saveLocalTasks(local.map((t) => (t.id === id ? data.task : t)));
-  return data.task;
+  saveLocalTasks(local.map((t) => (t.id === id ? task : t)));
+  return task;
 }
 
 export async function deleteRemindTask(id: string): Promise<void> {
   const res = await fetch(getAppApiUrl(`api/defect-remind-tasks/${id}`), { method: "DELETE", credentials: "include" });
-  await parseJson<{ ok: boolean }>(res);
+  const data = await parseJson<{ ok?: boolean; error?: string }>(res);
+  if (data.ok === false) throw new Error(data.error || "删除任务失败");
   // 同步从 localStorage 删除
   const local = loadLocalTasks();
   saveLocalTasks(local.filter((t) => t.id !== id));
