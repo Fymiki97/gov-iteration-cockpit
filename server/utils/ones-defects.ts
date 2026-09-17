@@ -22,7 +22,7 @@ export interface OnesTask {
   priority: { value: string } | null;
   severity: { value: string } | null;
   module: string | null;
-  owner: { name: string } | null;
+  owner: { name: string; email?: string } | null;
   createTime: number;
   deadline: number | null;
 }
@@ -38,6 +38,7 @@ export interface ApiDefectRow {
   iteration: string;
   module: string;
   owner: string;
+  ownerEmail?: string;
   reporter: string;
   createdAt: string;
   deadline: string;
@@ -135,6 +136,7 @@ export function mapRow(cfg: OnesConfig, projectUuid: string, task: OnesTask): Ap
     iteration: task.sprint?.name ?? "",
     module: task.module ?? "",
     owner: task.owner?.name ?? "",
+    ownerEmail: task.owner?.email ?? "",
     reporter: task.owner?.name ?? "",
     createdAt: formatCreatedAt(task.createTime),
     deadline: formatDeadline(task.deadline),
@@ -151,7 +153,7 @@ export function mapTasksToRows(cfg: OnesConfig, projectUuid: string, tasks: Ones
 export function buildGraphqlQuery(project: string, bugType: string): string {
   return `{
     tasks(filter:{project_in:["${project}"],issueType_in:["${bugType}"],statusCategory_in:["to_do","in_progress","done"]},orderBy:{createTime:DESC},limit:5000){
-      uuid number name status{name} sprint{name} priority{value} severity:_6Uk19k7i{value} module:_SH5ADjuQ owner{name} createTime deadline
+      uuid number name status{name} sprint{name} priority{value} severity:_6Uk19k7i{value} module:_SH5ADjuQ owner{name email} createTime deadline
     }
   }`;
 }

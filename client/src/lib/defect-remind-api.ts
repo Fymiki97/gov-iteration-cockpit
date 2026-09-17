@@ -20,6 +20,7 @@ function toRemindItems(defects: DefectRow[]) {
     team: item.team,
     module: item.module,
     owner: item.owner,
+    ownerEmail: item.ownerEmail,
     deadline: item.deadline,
     createdAt: item.createdAt,
     onesUrl: item.onesUrl ?? "",

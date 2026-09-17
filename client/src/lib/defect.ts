@@ -18,6 +18,7 @@ export interface DefectRow {
   iteration: string;
   module: string;
   owner: string;
+  ownerEmail?: string;
   reporter: string;
   createdAt: string;
   deadline: string;

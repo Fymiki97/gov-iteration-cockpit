@@ -9,6 +9,7 @@ export interface DefectRemindItem {
   team?: string;
   module: string;
   owner: string;
+  ownerEmail?: string;
   deadline: string;
   createdAt: string;
   /** ONES 缺陷详情页链接，存在时消息中缺陷 ID 渲染为超链接 */
@@ -88,9 +89,9 @@ function bugIdMarkdown(item: DefectRemindItem): string {
  */
 function ownerMention(item: DefectRemindItem, peopleMap?: Record<string, string> | null, channel?: string): string {
   const userId = item.owner && peopleMap ? peopleMap[item.owner] : undefined;
+  if (channel === "WPS" && item.ownerEmail) return `<at email="${item.ownerEmail}">${item.owner}</at>`;
   if (!userId || !item.owner) return `@${item.owner}`;
   if (channel === "钉钉") return `@${userId}`;
-  if (channel === "WPS") return `<at id="${userId}">${item.owner}</at>`;
   return `@${item.owner}`;
 }
 
