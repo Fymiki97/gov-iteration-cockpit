@@ -89,7 +89,7 @@ export function DefectListTab() {
   const [currentTeam, setCurrentTeam] = useState<DefectTeam>(DEFECT_TEAMS[0]);
   const [tasks, setTasks] = useState<DefectRemindTask[]>([]);
   const [search, setSearch] = useState("");
-  const [severity, setSeverity] = useState<string[]>([]);
+  const [severity, setSeverity] = useState<string[]>(["S-致命", "A-严重"]);
   const [status, setStatus] = useState<string[]>([]);
   const [priority, setPriority] = useState<string[]>([]);
   const [iteration, setIteration] = useState(FILTER_ALL);
@@ -231,7 +231,7 @@ export function DefectListTab() {
             onClick={() => {
               setCurrentTeam(team);
               setSelectedIds([]);
-              setSeverity([]);
+              setSeverity(["S-致命", "A-严重"]);
               setStatus([]);
               setPriority([]);
               setIteration(FILTER_ALL);
