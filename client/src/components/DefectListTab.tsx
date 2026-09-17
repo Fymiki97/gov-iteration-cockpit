@@ -50,7 +50,7 @@ import {
   type DefectRow,
   type DefectStatus,
 } from "@/lib/defect";
-import { fetchOnesDefects, fetchRemindTasks, runRemindTask } from "@/lib/defect-remind-api";
+import { fetchOnesDefects, fetchRemindTasks, runRemindTask, hasAutoRun, markAutoRun } from "@/lib/defect-remind-api";
 
 const FILTER_ALL = "__all__";
 const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证"];
@@ -158,7 +158,7 @@ export function DefectListTab() {
         const loaded = await fetchRemindTasks();
         if (cancelled) return;
         setTasks(loaded);
-        const due = loaded.filter((task) => isTaskDue(task));
+        const due = loaded.filter((task) => isTaskDue(task) && !hasAutoRun(task.id));
         if (due.length === 0) return;
         const next = [...loaded];
         for (const task of due) {
@@ -174,6 +174,7 @@ export function DefectListTab() {
                 lastRunMessage: `已发送 ${result.count} 条`,
               };
             }
+            markAutoRun(task.id);
             toast.success(`定时任务「${task.name}」已通过${result.channel}发送 ${result.count} 条`);
           } catch {
             // 页面打开时的到期自动发送失败不打断查看

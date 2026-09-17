@@ -4,6 +4,12 @@ import type { DefectRemindTask, DefectRemindTaskInput, DefectRow } from "@/lib/d
 
 const TASKS_STORAGE_KEY = "defect-remind-tasks";
 
+/** 会话级缓存：记录本次会话已自动执行过的一次性任务，防止刷新后重复执行 */
+const autoRunCache = new Set<string>();
+
+export function hasAutoRun(taskId: string): boolean { return autoRunCache.has(taskId); }
+export function markAutoRun(taskId: string): void { autoRunCache.add(taskId); }
+
 export function loadLocalTasks(): DefectRemindTask[] {
   if (typeof localStorage === "undefined") return [];
   try {
@@ -64,9 +70,18 @@ export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
     const data = await parseJson<{ tasks: DefectRemindTask[] }>(res);
     const server = data.tasks ?? [];
     // 合并：服务端有的以服务端为准，服务端没有但本地有的保留（容器重启不丢数据）
+    // 对 lastRunAt 取最大值，防止服务端未持久化导致丢失执行记录
+    const localMap = new Map(local.map((t) => [t.id, t]));
     const serverIds = new Set(server.map((t) => t.id));
+    const merged = server.map((t) => {
+      const localT = localMap.get(t.id);
+      if (localT?.lastRunAt && (!t.lastRunAt || t.lastRunAt < localT.lastRunAt)) {
+        return { ...t, lastRunAt: localT.lastRunAt, lastRunStatus: localT.lastRunStatus, lastRunMessage: localT.lastRunMessage };
+      }
+      return t;
+    });
     const localOnly = local.filter((t) => !serverIds.has(t.id));
-    return [...localOnly, ...server];
+    return [...localOnly, ...merged];
   } catch {
     return local;
   }
