@@ -64,7 +64,7 @@ export function DefectRemindSendDialog(props: {
     }
     setSending(true);
     try {
-      const result = await runRemindTask({ taskId: task.id, defects: props.defects });
+      const result = await runRemindTask({ taskId: task.id, task, defects: props.defects });
       props.onTaskUpdated({
         ...task,
         lastRunAt: new Date().toISOString(),

@@ -1,4 +1,5 @@
 import { getAppApiUrl } from "@/lib/oauth-redirect";
+import { matchTaskDefects } from "@/lib/defect";
 import type { DefectRemindTask, DefectRemindTaskInput, DefectRow } from "@/lib/defect";
 
 export interface RunRemindResult {
@@ -90,9 +91,15 @@ export async function deleteRemindTask(id: string): Promise<void> {
 
 export async function runRemindTask(options: {
   taskId: string;
+  task: DefectRemindTask;
   defects: DefectRow[];
   scheduled?: boolean;
 }): Promise<RunRemindResult> {
+  const filtered = matchTaskDefects({
+    defects: options.defects,
+    team: options.task.team,
+    severities: options.task.severities,
+  });
   const res = await fetch(getAppApiUrl("api/defect-remind-tasks/run"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -100,7 +107,7 @@ export async function runRemindTask(options: {
     body: JSON.stringify({
       taskId: options.taskId,
       scheduled: options.scheduled === true,
-      defects: toRemindItems(options.defects),
+      defects: toRemindItems(filtered),
     }),
   });
   return parseJson<RunRemindResult>(res);

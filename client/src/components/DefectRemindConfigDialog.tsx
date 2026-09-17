@@ -125,7 +125,7 @@ export function DefectRemindConfigDialog(props: {
     }
     setRunning(true);
     try {
-      const result = await runRemindTask({ taskId: mode, defects: props.defects });
+      const result = await runRemindTask({ taskId: mode, task: selected!, defects: props.defects });
       const refreshed = props.tasks.map((item) => item.id === mode
         ? { ...item, lastRunAt: new Date().toISOString(), lastRunStatus: "success" as const, lastRunMessage: `已发送 ${result.count} 条` }
         : item);

@@ -163,7 +163,7 @@ export function DefectListTab() {
         const next = [...loaded];
         for (const task of due) {
           try {
-            const result = await runRemindTask({ taskId: task.id, defects: currentDefects, scheduled: true });
+            const result = await runRemindTask({ taskId: task.id, task, defects: currentDefects, scheduled: true });
             if (cancelled || !result.sent) continue;
             const index = next.findIndex((item) => item.id === task.id);
             if (index >= 0) {
