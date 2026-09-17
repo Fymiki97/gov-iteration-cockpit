@@ -6,7 +6,6 @@ import {
   Bug,
   Clock,
   Download,
-  Plus,
   RefreshCw,
   Search,
   Send,
@@ -18,7 +17,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import {
@@ -45,15 +43,11 @@ import {
   isUnrepaired,
   loadExtraDefects,
   mergeDefects,
-  nextBugId,
   ownerAvatarColor,
-  saveExtraDefects,
   uniqueValues,
   type DefectTeam,
-  type DefectPriority,
   type DefectRemindTask,
   type DefectRow,
-  type DefectSeverity,
   type DefectStatus,
 } from "@/lib/defect";
 import { fetchOnesDefects, fetchRemindTasks, runRemindTask } from "@/lib/defect-remind-api";
@@ -106,18 +100,6 @@ export function DefectListTab() {
   const [sendOpen, setSendOpen] = useState(false);
   const [sendDefects, setSendDefects] = useState<DefectRow[]>([]);
   const [detail, setDetail] = useState<DefectRow | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({
-    title: "",
-    priority: "较高" as DefectPriority,
-    severity: "A-严重" as DefectSeverity,
-    status: "待处理" as DefectStatus,
-    module: "",
-    iteration: "",
-    owner: "",
-    deadline: "",
-  });
 
   const teamDefects = defects.filter((item) => item.team === currentTeam);
   // 统计卡片跟随筛选条件（含迭代），但不受「仅看未修复」开关影响，
@@ -238,36 +220,6 @@ export function DefectListTab() {
     setSendOpen(true);
   };
 
-  const createDefect = () => {
-    if (!draft.title.trim() || !draft.owner.trim() || !draft.module.trim()) {
-      toast.error("请填写标题、所属模块和负责人");
-      return;
-    }
-    setCreating(true);
-    const extras = loadExtraDefects();
-    const created: DefectRow = {
-      id: `local_${Date.now().toString(36)}`,
-      bugId: nextBugId(mergeDefects(onesRows.length > 0 ? onesRows : SEED_DEFECTS, extras)),
-      title: draft.title.trim(),
-      priority: draft.priority,
-      severity: draft.severity,
-      status: draft.status,
-      team: currentTeam,
-      module: draft.module.trim(),
-      iteration: draft.iteration.trim(),
-      owner: draft.owner.trim(),
-      reporter: draft.owner.trim(),
-      createdAt: new Date().toLocaleString("zh-CN", { hour12: false }).replace(/\//g, "-"),
-      deadline: draft.deadline,
-    };
-    const nextExtras = [created, ...extras];
-    saveExtraDefects(nextExtras);
-    setDefects(mergeDefects(onesRows.length > 0 ? onesRows : SEED_DEFECTS, nextExtras));
-    setCreateOpen(false);
-    setDraft({ title: "", priority: "较高", severity: "A-严重", status: "待处理", module: "", iteration: "", owner: "", deadline: "" });
-    setCreating(false);
-    toast.success(`已新建 ${created.bugId}`);
-  };
 
   return (
     <div className="space-y-5">
@@ -474,13 +426,6 @@ export function DefectListTab() {
               {onesSource === "snapshot" && (
                 <span className="text-xs text-[#98A2B3]">云端无法访问内网 ONES，当前为最近快照</span>
               )}
-              <button
-                type="button"
-                onClick={() => setCreateOpen(true)}
-                className="h-9 px-3 inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#2A6FDB] hover:bg-[#1F5DC2] rounded-lg"
-              >
-                <Plus className="w-4 h-4" /> 新建缺陷
-              </button>
             </div>
           </div>
 
@@ -608,52 +553,6 @@ export function DefectListTab() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>新建缺陷</DialogTitle>
-            <DialogDescription>新建的缺陷会保存在本机，便于联调提醒流程。</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-title">缺陷标题</Label>
-              <Input id="new-title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} className="h-9 border-[#E4ECFC]" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>优先级</Label>
-                <FilterSelect value={draft.priority} onChange={(val) => setDraft({ ...draft, priority: val as DefectPriority })} allLabel="较高" options={[...PRIORITY_OPTIONS]} hideAll />
-              </div>
-              <div className="space-y-1.5">
-                <Label>严重程度</Label>
-                <FilterSelect value={draft.severity} onChange={(val) => setDraft({ ...draft, severity: val as DefectSeverity })} allLabel="A-严重" options={[...SEVERITY_OPTIONS]} hideAll />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-module">所属模块</Label>
-                <Input id="new-module" value={draft.module} onChange={(e) => setDraft({ ...draft, module: e.target.value })} placeholder="例如 用户认证" className="h-9 border-[#E4ECFC]" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-iteration">所属迭代</Label>
-                <Input id="new-iteration" value={draft.iteration} onChange={(e) => setDraft({ ...draft, iteration: e.target.value })} placeholder="例如 V2.5" className="h-9 border-[#E4ECFC]" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-owner">负责人</Label>
-                <Input id="new-owner" value={draft.owner} onChange={(e) => setDraft({ ...draft, owner: e.target.value })} className="h-9 border-[#E4ECFC]" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-deadline">截止日期</Label>
-                <Input id="new-deadline" type="date" value={draft.deadline} onChange={(e) => setDraft({ ...draft, deadline: e.target.value })} className="h-9 border-[#E4ECFC]" />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setCreateOpen(false)} className="h-9 px-4 text-sm border border-[#E4ECFC] rounded-lg text-[#64748B]">取消</button>
-            <button type="button" disabled={creating} onClick={createDefect} className="h-9 px-4 text-sm font-medium text-white bg-[#2A6FDB] rounded-lg disabled:opacity-50">
-              创建
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
