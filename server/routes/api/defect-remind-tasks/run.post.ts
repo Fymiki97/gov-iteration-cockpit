@@ -13,6 +13,7 @@ import {
   type DefectRemindItem,
 } from "~/utils/defect-remind";
 import { ensurePeopleMap } from "~/utils/dbsheet-cache";
+import { ensureDbToken } from "~/utils/remind-task-auth";
 
 interface RunBody {
   taskId?: string;
@@ -22,6 +23,7 @@ interface RunBody {
 }
 
 export default defineEventHandler(async (event) => {
+  ensureDbToken(event);
   try {
     const body = await readBody<RunBody>(event);
     const taskId = String(body?.taskId ?? "").trim();

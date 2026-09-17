@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { loadTasks, saveTasks } from "./remind-task-dbsheet";
 
 export type DefectSeverity = "S-致命" | "A-严重" | "B-一般" | "C-低";
 export type RemindFrequency = "daily" | "weekly" | "weekdays" | "once";
@@ -41,20 +42,42 @@ export interface DefectRemindTaskInput {
   includeDeadline?: boolean;
 }
 
-const FREQUENCIES: RemindFrequency[] = ["daily", "weekly", "weekdays", "once"];
-const TEMPLATES: RemindTemplate[] = ["default", "detailed", "deadline", "escalate"];
-const SEVERITIES: DefectSeverity[] = ["S-致命", "A-严重", "B-一般", "C-低"];
-const SEVERITY_ALIASES: Record<string, DefectSeverity> = {
-  致命: "S-致命",
-  严重: "A-严重",
-  一般: "B-一般",
-  轻微: "C-低",
-  低: "C-低",
-  "S-致命": "S-致命",
-  "A-严重": "A-严重",
-  "B-一般": "B-一般",
-  "C-低": "C-低",
-};
+// ─── 多维表持久化 + 本地文件降级 ───
+
+let dbCache: DefectRemindTask[] | null = null;
+let dbToken: string | null = null;
+
+/** 设置 gateway_token 并触发多维表加载 */
+export function setDbToken(token: string): void {
+  dbToken = token;
+}
+
+/** 从多维表加载任务到内存缓存 */
+export async function syncFromDb(): Promise<void> {
+  if (!dbToken) return;
+  try {
+    const rows = await loadTasks(dbToken);
+    dbCache = rows.map((r) => r as unknown as DefectRemindTask);
+    console.info(`[remind-store] 多维表加载 ${dbCache.length} 条`);
+  } catch (err) {
+    console.warn("[remind-store] 多维表加载失败:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** 持久化到多维表 */
+async function persistToDb(tasks: DefectRemindTask[]): Promise<boolean> {
+  if (!dbToken) return false;
+  try {
+    const ok = await saveTasks(dbToken, tasks as unknown as Record<string, unknown>[]);
+    if (ok) dbCache = tasks;
+    return ok;
+  } catch (err) {
+    console.warn("[remind-store] 多维表写入失败:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+// ─── 本地文件降级 ───
 
 function storeDir(): string {
   return join(process.cwd(), ".data");
@@ -64,7 +87,7 @@ function storeFile(): string {
   return join(storeDir(), "defect-remind-tasks.json");
 }
 
-async function readRaw(): Promise<DefectRemindTask[]> {
+async function readLocal(): Promise<DefectRemindTask[]> {
   try {
     const text = await readFile(storeFile(), "utf8");
     const parsed = JSON.parse(text) as DefectRemindTask[];
@@ -74,9 +97,27 @@ async function readRaw(): Promise<DefectRemindTask[]> {
   }
 }
 
-async function writeRaw(tasks: DefectRemindTask[]): Promise<void> {
+async function writeLocal(tasks: DefectRemindTask[]): Promise<void> {
   await mkdir(storeDir(), { recursive: true });
   await writeFile(storeFile(), `${JSON.stringify(tasks, null, 2)}\n`, "utf8");
+}
+
+// ─── 统一读写（多维表优先，本地降级） ───
+
+async function readTasks(): Promise<DefectRemindTask[]> {
+  if (dbCache) return [...dbCache].sort((a: DefectRemindTask, b: DefectRemindTask) => b.updatedAt.localeCompare(a.updatedAt));
+  if (dbToken) {
+    await syncFromDb();
+    if (dbCache) return [...dbCache].sort((a: DefectRemindTask, b: DefectRemindTask) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  return readLocal();
+}
+
+async function writeTasks(tasks: DefectRemindTask[]): Promise<void> {
+  const forDb = tasks.map((t) => ({ ...t, webhook: "" }));
+  const dbOk = await persistToDb(forDb);
+  await writeLocal(tasks);
+  if (!dbOk) console.warn("[remind-store] 多维表写入失败，已降级到本地文件");
 }
 
 function newId(): string {
@@ -133,30 +174,44 @@ export function normalizeTaskInput(input: DefectRemindTaskInput, existing?: Defe
   };
 }
 
+const FREQUENCIES: RemindFrequency[] = ["daily", "weekly", "weekdays", "once"];
+const TEMPLATES: RemindTemplate[] = ["default", "detailed", "deadline", "escalate"];
+const SEVERITIES: DefectSeverity[] = ["S-致命", "A-严重", "B-一般", "C-低"];
+const SEVERITY_ALIASES: Record<string, DefectSeverity> = {
+  致命: "S-致命",
+  严重: "A-严重",
+  一般: "B-一般",
+  轻微: "C-低",
+  低: "C-低",
+  "S-致命": "S-致命",
+  "A-严重": "A-严重",
+  "B-一般": "B-一般",
+  "C-低": "C-低",
+};
+
 export async function listRemindTasks(): Promise<DefectRemindTask[]> {
-  const tasks = await readRaw();
-  return [...tasks].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return readTasks();
 }
 
 export async function getRemindTask(id: string): Promise<DefectRemindTask | null> {
-  const tasks = await readRaw();
+  const tasks = await readTasks();
   return tasks.find((item) => item.id === id) ?? null;
 }
 
 export async function saveRemindTask(task: DefectRemindTask): Promise<DefectRemindTask> {
-  const tasks = await readRaw();
+  const tasks = await readTasks();
   const index = tasks.findIndex((item) => item.id === task.id);
   if (index >= 0) tasks[index] = task;
   else tasks.unshift(task);
-  await writeRaw(tasks);
+  await writeTasks(tasks);
   return task;
 }
 
 export async function removeRemindTask(id: string): Promise<boolean> {
-  const tasks = await readRaw();
+  const tasks = await readTasks();
   const next = tasks.filter((item) => item.id !== id);
   if (next.length === tasks.length) return false;
-  await writeRaw(next);
+  await writeTasks(next);
   return true;
 }
 
