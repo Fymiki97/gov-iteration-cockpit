@@ -278,6 +278,7 @@ export function DefectRemindConfigDialog(props: {
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label>所属迭代过滤</Label>
                   <MultiSelect
+                    allLabel="全部"
                     options={props.iterations.map((iter) => ({ value: iter, label: iter }))}
                     value={form.iterations}
                     onChange={(next) => setForm({ ...form, iterations: next })}
