@@ -99,7 +99,14 @@ export function DefectRemindSendDialog(props: {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>使用的提醒任务</Label>
-              <Select value={selectedId} onValueChange={(val) => setTaskId(String(val ?? ""))}>
+              <Select
+                value={selectedId}
+                items={Object.fromEntries(enabledTasks.map((item) => [
+                  item.id,
+                  `${item.name} · ${item.team} · ${frequencyLabel(item.frequency)}`,
+                ]))}
+                onValueChange={(val) => setTaskId(String(val ?? ""))}
+              >
                 <SelectTrigger className="w-full h-9 border-[#E4ECFC]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {enabledTasks.map((item) => (

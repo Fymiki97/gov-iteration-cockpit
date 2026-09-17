@@ -214,7 +214,11 @@ export function DefectRemindConfigDialog(props: {
               </div>
               <div className="space-y-1.5">
                 <Label>频率</Label>
-                <Select value={form.frequency} onValueChange={(val) => setForm({ ...form, frequency: String(val ?? "daily") as RemindFrequency })}>
+                <Select
+                  value={form.frequency}
+                  items={Object.fromEntries(FREQUENCY_OPTIONS.map((item) => [item.value, item.label]))}
+                  onValueChange={(val) => setForm({ ...form, frequency: String(val ?? "daily") as RemindFrequency })}
+                >
                   <SelectTrigger className="w-full h-9 border-[#E4ECFC]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {FREQUENCY_OPTIONS.map((item) => (
@@ -238,7 +242,11 @@ export function DefectRemindConfigDialog(props: {
               </div>
               <div className="space-y-1.5">
                 <Label>消息模板</Label>
-                <Select value={form.template} onValueChange={(val) => setForm({ ...form, template: String(val ?? "default") as RemindTemplate })}>
+                <Select
+                  value={form.template}
+                  items={Object.fromEntries(TEMPLATE_OPTIONS.map((item) => [item.value, item.label]))}
+                  onValueChange={(val) => setForm({ ...form, template: String(val ?? "default") as RemindTemplate })}
+                >
                   <SelectTrigger className="w-full h-9 border-[#E4ECFC]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {TEMPLATE_OPTIONS.map((item) => (
