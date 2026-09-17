@@ -138,6 +138,7 @@ export async function runRemindTask(options: {
     defects: options.defects,
     team: options.task.team,
     severities: options.task.severities,
+    iterations: options.task.iterations,
   });
   const res = await fetch(getAppApiUrl("api/defect-remind-tasks/run"), {
     method: "POST",

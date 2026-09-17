@@ -36,6 +36,7 @@ function sampleTask(overrides: Partial<DefectRemindTask> = {}): DefectRemindTask
     webhook: "https://example.com/hook",
     enabled: true,
     severities: ["S-致命", "A-严重"],
+    iterations: [],
     template: "default",
     includeDetail: true,
     includeDeadline: true,

@@ -36,6 +36,7 @@ export interface DefectRemindTask {
   webhook: string;
   enabled: boolean;
   severities: DefectSeverity[];
+  iterations: string[];
   template: RemindTemplate;
   includeDetail: boolean;
   includeDeadline: boolean;
@@ -55,6 +56,7 @@ export interface DefectRemindTaskInput {
   webhook: string;
   enabled: boolean;
   severities: DefectSeverity[];
+  iterations: string[];
   template: RemindTemplate;
   includeDetail: boolean;
   includeDeadline: boolean;
@@ -242,6 +244,7 @@ export function matchTaskDefects(options: {
   defects: DefectRow[];
   team: string;
   severities: DefectSeverity[];
+  iterations?: string[];
 }): DefectRow[] {
   return options.defects.filter((item) => {
     if (!isUnrepaired(item.status)) return false;
@@ -250,6 +253,7 @@ export function matchTaskDefects(options: {
       const allowed = new Set(options.severities.map(normalizeSeverity));
       if (!allowed.has(normalizeSeverity(item.severity))) return false;
     }
+    if (options.iterations?.length && !options.iterations.includes(item.iteration)) return false;
     return true;
   });
 }
@@ -265,6 +269,7 @@ export function emptyRemindTaskInput(options?: { team?: string }): DefectRemindT
     webhook: "",
     enabled: true,
     severities: [...DEFAULT_SEVERITIES],
+    iterations: [],
     template: "default",
     includeDetail: true,
     includeDeadline: true,
@@ -281,6 +286,7 @@ export function taskToInput(task: DefectRemindTask): DefectRemindTaskInput {
     webhook: task.webhook,
     enabled: task.enabled,
     severities: (task.severities.length > 0 ? task.severities : DEFAULT_SEVERITIES).map(normalizeSeverity),
+    iterations: task.iterations ?? [],
     template: task.template,
     includeDetail: task.includeDetail,
     includeDeadline: task.includeDeadline,

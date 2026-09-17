@@ -513,6 +513,7 @@ export function DefectListTab() {
         open={configOpen}
         tasks={tasks}
         teams={[...DEFECT_TEAMS]}
+        iterations={iterations}
         defects={defects}
         defaultTeam={currentTeam}
         onOpenChange={setConfigOpen}

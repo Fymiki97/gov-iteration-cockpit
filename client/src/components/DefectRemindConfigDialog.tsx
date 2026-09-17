@@ -37,6 +37,7 @@ export function DefectRemindConfigDialog(props: {
   open: boolean;
   tasks: DefectRemindTask[];
   teams: string[];
+  iterations: string[];
   defects: DefectRow[];
   onOpenChange: (open: boolean) => void;
   onTasksChange: (tasks: DefectRemindTask[]) => void;
@@ -66,6 +67,13 @@ export function DefectRemindConfigDialog(props: {
       ? [...form.severities, severity]
       : form.severities.filter((item) => item !== severity);
     setForm({ ...form, severities: next.length > 0 ? next : [...DEFAULT_SEVERITIES] });
+  };
+
+  const toggleIteration = (iter: string, checked: boolean) => {
+    const next = checked
+      ? [...form.iterations, iter]
+      : form.iterations.filter((item) => item !== iter);
+    setForm({ ...form, iterations: next });
   };
 
   const persist = async () => {
@@ -174,7 +182,7 @@ export function DefectRemindConfigDialog(props: {
                   </span>
                 </div>
                 <p className="text-[11px] text-[#94A3B8] mt-1 truncate">
-                  {task.team || ALL_TEAMS} · {frequencyLabel(task.frequency)}
+                  {task.team || ALL_TEAMS} · {frequencyLabel(task.frequency)}{task.iterations?.length ? ` · ${(task.iterations as string[]).length}个迭代` : ""}
                 </p>
               </button>
             ))}
@@ -272,6 +280,22 @@ export function DefectRemindConfigDialog(props: {
                   ))}
                 </div>
               </div>
+              {props.iterations.length > 0 && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>所属迭代过滤 <span className="text-[#94A3B8] font-normal">（不选 = 全部）</span></Label>
+                  <div className="flex flex-wrap gap-3 max-h-24 overflow-y-auto">
+                    {props.iterations.map((iter) => (
+                      <label key={iter} className="flex items-center gap-1.5 text-sm text-[#64748B]">
+                        <Checkbox
+                          checked={form.iterations.includes(iter)}
+                          onCheckedChange={(checked) => toggleIteration(iter, checked === true)}
+                        />
+                        {iter}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             {selected?.lastRunMessage && (
               <p className="text-xs text-[#94A3B8] flex items-center gap-1">

@@ -15,6 +15,7 @@ export interface DefectRemindTask {
   webhook: string;
   enabled: boolean;
   severities: DefectSeverity[];
+  iterations: string[];
   template: RemindTemplate;
   includeDetail: boolean;
   includeDeadline: boolean;
@@ -34,6 +35,7 @@ export interface DefectRemindTaskInput {
   webhook?: string;
   enabled?: boolean;
   severities?: DefectSeverity[];
+  iterations?: string[];
   template?: RemindTemplate;
   includeDetail?: boolean;
   includeDeadline?: boolean;
@@ -119,6 +121,7 @@ export function normalizeTaskInput(input: DefectRemindTaskInput, existing?: Defe
     webhook,
     enabled: input.enabled === undefined ? (existing?.enabled ?? true) : asBoolean(input.enabled, true),
     severities: input.severities ? asSeverities(input.severities) : asSeverities(existing?.severities),
+    iterations: Array.isArray(input.iterations) ? input.iterations : (existing?.iterations ?? []),
     template: input.template ? asTemplate(input.template) : (existing?.template ?? "default"),
     includeDetail: input.includeDetail === undefined ? (existing?.includeDetail ?? true) : asBoolean(input.includeDetail, true),
     includeDeadline: input.includeDeadline === undefined ? (existing?.includeDeadline ?? true) : asBoolean(input.includeDeadline, true),
