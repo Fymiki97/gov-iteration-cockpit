@@ -117,8 +117,8 @@ function formatDeadline(ts: number | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function issueDetailUrl(cfg: OnesConfig, projectUuid: string, taskUuid: string): string {
-  return `${cfg.base_url.replace(/\/+$/, "")}/project/#/team/${cfg.team_uuid}/project/${projectUuid}/issue/detail/${taskUuid}`;
+export function issueDetailUrl(_cfg: OnesConfig, _projectUuid: string, taskUuid: string): string {
+  return `https://ones.dig.kso.net/om/v1/gs/task/${taskUuid}`;
 }
 
 export function mapRow(cfg: OnesConfig, projectUuid: string, task: OnesTask): ApiDefectRow {
