@@ -36,7 +36,7 @@ async function parseJson<T>(res: Response): Promise<T> {
 }
 
 export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
-  const res = await fetch(getAppApiUrl("api/defect-remind-tasks"));
+  const res = await fetch(getAppApiUrl("api/defect-remind-tasks"), { credentials: "include" });
   const data = await parseJson<{ tasks: DefectRemindTask[] }>(res);
   return data.tasks ?? [];
 }
@@ -65,6 +65,7 @@ export async function createRemindTask(input: DefectRemindTaskInput): Promise<De
   const res = await fetch(getAppApiUrl("api/defect-remind-tasks"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(input),
   });
   const data = await parseJson<{ task: DefectRemindTask }>(res);
@@ -75,6 +76,7 @@ export async function updateRemindTask(id: string, input: DefectRemindTaskInput)
   const res = await fetch(getAppApiUrl(`api/defect-remind-tasks/${id}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(input),
   });
   const data = await parseJson<{ task: DefectRemindTask }>(res);
@@ -82,7 +84,7 @@ export async function updateRemindTask(id: string, input: DefectRemindTaskInput)
 }
 
 export async function deleteRemindTask(id: string): Promise<void> {
-  const res = await fetch(getAppApiUrl(`api/defect-remind-tasks/${id}`), { method: "DELETE" });
+  const res = await fetch(getAppApiUrl(`api/defect-remind-tasks/${id}`), { method: "DELETE", credentials: "include" });
   await parseJson<{ ok: boolean }>(res);
 }
 
@@ -94,6 +96,7 @@ export async function runRemindTask(options: {
   const res = await fetch(getAppApiUrl("api/defect-remind-tasks/run"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({
       taskId: options.taskId,
       scheduled: options.scheduled === true,
