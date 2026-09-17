@@ -279,7 +279,7 @@ export function DefectRemindConfigDialog(props: {
                   <Label>所属迭代过滤</Label>
                   <MultiSelect
                     options={props.iterations.map((iter) => ({ value: iter, label: iter }))}
-                    selected={form.iterations}
+                    value={form.iterations}
                     onChange={(next) => setForm({ ...form, iterations: next })}
                   />
                   <p className="text-[11px] text-[#94A3B8]">不选 = 匹配全部迭代</p>
