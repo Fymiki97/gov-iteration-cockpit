@@ -2,6 +2,27 @@ import { getAppApiUrl } from "@/lib/oauth-redirect";
 import { matchTaskDefects } from "@/lib/defect";
 import type { DefectRemindTask, DefectRemindTaskInput, DefectRow } from "@/lib/defect";
 
+const TASKS_STORAGE_KEY = "defect-remind-tasks";
+
+export function loadLocalTasks(): DefectRemindTask[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalTasks(tasks: DefectRemindTask[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+  } catch { /* quota exceeded, ignore */ }
+}
+
 export interface RunRemindResult {
   ok: boolean;
   sent: boolean;
@@ -37,9 +58,18 @@ async function parseJson<T>(res: Response): Promise<T> {
 }
 
 export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
-  const res = await fetch(getAppApiUrl("api/defect-remind-tasks"), { credentials: "include" });
-  const data = await parseJson<{ tasks: DefectRemindTask[] }>(res);
-  return data.tasks ?? [];
+  const local = loadLocalTasks();
+  try {
+    const res = await fetch(getAppApiUrl("api/defect-remind-tasks"), { credentials: "include" });
+    const data = await parseJson<{ tasks: DefectRemindTask[] }>(res);
+    const server = data.tasks ?? [];
+    // 合并：服务端有的以服务端为准，服务端没有但本地有的保留（容器重启不丢数据）
+    const serverIds = new Set(server.map((t) => t.id));
+    const localOnly = local.filter((t) => !serverIds.has(t.id));
+    return [...localOnly, ...server];
+  } catch {
+    return local;
+  }
 }
 
 export interface OnesDefectsResult {
@@ -70,6 +100,9 @@ export async function createRemindTask(input: DefectRemindTaskInput): Promise<De
     body: JSON.stringify(input),
   });
   const data = await parseJson<{ task: DefectRemindTask }>(res);
+  // 同步到 localStorage
+  const local = loadLocalTasks();
+  saveLocalTasks([data.task, ...local.filter((t) => t.id !== data.task.id)]);
   return data.task;
 }
 
@@ -81,12 +114,18 @@ export async function updateRemindTask(id: string, input: DefectRemindTaskInput)
     body: JSON.stringify(input),
   });
   const data = await parseJson<{ task: DefectRemindTask }>(res);
+  // 同步到 localStorage
+  const local = loadLocalTasks();
+  saveLocalTasks(local.map((t) => (t.id === id ? data.task : t)));
   return data.task;
 }
 
 export async function deleteRemindTask(id: string): Promise<void> {
   const res = await fetch(getAppApiUrl(`api/defect-remind-tasks/${id}`), { method: "DELETE", credentials: "include" });
   await parseJson<{ ok: boolean }>(res);
+  // 同步从 localStorage 删除
+  const local = loadLocalTasks();
+  saveLocalTasks(local.filter((t) => t.id !== id));
 }
 
 export async function runRemindTask(options: {
@@ -106,6 +145,7 @@ export async function runRemindTask(options: {
     credentials: "include",
     body: JSON.stringify({
       taskId: options.taskId,
+      task: options.task,
       scheduled: options.scheduled === true,
       defects: toRemindItems(filtered),
     }),

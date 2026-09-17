@@ -1,6 +1,7 @@
 import {
   getRemindTask,
   markRemindTaskRun,
+  type DefectRemindTask,
 } from "~/utils/defect-remind-store";
 import {
   detectWebhookChannel,
@@ -17,6 +18,7 @@ interface RunBody {
   taskId?: string;
   scheduled?: boolean;
   defects?: DefectRemindItem[];
+  task?: DefectRemindTask;
 }
 
 export default defineEventHandler(async (event) => {
@@ -24,8 +26,9 @@ export default defineEventHandler(async (event) => {
     const body = await readBody<RunBody>(event);
     const taskId = String(body?.taskId ?? "").trim();
     if (!taskId) return { ok: false, sent: false, count: 0, preview: "", error: "缺少任务 ID" };
-    const task = await getRemindTask(taskId);
-    if (!task) return { ok: false, sent: false, count: 0, preview: "", error: "任务不存在" };
+    // 优先用请求体传入的 task（客户端 localStorage 持久化），回退读服务端文件
+    const task = body?.task && body.task.id === taskId ? body.task as DefectRemindTask : await getRemindTask(taskId);
+    if (!task) return { ok: false, sent: false, count: 0, preview: "", error: "任务不存在（请重新创建提醒任务）" };
     if (body?.scheduled && !isTaskDue(task)) {
       return {
         ok: true,
