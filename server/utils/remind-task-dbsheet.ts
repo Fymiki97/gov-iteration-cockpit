@@ -196,13 +196,8 @@ async function createRecords(
   }
 }
 
-async function deleteAllRecords(gatewayToken: string): Promise<boolean> {
-  // 先查所有记录 ID，再批量删除
-  const records = await fetchRecords(gatewayToken, { prefer_id: true, max_records: 1000 });
-  if (!records || records.length === 0) return true;
-  const ids = records.map((r) => String(r["_id"] ?? "")).filter(Boolean);
+async function deleteRecordsById(gatewayToken: string, ids: string[]): Promise<boolean> {
   if (ids.length === 0) return true;
-
   const config = useRuntimeConfig();
   const endpoint = (config.appBaseEndpoint as string) || "https://o.wpsgo.com/app/app-base";
   const url = `${endpoint}/base-proxy/v7/coop/dbsheet/${REMIND_FILE_ID}/sheets/${REMIND_SHEET_ID}/records`;
@@ -215,28 +210,84 @@ async function deleteAllRecords(gatewayToken: string): Promise<boolean> {
     });
     return res.ok;
   } catch (err) {
-    console.warn("[remind-dbsheet] deleteAllRecords error:", err instanceof Error ? err.message : err);
+    console.warn("[remind-dbsheet] deleteRecordsById error:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+async function upsertRecord(
+  gatewayToken: string,
+  row: Record<string, unknown>,
+  existingRecordId?: string,
+): Promise<boolean> {
+  const config = useRuntimeConfig();
+  const endpoint = (config.appBaseEndpoint as string) || "https://o.wpsgo.com/app/app-base";
+  const url = `${endpoint}/base-proxy/v7/coop/dbsheet/${REMIND_FILE_ID}/sheets/${REMIND_SHEET_ID}/records`;
+
+  try {
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: `gateway_token=${gatewayToken}` },
+      body: JSON.stringify(existingRecordId ? { _id: existingRecordId, ...row } : row),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.warn(`[remind-dbsheet] upsertRecord HTTP ${res.status}:`, errText.slice(0, 200));
+    }
+    return res.ok;
+  } catch (err) {
+    console.warn("[remind-dbsheet] upsertRecord error:", err instanceof Error ? err.message : err);
     return false;
   }
 }
 
 // ─── 公开接口 ───
 
-/** 从多维表读取全部提醒任务 */
-export async function loadTasks(gatewayToken: string): Promise<Record<string, unknown>[]> {
-  const rows = await fetchRecords(gatewayToken, { prefer_id: false, max_records: 1000 });
-  if (!rows) return [];
-  return rows.map(rowToTask).filter(Boolean) as Record<string, unknown>[];
+/** 从多维表读取全部提醒任务，同时返回 record _id 用于 upsert */
+export async function loadTasks(
+  gatewayToken: string,
+): Promise<{ tasks: Record<string, unknown>[]; recordIds: Map<string, string> }> {
+  const rows = await fetchRecords(gatewayToken, { prefer_id: true, max_records: 1000 });
+  if (!rows) return { tasks: [], recordIds: new Map() };
+  const recordIds = new Map<string, string>();
+  const tasks: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    const rid = String(row["_id"] ?? "");
+    const task = rowToTask(row);
+    if (task?.id && rid) {
+      recordIds.set(String(task.id), rid);
+      tasks.push(task);
+    }
+  }
+  return { tasks, recordIds };
 }
 
-/** 全量覆盖写入提醒任务（先删后建） */
+/** 逐条 upsert 提醒任务到多维表，删除本地已有但多维表中不存在的 */
 export async function saveTasks(
   gatewayToken: string,
   tasks: Record<string, unknown>[],
+  existingRecordIds: Map<string, string>,
 ): Promise<boolean> {
-  const deleted = await deleteAllRecords(gatewayToken);
-  if (!deleted) return false;
-  if (tasks.length === 0) return true;
-  const rows = tasks.map(taskToRow);
-  return createRecords(gatewayToken, rows);
+  let ok = true;
+
+  // upsert 每条
+  for (const task of tasks) {
+    const row = taskToRow(task);
+    const rid = existingRecordIds.get(String(task.id ?? "")) ?? "";
+    const result = await upsertRecord(gatewayToken, row, rid);
+    if (!result) ok = false;
+  }
+
+  // 删除多维表中有但本次列表中没有的（任务被删除的情况）
+  const currentIds = new Set(tasks.map((t) => String(t.id ?? "")));
+  const toDelete: string[] = [];
+  for (const [taskId, recordId] of existingRecordIds) {
+    if (!currentIds.has(taskId) && recordId) toDelete.push(recordId);
+  }
+  if (toDelete.length > 0) {
+    const delResult = await deleteRecordsById(gatewayToken, toDelete);
+    if (!delResult) ok = false;
+  }
+
+  return ok;
 }

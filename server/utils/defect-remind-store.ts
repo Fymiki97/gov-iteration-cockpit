@@ -52,11 +52,15 @@ export function setDbToken(token: string): void {
   dbToken = token;
 }
 
+/** 多维表 record _id 缓存，用于 upsert 时定位已有行 */
+let dbRecordIds = new Map<string, string>();
+
 /** 从多维表加载任务到内存缓存 */
 export async function syncFromDb(): Promise<void> {
   if (!dbToken) return;
   try {
-    const rows = await loadTasks(dbToken);
+    const { tasks: rows, recordIds } = await loadTasks(dbToken);
+    dbRecordIds = recordIds;
     dbCache = rows.map((r) => r as unknown as DefectRemindTask);
     console.info(`[remind-store] 多维表加载 ${dbCache.length} 条`);
   } catch (err) {
@@ -64,11 +68,18 @@ export async function syncFromDb(): Promise<void> {
   }
 }
 
-/** 持久化到多维表 */
+/** 持久化到多维表（逐条 upsert） */
 async function persistToDb(tasks: DefectRemindTask[]): Promise<boolean> {
   if (!dbToken) return false;
   try {
-    const ok = await saveTasks(dbToken, tasks as unknown as Record<string, unknown>[]);
+    const ok = await saveTasks(
+      dbToken,
+      tasks.map((t) => {
+        const { webhook, ...rest } = t as unknown as Record<string, unknown>;
+        return rest;
+      }) as Record<string, unknown>[],
+      dbRecordIds,
+    );
     if (ok) dbCache = tasks;
     return ok;
   } catch (err) {
