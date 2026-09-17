@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import {
   Dialog,
   DialogContent,
@@ -94,10 +95,9 @@ export function DefectListTab() {
   const [currentTeam, setCurrentTeam] = useState<DefectTeam>(DEFECT_TEAMS[0]);
   const [tasks, setTasks] = useState<DefectRemindTask[]>([]);
   const [search, setSearch] = useState("");
-  const [severity, setSeverity] = useState(FILTER_ALL);
-  const [multiSeverity, setMultiSeverity] = useState(false);
-  const [status, setStatus] = useState(FILTER_ALL);
-  const [priority, setPriority] = useState(FILTER_ALL);
+  const [severity, setSeverity] = useState<string[]>([]);
+  const [status, setStatus] = useState<string[]>([]);
+  const [priority, setPriority] = useState<string[]>([]);
   const [iteration, setIteration] = useState(FILTER_ALL);
   const [itersExpanded, setItersExpanded] = useState(false);
   const [unrepairedOnly, setUnrepairedOnly] = useState(false);
@@ -125,9 +125,9 @@ export function DefectListTab() {
   const scoped = filterDefects({
     defects: teamDefects,
     search,
-    severities: multiSeverity ? ["S-致命", "A-严重"] : severity === FILTER_ALL ? [] : [severity],
-    statuses: status === FILTER_ALL ? [] : [status],
-    priorities: priority === FILTER_ALL ? [] : [priority],
+    severities: severity,
+    statuses: status,
+    priorities: priority,
     iterations: iteration === FILTER_ALL ? [] : [iteration],
   });
   // 统计含已关闭缺陷，但列表只展示未完成缺陷（待处理/处理中/待验证），
@@ -279,10 +279,9 @@ export function DefectListTab() {
             onClick={() => {
               setCurrentTeam(team);
               setSelectedIds([]);
-              setSeverity(FILTER_ALL);
-              setMultiSeverity(false);
-              setStatus(FILTER_ALL);
-              setPriority(FILTER_ALL);
+              setSeverity([]);
+              setStatus([]);
+              setPriority([]);
               setIteration(FILTER_ALL);
             }}
             className={`pb-3 text-sm ${currentTeam === team ? "font-medium text-[#2A6FDB] border-b-2 border-[#2A6FDB]" : "text-[#94A3B8] hover:text-[#64748B]"}`}
@@ -345,7 +344,7 @@ export function DefectListTab() {
           valueClass="text-[#F79009]"
           icon={<AlertTriangle className="w-5 h-5 text-[#F79009]" />}
           iconClass="bg-[#FFFAEB]"
-          onClick={() => { setUnrepairedOnly(true); setStatus(FILTER_ALL); setSeverity(FILTER_ALL); }}
+          onClick={() => { setUnrepairedOnly(true); setStatus([]); setSeverity([]); }}
         />
         <StatCard
           label="严重缺陷"
@@ -354,7 +353,7 @@ export function DefectListTab() {
           valueClass="text-[#D92D20]"
           icon={<Clock className="w-5 h-5 text-[#D92D20]" />}
           iconClass="bg-[#FEF3F2]"
-          onClick={() => { setSeverity("S-致命"); setMultiSeverity(true); setStatus(FILTER_ALL); setUnrepairedOnly(true); }}
+          onClick={() => { setSeverity(["S-致命", "A-严重"]); setStatus([]); setUnrepairedOnly(true); }}
         />
         <StatCard
           label="修复率"
@@ -428,9 +427,9 @@ export function DefectListTab() {
                 </button>
               )}
             </div>
-            <FilterSelect value={severity} onChange={(val) => { setSeverity(val); setMultiSeverity(false); }} allLabel="全部严重程度" options={[...SEVERITY_OPTIONS]} />
-            <FilterSelect value={status} onChange={(val) => { setStatus(val); setUnrepairedOnly(false); }} allLabel="全部状态" options={STATUSES} />
-            <FilterSelect value={priority} onChange={setPriority} allLabel="全部优先级" options={[...PRIORITY_OPTIONS]} />
+            <MultiSelect value={severity} onChange={setSeverity} allLabel="全部严重程度" options={SEVERITY_OPTIONS.map(s => ({ value: s, label: s }))} />
+            <MultiSelect value={status} onChange={setStatus} allLabel="全部状态" options={STATUSES.map(s => ({ value: s, label: s }))} />
+            <MultiSelect value={priority} onChange={setPriority} allLabel="全部优先级" options={PRIORITY_OPTIONS.map(p => ({ value: p, label: p }))} />
             <FilterSelect value={iteration} onChange={setIteration} allLabel="全部迭代" options={iterations} />
             {unrepairedOnly && (
               <Badge
