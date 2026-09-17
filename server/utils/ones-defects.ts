@@ -117,8 +117,8 @@ function formatDeadline(ts: number | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function issueDetailUrl(_cfg: OnesConfig, _projectUuid: string, taskUuid: string): string {
-  return `https://ones.dig.kso.net/om/v1/gs/task/${taskUuid}`;
+export function issueDetailUrl(_cfg: OnesConfig, _projectUuid: string, taskNumber: number): string {
+  return `https://ones.dig.kso.net/om/v1/gs/task/${taskNumber}`;
 }
 
 export function mapRow(cfg: OnesConfig, projectUuid: string, task: OnesTask): ApiDefectRow {
@@ -126,7 +126,7 @@ export function mapRow(cfg: OnesConfig, projectUuid: string, task: OnesTask): Ap
   return {
     id: `ones_${task.number}`,
     bugId: String(task.number),
-    onesUrl: issueDetailUrl(cfg, projectUuid, task.uuid),
+    onesUrl: issueDetailUrl(cfg, projectUuid, task.number),
     title: task.name,
     priority: task.priority?.value ?? "普通",
     severity: task.severity?.value ?? "B-一般",
