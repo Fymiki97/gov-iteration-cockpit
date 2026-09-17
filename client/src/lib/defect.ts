@@ -87,7 +87,7 @@ export const TEMPLATE_OPTIONS: { value: RemindTemplate; label: string; hint: str
   { value: "default", label: "默认催办", hint: "简洁汇总未修复缺陷" },
   { value: "detailed", label: "详细清单", hint: "列出每条缺陷的关键字段" },
   { value: "deadline", label: "截止日期", hint: "突出超期与临近截止项" },
-  { value: "escalate", label: "升级催办", hint: "强调致命/超期需升级处理" },
+  { value: "escalate", label: "升级催办", hint: "强调严重/超期需升级处理" },
 ];
 
 export const SEVERITY_COLORS: Record<DefectSeverity, string> = {
@@ -131,6 +131,10 @@ export function isUnrepaired(status: string): boolean {
 
 export function isResolved(status: string): boolean {
   return RESOLVED_STATUSES.includes(status as DefectStatus);
+}
+
+export function isHighSeverity(severity: string): boolean {
+  return severity === "S-致命" || severity === "A-严重";
 }
 
 export function isFatalSeverity(severity: string): boolean {
@@ -182,7 +186,7 @@ export function computeDefectStats(defects: DefectRow[]): DefectStats {
   const pending = defects.filter((item) => item.status === "待处理").length;
   const processing = defects.filter((item) => item.status === "处理中").length;
   const unrepaired = defects.filter((item) => isUnrepaired(item.status)).length;
-  const fatal = defects.filter((item) => isFatalSeverity(item.severity) && isUnrepaired(item.status)).length;
+  const fatal = defects.filter((item) => isHighSeverity(item.severity) && isUnrepaired(item.status)).length;
   const resolved = defects.filter((item) => isResolved(item.status)).length;
   const fixRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
   return { total, pending, processing, unrepaired, fatal, resolved, fixRate };
@@ -332,7 +336,7 @@ export function formatRemindMessage(options: {
   const title = options.task.name.trim() || "未修复缺陷提醒";
   const team = options.task.team && options.task.team !== ALL_TEAMS ? options.task.team : "全部团队";
   const overdueCount = options.defects.filter((item) => isOverdue(item, now)).length;
-  const fatalCount = options.defects.filter((item) => isFatalSeverity(item.severity)).length;
+  const fatalCount = options.defects.filter((item) => isHighSeverity(item.severity)).length;
   const lines = options.defects.map((item) => formatDefectLine(item, {
     template: options.task.template,
     includeDetail: options.task.includeDetail,
@@ -342,11 +346,11 @@ export function formatRemindMessage(options: {
 
   const header = [
     `**【${title}】**`,
-    `团队：${team} ｜ 未修复 ${options.defects.length} 条 ｜ 致命 ${fatalCount} 条 ｜ 已超期 ${overdueCount} 条`,
+    `团队：${team} ｜ 未修复 ${options.defects.length} 条 ｜ 严重 ${fatalCount} 条 ｜ 已超期 ${overdueCount} 条`,
   ];
 
   if (options.task.template === "escalate") {
-    header.push("请优先处理致命及超期缺陷，必要时升级至负责人。");
+    header.push("请优先处理严重及超期缺陷，必要时升级至负责人。");
   } else if (options.task.template === "deadline") {
     header.push("请关注截止日期，避免缺陷超期影响版本交付。");
   } else {
