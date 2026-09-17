@@ -22,6 +22,10 @@ export default defineNitroConfig({
     // 生产环境没有开发机上的 ~/.ones-config.json，打包后走这份默认配置。
     // 本地若存在 ~/.ones-config.json 仍优先读文件，方便轮换 token。
     ONES_BASE_URL: 'https://ones.dig.kso.net',
+    // 云端容器解析不了 ones.dig.kso.net，走外网 ONES 反代（/oc/producer/ones）。
+    ONES_CACHE_BASE_URL: 'https://ones-cache.wps.cn/oc/producer/ones',
+    ONES_CACHE_APP_ID: 'APPH@L6KHLySg&aa',
+    ONES_CACHE_APP_KEY: 'lZn7SWQCQdqsSVn@',
     ONES_TEAM_UUID: 'MuZLKcYe',
     ONES_USER_ID: 'N3T6tnMR',
     ONES_AUTH_TOKEN: 'spERBIRCA1c012MXNVbSr6kPVixQwVyLq9NZpW1ldtSy1sEdnLB7w7DUrwbdKZyF',

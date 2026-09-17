@@ -40,19 +40,24 @@ export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
   return data.tasks ?? [];
 }
 
+export interface OnesDefectsResult {
+  rows: DefectRow[];
+  source: "live" | "snapshot";
+}
+
 /** 从后端拉取 ONES 项目的活跃缺陷（服务端已过滤已关闭/不必修复/草稿） */
-export async function fetchOnesDefects(options?: { refresh?: boolean }): Promise<DefectRow[]> {
+export async function fetchOnesDefects(options?: { refresh?: boolean }): Promise<OnesDefectsResult> {
   const path = options?.refresh ? "api/ones-defects?refresh=1" : "api/ones-defects";
   const res = await fetch(getAppApiUrl(path), { credentials: "include" });
   // 服务端失败时返回 200 + {ok:false, error}（避免生产模式剥离 5xx message）
-  const data = await parseJson<{ ok: boolean; rows: DefectRow[]; error?: string }>(res);
+  const data = await parseJson<{ ok: boolean; rows: DefectRow[]; source?: "live" | "snapshot"; error?: string }>(res);
   if (data.ok === false) {
     throw new Error(data.error || "ONES 缺陷接口返回失败");
   }
   if (!Array.isArray(data.rows)) {
     throw new Error("ONES 缺陷接口返回为空");
   }
-  return data.rows;
+  return { rows: data.rows, source: data.source === "snapshot" ? "snapshot" : "live" };
 }
 
 export async function createRemindTask(input: DefectRemindTaskInput): Promise<DefectRemindTask> {

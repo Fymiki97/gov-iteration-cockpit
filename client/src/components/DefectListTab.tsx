@@ -90,6 +90,7 @@ export function DefectListTab() {
   const [defects, setDefects] = useState<DefectRow[]>(() => mergeDefects(SEED_DEFECTS, loadExtraDefects()));
   const [onesRows, setOnesRows] = useState<DefectRow[]>([]);
   const [onesLoading, setOnesLoading] = useState(false);
+  const [onesSource, setOnesSource] = useState<"live" | "snapshot" | "">("");
   const [currentTeam, setCurrentTeam] = useState<DefectTeam>(DEFECT_TEAMS[0]);
   const [tasks, setTasks] = useState<DefectRemindTask[]>([]);
   const [search, setSearch] = useState("");
@@ -158,10 +159,11 @@ export function DefectListTab() {
     (async () => {
       let currentDefects = mergeDefects(SEED_DEFECTS, loadExtraDefects());
       try {
-        const rows = await fetchOnesDefects();
+        const result = await fetchOnesDefects();
         if (cancelled) return;
-        setOnesRows(rows);
-        currentDefects = mergeDefects(rows, loadExtraDefects());
+        setOnesRows(result.rows);
+        setOnesSource(result.source);
+        currentDefects = mergeDefects(result.rows, loadExtraDefects());
         setDefects(currentDefects);
       } catch (err) {
         if (!cancelled) {
@@ -450,10 +452,13 @@ export function DefectListTab() {
                 onClick={async () => {
                   setOnesLoading(true);
                   try {
-                    const rows = await fetchOnesDefects({ refresh: true });
-                    setOnesRows(rows);
-                    setDefects(mergeDefects(rows, loadExtraDefects()));
-                    toast.success(`已刷新，ONES 共 ${rows.length} 条活跃缺陷`);
+                    const result = await fetchOnesDefects({ refresh: true });
+                    setOnesRows(result.rows);
+                    setOnesSource(result.source);
+                    setDefects(mergeDefects(result.rows, loadExtraDefects()));
+                    toast.success(result.source === "snapshot"
+                      ? `云端无法访问内网 ONES，已显示最近快照（${result.rows.length} 条）`
+                      : `已刷新，ONES 共 ${result.rows.length} 条活跃缺陷`);
                   } catch (err) {
                     const detail = err instanceof Error && err.message ? err.message : "";
                     toast.error(detail ? `ONES 拉取失败：${detail}` : "ONES 拉取失败，已保留当前数据");
@@ -465,6 +470,9 @@ export function DefectListTab() {
               >
                 <RefreshCw className={`w-4 h-4 ${onesLoading ? "animate-spin" : ""}`} /> 刷新
               </button>
+              {onesSource === "snapshot" && (
+                <span className="text-xs text-[#98A2B3]">云端无法访问内网 ONES，当前为最近快照</span>
+              )}
               <button
                 type="button"
                 onClick={() => setCreateOpen(true)}

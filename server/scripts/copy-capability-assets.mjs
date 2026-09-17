@@ -14,6 +14,7 @@
  * `.output/server/capabilities/` because the deploy server's `process.cwd()` is
  * NOT the project root—it's `/app/deploy-srv/`.
  */
+import { spawnSync } from "node:child_process";
 import { cpSync, readdirSync, copyFileSync, existsSync, mkdirSync, statSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve, dirname, extname, join, sep } from "node:path";
@@ -256,6 +257,18 @@ const onesCfgSrc = join(homedir(), ".ones-config.json");
 if (existsSync(onesCfgSrc)) {
   copyFileSync(onesCfgSrc, join(serverDir, "ones-config.json"));
   console.log(`  -> Copied ones-config.json to ${serverDir}`);
+}
+
+// 7. Refresh ONES snapshot when pack machine can reach the intranet, then
+//    copy it next to the bundle. Production falls back to this file on ENOTFOUND.
+spawnSync(process.execPath, [join(projectRoot, "scripts", "refresh-ones-snapshot.mjs")], {
+  cwd: projectRoot,
+  stdio: "inherit",
+});
+const onesSnapSrc = join(projectRoot, "data", "ones-defects-snapshot.json");
+if (existsSync(onesSnapSrc)) {
+  copyFileSync(onesSnapSrc, join(serverDir, "ones-defects-snapshot.json"));
+  console.log(`  -> Copied ones-defects-snapshot.json to ${serverDir}`);
 }
 
 console.log("[copy-capability-assets] Done");
