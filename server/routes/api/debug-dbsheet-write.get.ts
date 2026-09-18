@@ -1,31 +1,27 @@
 /**
- * 调试端点：验证多维表任务存储（走 openapi.wps.cn + 网关 access_token）
+ * 调试端点：验证多维表任务存储（capa_session JWT → openapi.wps.cn）
  * 用法：GET /api/debug-dbsheet-write
+ * 幂等：固定探针任务 ID，重复调用只更新不累积。
  */
 export default defineEventHandler(async (event) => {
   const cookieHeader = getRequestHeader(event, "cookie") ?? "";
-  const match = cookieHeader.match(/(?:^|;\s*)gateway_token=([^;]+)/);
-  const token = match?.[1] ?? null;
-
-  if (!token) {
-    return { ok: false, step: "cookie", error: "服务端未收到 gateway_token cookie" };
-  }
-
-  const result: Record<string, unknown> = { ok: true, tokenLength: token.length };
+  const result: Record<string, unknown> = { ok: true, cookieLength: cookieHeader.length };
 
   try {
+    const config = useRuntimeConfig();
+    const appId = String(config.WPS_APP_ID ?? "");
+    result.hasCapaSession = cookieHeader.includes(`capa_session_${appId}=`);
+
     const mod = await import("~/utils/remind-task-dbsheet");
 
-    // 1. 读取（同时会解析表结构）
-    const { tasks, recordIds } = await mod.loadTasks(token);
+    const { tasks, recordIds } = await mod.loadTasks(cookieHeader);
     result.load = {
       taskCount: tasks.length,
       recordIdCount: recordIds.size,
       firstTask: tasks[0] ?? null,
     };
 
-    // 2. 写入测试：固定探针 ID，重复调用只更新不累积
-    const debugTask = {
+    const probe = {
       id: "debug_probe",
       name: "调试任务-可删除",
       team: "全部团队",
@@ -40,9 +36,10 @@ export default defineEventHandler(async (event) => {
       lastRunStatus: null,
       lastRunMessage: "",
     };
-    const saveOk = await mod.saveTasks(token, [...tasks, debugTask], recordIds);
-    result.save = { ok: saveOk, probeId: debugTask.id, taskCount: tasks.length };
+    const saveOk = await mod.saveTasks(cookieHeader, [...tasks, probe], recordIds);
+    result.save = { ok: saveOk, probeId: probe.id };
   } catch (err) {
+    result.ok = false;
     result.error = err instanceof Error ? err.message : String(err);
   }
 

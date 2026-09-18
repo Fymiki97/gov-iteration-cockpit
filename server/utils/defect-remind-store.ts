@@ -45,11 +45,11 @@ export interface DefectRemindTaskInput {
 // ─── 多维表持久化 + 本地文件降级 ───
 
 let dbCache: DefectRemindTask[] | null = null;
-let dbToken: string | null = null;
+let dbCookie: string | null = null;
 
-/** 设置 gateway_token 并触发多维表加载 */
-export function setDbToken(token: string): void {
-  dbToken = token;
+/** 设置请求 cookie 头（含 capa_session JWT），供多维表鉴权使用 */
+export function setDbCookie(cookieHeader: string): void {
+  dbCookie = cookieHeader;
 }
 
 /** 多维表 record _id 缓存，用于 upsert 时定位已有行 */
@@ -57,9 +57,9 @@ let dbRecordIds = new Map<string, string>();
 
 /** 从多维表加载任务到内存缓存 */
 export async function syncFromDb(): Promise<void> {
-  if (!dbToken) return;
+  if (!dbCookie) return;
   try {
-    const { tasks: rows, recordIds } = await loadTasks(dbToken);
+    const { tasks: rows, recordIds } = await loadTasks(dbCookie);
     dbRecordIds = recordIds;
     dbCache = rows.map((r) => r as unknown as DefectRemindTask);
     console.info(`[remind-store] 多维表加载 ${dbCache.length} 条`);
@@ -70,14 +70,14 @@ export async function syncFromDb(): Promise<void> {
 
 /** 持久化到多维表（逐条 upsert） */
 async function persistToDb(tasks: DefectRemindTask[]): Promise<boolean> {
-  if (!dbToken) return false;
+  if (!dbCookie) return false;
   try {
     console.info(`[remind-store] persistToDb: ${tasks.length} 条, 已知 recordIds: ${dbRecordIds.size}`);
     const forDb = tasks.map((t) => {
       const { webhook, ...rest } = t as unknown as Record<string, unknown>;
       return rest;
     });
-    const ok = await saveTasks(dbToken, forDb, dbRecordIds);
+    const ok = await saveTasks(dbCookie, forDb, dbRecordIds);
     if (ok) dbCache = tasks;
     console.info(`[remind-store] persistToDb result: ${ok}`);
     return ok;
@@ -116,7 +116,7 @@ async function writeLocal(tasks: DefectRemindTask[]): Promise<void> {
 
 async function readTasks(): Promise<DefectRemindTask[]> {
   if (dbCache) return [...dbCache].sort((a: DefectRemindTask, b: DefectRemindTask) => b.updatedAt.localeCompare(a.updatedAt));
-  if (dbToken) {
+  if (dbCookie) {
     await syncFromDb();
     if (dbCache) return [...dbCache].sort((a: DefectRemindTask, b: DefectRemindTask) => b.updatedAt.localeCompare(a.updatedAt));
   }

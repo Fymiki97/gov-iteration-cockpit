@@ -1,11 +1,12 @@
 /**
  * 缺陷提醒任务 — WPS 多维表持久化存储
  *
- * 鉴权：用 gateway_token cookie 向平台网关换取 access_token（getWpsGatewaySession），
- * 再以 Bearer 调用 openapi.wps.cn 的多维表 API。
- * 注意：不能直连 o.wpsgo.com/app/app-base/base-proxy（那条路要求 OAuth 且返回 401）。
+ * 鉴权：从请求 cookie 取 `capa_session_<WPS_APP_ID>` JWT（OAuth 授权后由能力框架写入），
+ * 用 SESSION_SECRET 验签解出 access_token，再以 Bearer 调用 openapi.wps.cn 多维表 API。
+ * 注意：不能直连 o.wpsgo.com/app/app-base/base-proxy，也不能用 gateway_token 换 token——
+ * 项目已配置 SESSION_SECRET，能力框架走的是 capa_session JWT 分支。
  */
-import { getWpsGatewaySession } from "@ks-open/capability/server";
+import { verifyCapaSessionJwt } from "@ks-open/capability/server";
 
 const REMIND_FILE_ID = "tmcQvuKxFrMJAHExDfFFrxC3PB5vCD4E7";
 const REMIND_SHEET_ID = 12;
@@ -37,16 +38,25 @@ let fieldNamesCache: FieldNames | null = null;
 
 // ─── 网关鉴权 ───
 
-type GatewaySessionRequest = Parameters<typeof getWpsGatewaySession>[0];
+/** 从 cookie 头读取指定 cookie（值可能被 URL 编码） */
+function readCookie(cookieHeader: string, name: string): string | null {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${escaped}=([^;]+)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
-async function getAccessToken(gatewayToken: string): Promise<string> {
-  // 能力包声明的是 DOM 的 Request，与 Node undici 的全局 Request 类型定义不同，运行时接口兼容
-  const request = {
-    headers: new Headers({ cookie: `gateway_token=${gatewayToken}` }),
-  } as unknown as GatewaySessionRequest;
-  const session = await getWpsGatewaySession(request, {});
-  if (!session.access_token) throw new Error("网关会话未返回 access_token");
-  return session.access_token;
+async function getAccessToken(cookieHeader: string): Promise<string> {
+  const config = useRuntimeConfig();
+  const appId = String(config.WPS_APP_ID ?? "");
+  const sessionSecret = String(config.SESSION_SECRET ?? "");
+  if (!appId || !sessionSecret) throw new Error("服务端缺少 WPS_APP_ID / SESSION_SECRET 配置");
+
+  const cookie = readCookie(cookieHeader, `capa_session_${appId}`);
+  if (!cookie) throw new Error("缺少 capa_session 授权 cookie，请先在应用内完成 OAuth 授权");
+
+  const session = await verifyCapaSessionJwt(cookie, new TextEncoder().encode(sessionSecret));
+  if (!session?.accessToken) throw new Error("capa_session 授权已过期，请刷新页面重新授权");
+  return session.accessToken;
 }
 
 // ─── HTTP ───
@@ -242,9 +252,9 @@ function parseDateToMs(dateStr: unknown): number | undefined {
 
 /** 从多维表读取全部提醒任务，同时返回 record id 用于后续 upsert */
 export async function loadTasks(
-  gatewayToken: string,
+  cookieHeader: string,
 ): Promise<{ tasks: Record<string, unknown>[]; recordIds: Map<string, string> }> {
-  const accessToken = await getAccessToken(gatewayToken);
+  const accessToken = await getAccessToken(cookieHeader);
   const names = await resolveFieldNames(accessToken);
   const data = await apiPost<{ records?: Record<string, unknown>[] }>(
     accessToken,
@@ -268,11 +278,11 @@ export async function loadTasks(
 
 /** 逐条 upsert 提醒任务，并删除多维表中已不存在的记录 */
 export async function saveTasks(
-  gatewayToken: string,
+  cookieHeader: string,
   tasks: Record<string, unknown>[],
   existingRecordIds: Map<string, string>,
 ): Promise<boolean> {
-  const accessToken = await getAccessToken(gatewayToken);
+  const accessToken = await getAccessToken(cookieHeader);
   const names = await resolveFieldNames(accessToken);
   let ok = true;
 

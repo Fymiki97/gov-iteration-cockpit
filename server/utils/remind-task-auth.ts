@@ -1,13 +1,11 @@
 /**
- * 从请求 cookie 中提取 gateway_token 并初始化多维表存储。
+ * 把请求的完整 cookie 头交给多维表存储。
+ * 多维表鉴权需要其中的 `capa_session_<WPS_APP_ID>` JWT，因此这里透传整段 cookie 头。
  * 每个 defect-remind-tasks 路由在开头调用一次。
  */
-import { setDbToken } from "./defect-remind-store";
+import { setDbCookie } from "./defect-remind-store";
 
 export function ensureDbToken(event: any): void {
   const cookieHeader = getRequestHeader(event, "cookie") ?? "";
-  const match = cookieHeader.match(/(?:^|;\s*)gateway_token=([^;]+)/);
-  if (match?.[1]) {
-    setDbToken(match[1]);
-  }
+  if (cookieHeader) setDbCookie(cookieHeader);
 }
