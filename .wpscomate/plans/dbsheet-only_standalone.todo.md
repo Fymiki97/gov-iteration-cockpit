@@ -4,4 +4,4 @@
 2. [x] 服务端：删除仅用于回填的 sync 端点与 backfillRemindTasks
 3. [x] 客户端：去掉 localStorage 作为任务配置来源（fetch/create/update/delete）
 4. [x] 清理本地残留任务数据文件
-5. [-] 本地验证仅走多维表，然后 lint + check:types + pack 并部署上线
+5. [x] 本地验证仅走多维表，然后 lint + check:types + pack 并部署上线
