@@ -268,6 +268,9 @@ function toDateCell(val: unknown, withTime = false): string | undefined {
     const day = raw.slice(0, 10);
     return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
   }
+  // 纯日期串（从表里读回时已归一化为 YYYY-MM-DD）按本地 00:00 处理：
+  // new Date("2026-09-18") 按 UTC 解析，在 UTC+8 下会变成 08:00，写出与来源不符的时间
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw} 00:00`;
   const d = new Date(raw);
   if (isNaN(d.getTime())) return undefined;
   const pad = (n: number) => String(n).padStart(2, "0");
