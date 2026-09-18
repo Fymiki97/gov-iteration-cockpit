@@ -184,8 +184,11 @@ export function DefectListTab() {
           }
         }
         if (!cancelled) setTasks(next);
-      } catch {
-        if (!cancelled) toast.error("提醒任务加载失败，可稍后在配置中重试");
+      } catch (err) {
+        if (!cancelled) {
+          const detail = err instanceof Error && err.message ? err.message : "";
+          toast.error(detail ? `提醒任务读取失败：${detail}` : "提醒任务读取失败，可稍后在配置中重试");
+        }
       }
     })();
     return () => { cancelled = true; };

@@ -83,17 +83,24 @@ export function DefectRemindConfigDialog(props: {
     try {
       if (mode === "new") {
         const { task, warning } = await createRemindTask(form);
+        if (warning) {
+          // 未落表 = 任务实际不存在，不能加进列表，否则界面会显示多维表里没有的任务
+          toast.error(`新建失败：未能写入多维表（${warning}）`);
+          return;
+        }
         props.onTasksChange([task, ...props.tasks]);
         setMode(task.id);
         setForm(taskToInput(task));
-        if (warning) toast.warning(`已保存到本地，但未写入多维表：${warning}`);
-        else toast.success("已新建提醒任务");
+        toast.success("已新建提醒任务");
       } else {
         const { task, warning } = await updateRemindTask(mode, form);
+        if (warning) {
+          toast.error(`保存失败：未能写入多维表（${warning}）`);
+          return;
+        }
         props.onTasksChange(props.tasks.map((item) => item.id === task.id ? task : item));
         setForm(taskToInput(task));
-        if (warning) toast.warning(`已保存到本地，但未写入多维表：${warning}`);
-        else toast.success("已保存提醒任务");
+        toast.success("已保存提醒任务");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "保存失败");
@@ -110,12 +117,16 @@ export function DefectRemindConfigDialog(props: {
     setSaving(true);
     try {
       const { warning } = await deleteRemindTask(mode);
+      if (warning) {
+        // 未删成功则记录仍在多维表，不能从列表移除
+        toast.error(`删除失败：未能从多维表删除（${warning}）`);
+        return;
+      }
       const next = props.tasks.filter((item) => item.id !== mode);
       props.onTasksChange(next);
       if (next[0]) selectTask(next[0]);
       else startNew();
-      if (warning) toast.warning(`已从本地删除，但未从多维表删除：${warning}`);
-      else toast.success("已删除提醒任务");
+      toast.success("已删除提醒任务");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "删除失败");
     } finally {
