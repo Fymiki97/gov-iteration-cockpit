@@ -75,10 +75,16 @@ export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
     const serverIds = new Set(server.map((t) => t.id));
     const merged = server.map((t) => {
       const localT = localMap.get(t.id);
-      if (localT?.lastRunAt && (!t.lastRunAt || t.lastRunAt < localT.lastRunAt)) {
-        return { ...t, lastRunAt: localT.lastRunAt, lastRunStatus: localT.lastRunStatus, lastRunMessage: localT.lastRunMessage };
+      if (!localT) return t;
+      const next = { ...t };
+      // webhook 属敏感字段，不写入多维表，因此以本地为准，避免刷新后被空值覆盖
+      if (!next.webhook && localT.webhook) next.webhook = localT.webhook;
+      if (localT.lastRunAt && (!next.lastRunAt || next.lastRunAt < localT.lastRunAt)) {
+        next.lastRunAt = localT.lastRunAt;
+        next.lastRunStatus = localT.lastRunStatus;
+        next.lastRunMessage = localT.lastRunMessage;
       }
-      return t;
+      return next;
     });
     const localOnly = local.filter((t) => !serverIds.has(t.id));
     return [...localOnly, ...merged];
