@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1789750039405",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789750039406,
+  "note": {
+    "completed": [
+      "【环境变量可行性排查完成】结论：平台不支持配置应用运行时环境变量。证据：wpsgo code deploy 无 env 参数；wpsgo 无 env 类命令；manage API 探测 /env /envs /environment /environments /config /vars /variables /secrets 全部 404；项目对象 26 个字段无 env/secret 字段；comate.json 无 env 字段；server 端 process.env 使用 0 处（全走 useRuntimeConfig）",
+      "确认等效替代方案可行：构建在本地执行（pack:server 的 cwd = server/，nitro.config.ts 顶部已有 dotenv config()），且 .gitignore 已有 .env 规则（无斜杠模式，匹配任意层级）→ server/.env 天然被忽略。改造只需：nitro.config.ts 改读 process.env + 密钥写 server/.env",
+      "代码整理 + 检查通过：无遗留诊断代码（fs 探针已清），pnpm lint 0 错误（6 个既有警告），pnpm check:types 0 错误，工作树干净（系统 auto-commit 已提交）",
+      "【推送失败】GitHub 在本环境不可达：github.com DNS 被劫持到内网 198.19.1.4；HTTPS 报 SSL_ERROR_SYSCALL；SSH github.com:22 与 ssh.github.com:443 均 Connection closed。而 open.wps.cn / registry.npmjs.org / baidu.com 均 HTTP 200 → 是企业网络策略针对 GitHub，非断网",
+      "确认核心代码早已在 origin/main：remind-cron.ts / invoke.post.ts / sync-remind-cron.mjs / DefectListTab.tsx 均已存在于远端；未推送的 3 个提交仅含 .wpscomate/handoffs 文件与 ones-defects-snapshot.json",
+      "【已部署】版本 202609190052（线上最新）：ONES 取数失败时的「提醒异常」通知 + 移除前端页面自动发送逻辑"
+    ],
+    "remaining": [
+      "【用户已决策：不再处理】密钥轮换：公司不给新密钥，用户明确表示\"就先这样\"。 nitro.config.ts 硬编码密钥保持现状",
+      "用户在自己机器上补一次 git push origin main（本地领先 3 个提交，仅交接文件+快照）",
+      "多维表测试任务仍是停用状态；用户定好生产时间后：打开「是否启用」+ 填提醒时间（须为 :00 或 :30）→ WPS_SID=<会话> node scripts/sync-remind-cron.mjs",
+      "观察一次真实定时送达确认端到端"
+    ],
+    "decisions": [
+      "【新增】平台不支持应用运行时环境变量（已四路排查）；如需密钥不进 git，唯一可行路径是 server/.env + dotenv（构建期注入），但用户已放弃该改造",
+      "【新增】密钥轮换因公司不提供新密钥而不可行； nitro.config.ts 硬编码保持现状（旧值已在 GitHub 历史中）",
+      "【新增】GitHub 推送在本环境不可行，需用户在本地执行",
+      "【新增】提醒时间限制：因 cron 为 0 0,30 * * * *，remindTimes 必须为 :00 或 :30，其他分钟永不触发"
+    ],
+    "issues": [
+      "密钥硬编码在 server/nitro.config.ts:19-31（SESSION_SECRET / WPS_APP_SECRET / ONES_AUTH_TOKEN / ONES_CACHE_APP_KEY）且已在 origin/main 历史中；用户无法轮换 → 建议将 GitHub 仓库设为 private 作为唯一低成本缓解手段（尚未确认仓库当前可见性）",
+      "无状态去重：单次触发丢失即当天漏发，无重试（容器文件系统多副本不共享 + 部署重建，AppBase 与多维表回写均需用户凭据）",
+      "server/nitro.config.ts 的 nitro.envPrefix 被误放在 runtimeConfig 内部（应为顶层），当前为无效配置",
+      "ONES 云端 403、computeDefectStats 既有失败"
+    ],
+    "files_changed": [
+      "server/utils/remind-cron.ts",
+      "server/routes/invoke.post.ts",
+      "scripts/sync-remind-cron.mjs",
+      "client/src/components/DefectListTab.tsx",
+      "server/nitro.config.ts（仅排查，未修改）"
+    ]
+  },
+  "reason": "环境变量方案排查完成（平台不支持）；GitHub 推送因网络策略受阻；用户决定放弃密钥轮换与 .env 改造，保持现状"
+}
