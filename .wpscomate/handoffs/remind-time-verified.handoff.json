@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "handoffId": "remind-time-verified",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789738286176,
+  "note": {
+    "completed": [
+      "用户已在线上 UI 确认：保存后刷新页面时刻仍正确回显——App 的 dbsheet 写入与读回链路端到端验证通过",
+      "「自定义提醒时间」功能已全量上线：version_id 386862918959875（published）",
+      "多维表 sheet 12 新增「提醒时间」列 IF/MultiLineText，已写入 FIELD_MAP"
+    ],
+    "remaining": [
+      "待用户决策 A：前端补跑语义——现为「严格命中当前槽位」，页面不在 09:00-09:29 窗口打开就不发 09:00 那次；可选改为「补发今天已过且未发的时刻」",
+      "待用户决策 B：服务端定时身份方案——refresh_token 捕获 / AppBase 镜像 / 先不做",
+      "服务端 sweep + /invoke cron 入口未实现（依赖决策 B）",
+      "平台 cron 自动化任务未创建（依赖决策 B）",
+      "当前时刻配置只在有人访问应用时生效，不是真服务端定时",
+      "commit 2f8e3fb 等 auto-commit 未 push 到 origin/main；ONES 云端 403；96f2c7d ONES token 硬编码建议轮换；真@重做待定；computeDefectStats 既有失败"
+    ],
+    "decisions": [
+      "槽位判定：shanghaiSlot 向下对齐 30 分钟；remindTimes 空=不限时刻（零迁移）",
+      "同日续跑仅当 remindTimes.length > 1；单时刻保持旧的当天只发一次",
+      "lastRunAt 必须用 formatDateTime 保留时分；parseRunAt 显式按 +08:00 解析墙钟串",
+      "多维表新建列一律 type=MultiLineText，值存 JSON 数组字符串",
+      "FIELD_MAP 字段 ID 为主、列名回退为辅",
+      "不引入 Nitro 内常驻 setInterval，定时走平台 cron",
+      "平台不支持应用级授权调多维表（403000004），只能用户委托授权"
+    ],
+    "issues": [
+      "严格槽位匹配导致「错过窗口就漏发」：多时刻任务若页面未在对应 30 分钟窗口打开，该时刻当天不发",
+      "无用户 cookie 时服务端读不到多维表任务配置，cron 无法无人值守",
+      "oauth/callback.ts:101 丢弃了响应中的 refresh_token",
+      "wpsgo code status 的 latest_version 是陈旧值，看 versions 列表；deploy 必须传 -w 与 --version；versions 是隐藏命令"
+    ],
+    "files_changed": [
+      "server/utils/remind-task-dbsheet.ts",
+      "server/utils/defect-remind.ts",
+      "server/utils/defect-remind-store.ts",
+      "server/utils/defect-remind.test.ts",
+      "client/src/lib/defect.ts",
+      "client/src/lib/defect.test.ts",
+      "client/src/components/DefectRemindConfigDialog.tsx",
+      "client/src/components/DefectRemindSendDialog.tsx"
+    ]
+  },
+  "reason": "提醒时刻功能端到端验证通过并上线；遗留两个待决策：前端补跑语义、服务端定时身份方案"
+}

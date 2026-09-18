@@ -161,14 +161,19 @@ describe("isTaskDue", () => {
 });
 
 // now = 2026-09-14 16:20 (北京时间)，对应槽位 16:00
-describe("isTaskDue 提醒时刻（30 分钟槽位）", () => {
+describe("isTaskDue 提醒时刻（30 分钟槽位 + 补发）", () => {
   it("空 remindTimes 视为不限时刻，旧记录行为不变", () => {
     expect(isTaskDue(sampleTask({ remindTimes: [] }), now)).toBe(true);
   });
 
-  it("单时刻：命中当前槽位才发，否则不发", () => {
-    expect(isTaskDue(sampleTask({ remindTimes: ["16:00"] }), now)).toBe(true);
-    expect(isTaskDue(sampleTask({ remindTimes: ["09:00"] }), now)).toBe(false);
+  it("未到今天的第一个提醒时刻不发", () => {
+    expect(isTaskDue(sampleTask({ remindTimes: ["18:00"] }), now)).toBe(false);
+    expect(isTaskDue(sampleTask({ remindTimes: ["16:30"] }), now)).toBe(false);
+  });
+
+  it("已过的时刻补发：页面不在 30 分钟窗口内打开也不漏", () => {
+    expect(isTaskDue(sampleTask({ remindTimes: ["09:00"] }), now)).toBe(true);
+    expect(isTaskDue(sampleTask({ remindTimes: ["09:00", "18:00"] }), now)).toBe(true);
   });
 
   it("时刻向下对齐到 30 分钟槽位，不是精确匹配", () => {
@@ -191,24 +196,33 @@ describe("isTaskDue 提醒时刻（30 分钟槽位）", () => {
     }), now)).toBe(false);
   });
 
-  it("单时刻任务当天已发过就不再发（保持旧的当天只发一次）", () => {
-    expect(isTaskDue(sampleTask({
-      remindTimes: ["16:00"],
-      lastRunAt: "2026-09-14T01:05:00.000Z",
-    }), now)).toBe(false);
+  it("补发后同一时刻当天不再重复发", () => {
+    expect(isTaskDue(sampleTask({ remindTimes: ["09:00"], lastRunAt: "2026-09-14 16:05" }), now)).toBe(false);
   });
 
-  it("多维表墙钟串 lastRunAt 按北京时间解析，不被当成本地时间而跨天错位", () => {
-    expect(isTaskDue(sampleTask({
-      remindTimes: ["16:00"],
-      lastRunAt: "2026-09-14 09:05",
-    }), now)).toBe(false);
+  it("同一天反复打开页面不会重复发送", () => {
+    const t = sampleTask({ remindTimes: ["09:00"], lastRunAt: "2026-09-14 09:05" });
+    expect(isTaskDue(t, now)).toBe(false);
+    expect(isTaskDue(t, new Date("2026-09-14T17:40:00+08:00"))).toBe(false);
   });
 
-  it("仅一次：到设定时刻才发，且执行过就不再发", () => {
-    const once = { frequency: "once" as const, remindTimes: ["16:00"] };
+  it("跨天：昨天的记录不阻塞今天补发", () => {
+    expect(isTaskDue(sampleTask({ remindTimes: ["09:00"], lastRunAt: "2026-09-13 09:05" }), now)).toBe(true);
+  });
+
+  it("多维表墙钟串按 +08:00 解析，不被当成本地时间而错判槽位", () => {
+    // 08:30 早于 09:00 时刻，故 09:00 仍未发、应补发；
+    // 若把墙钟串当 UTC，08:30Z = 16:30 北京时间，会误判成已覆盖 09:00 而不发。
+    expect(isTaskDue(sampleTask({
+      remindTimes: ["09:00"],
+      lastRunAt: "2026-09-14 08:30",
+    }), now)).toBe(true);
+  });
+
+  it("仅一次：到设定时刻才发（含补发），且执行过就不再发", () => {
+    const once = { frequency: "once" as const, remindTimes: ["09:00"] };
     expect(isTaskDue(sampleTask(once), now)).toBe(true);
-    expect(isTaskDue(sampleTask({ ...once, remindTimes: ["09:00"] }), now)).toBe(false);
+    expect(isTaskDue(sampleTask({ ...once, remindTimes: ["18:00"] }), now)).toBe(false);
     expect(isTaskDue(sampleTask({ ...once, lastRunAt: "2026-09-14T01:05:00.000Z" }), now)).toBe(false);
   });
 

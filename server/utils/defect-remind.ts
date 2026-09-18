@@ -81,26 +81,29 @@ export function isTaskDue(task: DefectRemindTask, now = new Date(), slot = shang
   if (task.frequency === "weekdays" && (weekday === 0 || weekday === 6)) return false;
 
   const times = task.remindTimes ?? [];
-  const slotOk = times.length === 0 || times.includes(slot);
+  // 取今天已到点的时刻里最近一个；没取到说明还没到今天的第一个提醒时刻。
+  // 用「已到点」而非「等于当前槽位」，是为了在页面/定时器错过窗口后仍能补发。
+  const target = times.length > 0 ? (times.filter((t) => t <= slot).sort().pop() ?? null) : null;
+  if (times.length > 0 && target === null) return false;
 
   // 「仅一次」：未执行过且已到设定时刻
-  if (task.frequency === "once") return !task.lastRunAt && slotOk;
+  if (task.frequency === "once") return !task.lastRunAt;
 
   const last = task.lastRunAt ? parseRunAt(task.lastRunAt) : null;
   if (last) {
     const lastDay = shanghaiDay(last);
     if (lastDay === today) {
-      // 同一天续跑仅限多时刻任务；≤1 个时刻保持旧的「当天只发一次」语义
-      if (times.length <= 1) return false;
+      // 不限时刻的任务保持旧的「当天只发一次」
+      if (times.length === 0) return false;
+      // 已到点的最近时刻发过就不再发，否则补发错过的时刻
+      if (target !== null && shanghaiSlot(last) >= target) return false;
     } else if (task.frequency === "weekly") {
       if (daysBetween(lastDay, today) < 7) return false;
     } else if (today <= lastDay) {
       return false;
     }
-    // 槽位去重：同一 (日, 槽位) 只发一次
-    if (shanghaiDay(last) === today && shanghaiSlot(last) === slot) return false;
   }
-  return slotOk;
+  return true;
 }
 
 export function matchTaskDefects(options: {

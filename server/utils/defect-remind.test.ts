@@ -63,14 +63,19 @@ describe("parseRunAt", () => {
   });
 });
 
-describe("isTaskDue 提醒时刻（30 分钟槽位）", () => {
+describe("isTaskDue 提醒时刻（30 分钟槽位 + 补发）", () => {
   it("空 remindTimes 视为不限时刻，旧记录行为不变", () => {
     expect(isTaskDue(task({ remindTimes: [] }), now)).toBe(true);
   });
 
-  it("单时刻：命中当前槽位才发", () => {
-    expect(isTaskDue(task({ remindTimes: ["16:00"] }), now)).toBe(true);
-    expect(isTaskDue(task({ remindTimes: ["09:00"] }), now)).toBe(false);
+  it("未到今天的第一个提醒时刻不发", () => {
+    expect(isTaskDue(task({ remindTimes: ["18:00"] }), now)).toBe(false);
+    expect(isTaskDue(task({ remindTimes: ["16:30"] }), now)).toBe(false);
+  });
+
+  it("已过的时刻补发：页面不在 30 分钟窗口内打开也不漏", () => {
+    expect(isTaskDue(task({ remindTimes: ["09:00"] }), now)).toBe(true);
+    expect(isTaskDue(task({ remindTimes: ["09:00", "18:00"] }), now)).toBe(true);
   });
 
   it("时刻按槽位比较，不是精确匹配", () => {
@@ -91,15 +96,25 @@ describe("isTaskDue 提醒时刻（30 分钟槽位）", () => {
     ).toBe(false);
   });
 
-  it("单时刻任务当天已发过就不再发（保持旧的当天只发一次）", () => {
-    expect(isTaskDue(task({ remindTimes: ["16:00"], lastRunAt: "2026-09-14 09:05" }), now)).toBe(false);
+  it("补发后同一时刻当天不再重复发", () => {
+    expect(isTaskDue(task({ remindTimes: ["09:00"], lastRunAt: "2026-09-14 16:05" }), now)).toBe(false);
   });
 
-  it("仅一次：到设定时刻才发，执行过就不再发", () => {
-    expect(isTaskDue(task({ frequency: "once", remindTimes: ["16:00"] }), now)).toBe(true);
-    expect(isTaskDue(task({ frequency: "once", remindTimes: ["09:00"] }), now)).toBe(false);
+  it("同一天反复打开页面不会重复发送", () => {
+    const t = task({ remindTimes: ["09:00"], lastRunAt: "2026-09-14 09:05" });
+    expect(isTaskDue(t, now)).toBe(false);
+    expect(isTaskDue(t, new Date("2026-09-14T17:40:00+08:00"))).toBe(false);
+  });
+
+  it("跨天：昨天的记录不阻塞今天补发", () => {
+    expect(isTaskDue(task({ remindTimes: ["09:00"], lastRunAt: "2026-09-13 09:05" }), now)).toBe(true);
+  });
+
+  it("仅一次：到设定时刻才发（含补发），执行过就不再发", () => {
+    expect(isTaskDue(task({ frequency: "once", remindTimes: ["09:00"] }), now)).toBe(true);
+    expect(isTaskDue(task({ frequency: "once", remindTimes: ["18:00"] }), now)).toBe(false);
     expect(
-      isTaskDue(task({ frequency: "once", remindTimes: ["16:00"], lastRunAt: "2026-09-14 09:05" }), now),
+      isTaskDue(task({ frequency: "once", remindTimes: ["09:00"], lastRunAt: "2026-09-14 09:05" }), now),
     ).toBe(false);
   });
 
