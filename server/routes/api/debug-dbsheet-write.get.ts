@@ -24,9 +24,9 @@ export default defineEventHandler(async (event) => {
       firstTask: tasks[0] ?? null,
     };
 
-    // 2. 写入测试：创建一条可删除的调试任务
+    // 2. 写入测试：固定探针 ID，重复调用只更新不累积
     const debugTask = {
-      id: "debug_" + Date.now(),
+      id: "debug_probe",
       name: "调试任务-可删除",
       team: "全部团队",
       frequency: "daily",
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
       lastRunMessage: "",
     };
     const saveOk = await mod.saveTasks(token, [...tasks, debugTask], recordIds);
-    result.save = { ok: saveOk, created: debugTask.id };
+    result.save = { ok: saveOk, probeId: debugTask.id, taskCount: tasks.length };
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
   }
