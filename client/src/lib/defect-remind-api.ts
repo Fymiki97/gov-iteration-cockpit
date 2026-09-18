@@ -2,12 +2,6 @@ import { getAppApiUrl } from "@/lib/oauth-redirect";
 import { matchTaskDefects } from "@/lib/defect";
 import type { DefectRemindTask, DefectRemindTaskInput, DefectRow } from "@/lib/defect";
 
-/** 会话级缓存：记录本次会话已自动执行过的一次性任务，防止刷新后重复执行 */
-const autoRunCache = new Set<string>();
-
-export function hasAutoRun(taskId: string): boolean { return autoRunCache.has(taskId); }
-export function markAutoRun(taskId: string): void { autoRunCache.add(taskId); }
-
 export interface RunRemindResult {
   ok: boolean;
   sent: boolean;

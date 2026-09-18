@@ -39,7 +39,6 @@ import {
   computeDefectStats,
   filterDefects,
   isOverdue,
-  isTaskDue,
   isUnrepaired,
   loadExtraDefects,
   mergeDefects,
@@ -50,7 +49,7 @@ import {
   type DefectRow,
   type DefectStatus,
 } from "@/lib/defect";
-import { fetchOnesDefects, fetchRemindTasks, runRemindTask, hasAutoRun, markAutoRun } from "@/lib/defect-remind-api";
+import { fetchOnesDefects, fetchRemindTasks } from "@/lib/defect-remind-api";
 
 const FILTER_ALL = "__all__";
 const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证"];
@@ -140,14 +139,12 @@ export function DefectListTab() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let currentDefects = mergeDefects(SEED_DEFECTS, loadExtraDefects());
       try {
         const result = await fetchOnesDefects();
         if (cancelled) return;
         setOnesRows(result.rows);
         setOnesSource(result.source);
-        currentDefects = mergeDefects(result.rows, loadExtraDefects());
-        setDefects(currentDefects);
+        setDefects(mergeDefects(result.rows, loadExtraDefects()));
       } catch (err) {
         if (!cancelled) {
           const detail = err instanceof Error && err.message ? err.message : "";
@@ -161,30 +158,7 @@ export function DefectListTab() {
         // 固定 id 避免每次加载都叠一个提示；落库异常持续存在时应持续可见
         if (warning) toast.warning(warning, { id: "remind-store-status" });
         else toast.dismiss("remind-store-status");
-        const due = loaded.filter((task) => isTaskDue(task) && !hasAutoRun(task.id));
-        if (due.length === 0) return;
-        const next = [...loaded];
-        for (const task of due) {
-          try {
-            const result = await runRemindTask({ taskId: task.id, task, defects: currentDefects, scheduled: true });
-            if (cancelled || !result.sent) continue;
-            const index = next.findIndex((item) => item.id === task.id);
-            if (index >= 0) {
-              next[index] = {
-                ...next[index],
-                lastRunAt: new Date().toISOString(),
-                lastRunStatus: "success",
-                lastRunMessage: `已发送 ${result.count} 条`,
-                enabled: task.frequency === "once" ? false : next[index].enabled,
-              };
-            }
-            markAutoRun(task.id);
-            toast.success(`定时任务「${task.name}」已通过${result.channel}发送 ${result.count} 条`);
-          } catch {
-            // 页面打开时的到期自动发送失败不打断查看
-          }
-        }
-        if (!cancelled) setTasks(next);
+        // 到期发送已由服务端 cron（/invoke）无人值守执行，页面只负责展示配置
       } catch (err) {
         if (!cancelled) {
           const detail = err instanceof Error && err.message ? err.message : "";
