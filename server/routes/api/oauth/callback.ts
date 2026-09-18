@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { defineEventHandler, getRequestURL, getHeader } from "h3";
 import { apiPost } from "~/utils/remind-task-dbsheet";
 
@@ -115,6 +118,52 @@ async function probeRefreshRotation(
   };
 }
 
+/**
+ * 探测容器文件系统能否充当 refresh_token 的持久化存储。
+ *
+ * 背景：平台刷新 refresh_token 时会轮换且旧值立即失效，所以服务端必须把新值写回。
+ * 若容器本地文件系统可写且能跨请求保留，就不用任何外部存储。这里在每个候选目录
+ * 读-自增-写一个计数文件，并记录主机名与进程存活时长：
+ *   - 计数递增 = 文件跨请求保留；
+ *   - 主机名变化 = 被调度到不同实例（多实例下各自持文件会互相把 token 刷废）。
+ * 只记目录、可写性、计数与主机名，不写任何凭据。
+ */
+const FS_PROBE_DIRS = ["/tmp", process.cwd(), "/app", "/home/app"];
+
+function probeFilesystem(): Record<string, string> {
+  const host = os.hostname();
+  const results: string[] = [];
+  for (const dir of FS_PROBE_DIRS) {
+    const file = path.join(dir, ".capa-fs-probe.json");
+    try {
+      let count = 0;
+      let firstAt = "";
+      try {
+        const prev = JSON.parse(fs.readFileSync(file, "utf8")) as { count?: unknown; firstAt?: unknown };
+        count = Number(prev.count) || 0;
+        firstAt = typeof prev.firstAt === "string" ? prev.firstAt : "";
+      } catch {
+        // 首次运行：文件不存在
+      }
+      const now = new Date().toISOString();
+      fs.writeFileSync(
+        file,
+        JSON.stringify({ count: count + 1, firstAt: firstAt || now, lastAt: now, host }),
+        "utf8",
+      );
+      const back = JSON.parse(fs.readFileSync(file, "utf8")) as { count: number; firstAt: string };
+      results.push(`${dir} 可写 count=${back.count} first=${back.firstAt.slice(0, 19)}`);
+    } catch (err) {
+      results.push(`${dir} 不可写(${err instanceof Error ? err.message.slice(0, 50) : String(err)})`);
+    }
+  }
+  return {
+    容器hostname: host,
+    容器uptime秒: String(Math.round(process.uptime())),
+    fs探测结果: results.join(" ; "),
+  };
+}
+
 async function recordTokenResponseDiagnostics(
   accessToken: string,
   data: Record<string, unknown>,
@@ -134,6 +183,7 @@ async function recordTokenResponseDiagnostics(
     refresh_expires_in: String(data.refresh_expires_in ?? ""),
     token_type: String(data.token_type ?? ""),
     ...rotation,
+    ...probeFilesystem(),
   };
   await apiPost(accessToken, `/sheets/${DIAG_SHEET_ID}/records/create`, {
     records: [{ fields_value: JSON.stringify(fields) }],
