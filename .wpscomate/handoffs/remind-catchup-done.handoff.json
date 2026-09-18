@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "handoffId": "remind-catchup-done",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789738730478,
+  "note": {
+    "completed": [
+      "补发语义已实现并上线：isTaskDue 从「命中当前 30 分钟槽位」改为「今天已到点时刻里最近一个未被 lastRunAt 覆盖」——target = times.filter(t => t <= slot).sort().pop()，同日去重靠 shanghaiSlot(last) >= target",
+      "补发后旧的「当天只发一次」语义仍成立（单时刻发过后 slot(last) >= target 自动阻塞）；不限时刻（remindTimes 空）仍为日粒度不变",
+      "测试已按补发语义重写：客户端 28/29（唯一失败为既有 computeDefectStats）、服务端 22/22",
+      "lint 0 错误（6 既有警告）、check:types 0 错误",
+      "已上线：version_id 686693638599989（published），描述「缺陷提醒时刻改为补发语义」",
+      "前一轮的自定义提醒时间功能（列 IF + 全链路 + 端到端验证）已在 version 386862918959875 上线"
+    ],
+    "remaining": [
+      "Phase 4a 阻塞：refresh_token 无持久化落点，待用户定方案（见 issues）",
+      "Phase 4b: 服务端用 refresh_token 换 access_token，无 cookie 时回落读多维表",
+      "Phase 4c: sweep 主逻辑 + /invoke cron 入口",
+      "Phase 6: 平台 cron 自动化任务创建与启用",
+      "commit 2f8e3fb 等 auto-commit 未 push 到 origin/main；ONES 云端 403；96f2c7d ONES token 硬编码建议轮换；真@重做待定"
+    ],
+    "decisions": [
+      "补发语义：用「已到点」而非「等于当前槽位」，页面错过窗口也能补发；同一（日,槽位）仍只发一次",
+      "时刻按 30 分钟槽位向下对齐；remindTimes 空 = 不限时刻（零迁移）",
+      "lastRunAt 必须用 formatDateTime 保留时分；parseRunAt 显式按 +08:00 解析墙钟串",
+      "多维表新建列一律 type=MultiLineText，值存 JSON 数组字符串",
+      "FIELD_MAP 字段 ID 为主、列名回退为辅",
+      "不引入 Nitro 内常驻 setInterval，定时走平台 cron",
+      "平台不支持应用级授权调多维表（403000004），只能用户委托授权"
+    ],
+    "issues": [
+      "【最大阻塞】refresh_token 无持久化落点：① 平台 cron 链路 FC Timer → routes/invoke.post.ts 不带用户身份，且 automation-task 明确「无数据库访问—自动化触发后不要访问应用 DB」；② AppBase JS SDK（@wps365-open/appbase-js@0.0.8）无 service key/service_role，useAppBase 仅透传 cookie，无法无人值守读；③ 容器文件系统不跨部署持久；④ wpsgo 无服务端密钥注入命令（code config 只能设 session_id/task_type）",
+      "现有唯一可用的服务端凭据通道是先例：nitro.config.ts 把 SESSION_SECRET / WPS_APP_SECRET / ONES_AUTH_TOKEN 硬编码进 runtimeConfig（dotenv 读 .env），但这会进 git——已有一个同类事故 96f2c7d",
+      "oauth/callback.ts:102 把响应强类型为 { access_token?, expires_in? }，refresh_token 未捕获；且未确认平台是否真的下发 refresh_token（需用户重新授权一次才能观测）",
+      "无用户 cookie 时服务端读不到多维表任务配置",
+      "wpsgo code status 的 latest_version 是陈旧值，看 versions 列表（字段是 id/version_number，不是 version_id）；deploy 必须传 -w 与 --version，不接受 --project-id"
+    ],
+    "files_changed": [
+      "server/utils/defect-remind.ts",
+      "server/utils/defect-remind.test.ts",
+      "client/src/lib/defect.ts",
+      "client/src/lib/defect.test.ts"
+    ]
+  },
+  "reason": "补发语义已实现验证并上线；refresh_token 路径查清后卡在「无服务端密钥持久化落点」，需用户定方案"
+}
