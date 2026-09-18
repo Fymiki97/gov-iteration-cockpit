@@ -160,6 +160,20 @@ export async function runRemindCron(payload: RemindCronPayload, now = new Date()
     result.ok = false;
     result.failed = due.length;
     result.messages.push(`ONES 取数失败，本次 ${due.length} 个到期任务全部未发送：${message}`);
+    // 无人值守下静默失败最危险：取数失败时向首个到期任务的群发异常通知，让负责人知道提醒中断
+    const reporter = due[0];
+    try {
+      await postWebhook({
+        webhook: reporter.webhook,
+        title: `${reporter.name}（提醒异常）`,
+        text: `缺陷提醒未能执行：读取 ONES 缺陷失败。\n\n原因：${message}\n\n请检查 ONES 配置或网络后重试。`,
+        atUserIds: [],
+      });
+      result.messages.push(`已向「${reporter.name}」发送异常通知`);
+    } catch (notifyErr) {
+      const notifyMessage = notifyErr instanceof Error ? notifyErr.message : String(notifyErr);
+      result.messages.push(`异常通知发送失败：${notifyMessage}`);
+    }
     return result;
   }
 
