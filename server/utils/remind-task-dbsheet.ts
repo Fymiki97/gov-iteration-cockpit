@@ -30,6 +30,7 @@ const FIELD_MAP: Record<string, string> = {
   IC: "lastRunStatus",
   ID: "lastRunMessage",
   IE: "webhook",
+  IF: "remindTimes",
 };
 
 /**
