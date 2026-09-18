@@ -70,6 +70,7 @@ export function DefectRemindSendDialog(props: {
         lastRunAt: new Date().toISOString(),
         lastRunStatus: "success",
         lastRunMessage: `已发送 ${result.count} 条`,
+        enabled: task.frequency === "once" ? false : task.enabled,
       });
       props.onOpenChange(false);
       toast.success(`已通过${result.channel}提醒 ${owners.length} 位负责人，共 ${result.count} 条缺陷`);

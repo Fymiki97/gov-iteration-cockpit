@@ -355,6 +355,10 @@ export async function saveTasks(
   if (toDelete.length > 0) {
     try {
       await apiPost(accessToken, `/sheets/${REMIND_SHEET_ID}/records/batch_delete`, { records: toDelete });
+      // 删除成功后同步清掉这些 id，否则它们会一直留在映射里，下次写入又对已不存在的记录发起删除
+      for (const [taskId, recordId] of existingRecordIds) {
+        if (!currentIds.has(taskId) && toDelete.includes(recordId)) existingRecordIds.delete(taskId);
+      }
     } catch (err) {
       error = error ?? (err instanceof Error ? err.message : String(err));
       console.warn("[remind-dbsheet] 删除失败:", error);

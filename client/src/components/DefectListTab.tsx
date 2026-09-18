@@ -175,6 +175,7 @@ export function DefectListTab() {
                 lastRunAt: new Date().toISOString(),
                 lastRunStatus: "success",
                 lastRunMessage: `已发送 ${result.count} 条`,
+                enabled: task.frequency === "once" ? false : next[index].enabled,
               };
             }
             markAutoRun(task.id);

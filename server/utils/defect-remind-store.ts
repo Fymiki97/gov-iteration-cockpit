@@ -75,6 +75,16 @@ async function syncFromDb(): Promise<void> {
   console.info(`[remind-store] 多维表加载 ${dbCache.length} 条`);
 }
 
+/**
+ * 作废内存缓存，强制下次操作重新读表。
+ * 写入中途失败时 dbRecordIds 可能已被部分回填，与 dbCache 不再对应；
+ * 若继续沿用，下次写入会把「缓存里没有、表里却有」的记录当成已删除而清掉。
+ */
+function invalidateDbState(): void {
+  dbCache = null;
+  dbRecordIds = new Map();
+}
+
 /** 一次持久化的结果。persisted=false 表示本次修改没有落库，刷新后即消失 */
 export interface PersistResult {
   persisted: boolean;
@@ -102,10 +112,12 @@ async function persistToDb(tasks: DefectRemindTask[]): Promise<PersistResult> {
       return { persisted: true };
     }
     lastPersistError = result.error ?? "多维表写入失败";
+    invalidateDbState();
     return { persisted: false, error: lastPersistError };
   } catch (err) {
     lastPersistError = err instanceof Error ? err.message : String(err);
     console.warn("[remind-store] 多维表写入失败:", lastPersistError);
+    invalidateDbState();
     return { persisted: false, error: lastPersistError };
   }
 }
@@ -238,6 +250,9 @@ export async function markRemindTaskRun(options: {
     lastRunAt: new Date().toISOString(),
     lastRunStatus: options.status,
     lastRunMessage: options.message.slice(0, 200),
+    // 「仅一次」的一次性配额已被消费：isTaskDue 此后恒为 false，状态必须同步停用，
+    // 否则界面会一直显示「启用」却永不触发。
+    enabled: task.frequency === "once" ? false : task.enabled,
     updatedAt: new Date().toISOString(),
   };
   const saved = await saveRemindTask(next);
