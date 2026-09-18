@@ -36,16 +36,93 @@ function signSessionJwt(accessToken: string, expiresAt: number, secret: string):
  * 平台不提供已部署服务端的日志查询（wpsgo 无 logs 命令），而 OAuth 授权页只有用户
  * 浏览器能触发、Agent 无登录态，所以换 token 的响应在服务端“看得见但取不出”。
  * 这里用刚换到的 access_token 把响应的结构落进多维表，再由 kdocs-comate-cli
- * 以用户身份读回，用于确认平台是否下发 refresh_token。
+ * 以用户身份读回，用于确认平台是否下发 refresh_token、有效期多久、刷新时是否轮换。
  * 只记录字段名、长度与前缀，不落 token 明文。
  */
 const DIAG_SHEET_ID = 13;
 
+/**
+ * 用刚拿到的 refresh_token 立刻换一次 access_token，判断平台是否轮换 refresh_token。
+ * 这决定「服务端长期无人值守」是否可行：若每次刷新都换新 token，服务端必须持久化
+ * 新值，而我们没有可用的服务端存储；若不轮换，一个 token 存一年即可。
+ * 返回值只含结论，响应体可能带明文 token，因此绝不落库。
+ */
+async function refreshOnce(
+  appId: string,
+  appSecret: string,
+  refreshToken: string,
+): Promise<{ ok: boolean; brief: string; next: string }> {
+  try {
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: appId,
+      client_secret: appSecret,
+      refresh_token: refreshToken,
+    });
+    const res = await fetch("http://openapi.wps.cn/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      let brief = text.slice(0, 160);
+      try {
+        const j = JSON.parse(text) as { code?: unknown; msg?: unknown; message?: unknown };
+        brief = `code=${String(j.code ?? "")} msg=${String(j.msg ?? j.message ?? "")}`;
+      } catch {
+        // 非 JSON 响应：保留截断文本
+      }
+      return { ok: false, brief: `HTTP ${res.status} ${brief}`, next: "" };
+    }
+    const j = JSON.parse(text) as Record<string, unknown>;
+    return {
+      ok: true,
+      brief: `成功，字段=${Object.keys(j).sort().join(",")}`,
+      next: typeof j.refresh_token === "string" ? j.refresh_token : "",
+    };
+  } catch (err) {
+    return { ok: false, brief: `异常 ${err instanceof Error ? err.message : String(err)}`, next: "" };
+  }
+}
+
+async function probeRefreshRotation(
+  appId: string,
+  appSecret: string,
+  refreshToken: string,
+): Promise<Record<string, string>> {
+  if (!refreshToken) {
+    return {
+      刷新测试结果: "无 refresh_token，跳过",
+      刷新后返回refresh_token: "",
+      刷新后token是否变化: "",
+      旧token复用结果: "",
+    };
+  }
+  const first = await refreshOnce(appId, appSecret, refreshToken);
+  if (!first.ok) {
+    return { 刷新测试结果: `失败 ${first.brief}`, 刷新后返回refresh_token: "", 刷新后token是否变化: "", 旧token复用结果: "" };
+  }
+  // 关键分支：轮换后旧 token 是否仍然可用。
+  // 若仍可用，服务端只存一份种子 token 就能长期无人值守；若已失效，
+  // 则必须有服务端可写的持久化存储来承接每次轮换出的新 token。
+  const reuse = await refreshOnce(appId, appSecret, refreshToken);
+  return {
+    刷新测试结果: first.brief,
+    刷新后返回refresh_token: first.next ? "是" : "否",
+    刷新后token是否变化: first.next ? (first.next === refreshToken ? "相同（不轮换）" : "不同（轮换）") : "未返回",
+    旧token复用结果: reuse.ok ? "旧token仍可用" : `旧token已失效：${reuse.brief}`,
+  };
+}
+
 async function recordTokenResponseDiagnostics(
   accessToken: string,
   data: Record<string, unknown>,
+  appId: string,
+  appSecret: string,
 ): Promise<void> {
   const refreshToken = typeof data.refresh_token === "string" ? data.refresh_token : "";
+  const rotation = await probeRefreshRotation(appId, appSecret, refreshToken);
   const fields = {
     诊断时间: new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).slice(0, 19),
     响应字段列表: Object.keys(data).sort().join(", "),
@@ -54,7 +131,9 @@ async function recordTokenResponseDiagnostics(
     refresh_token前缀: refreshToken ? `${refreshToken.slice(0, 8)}...` : "",
     scope: String(data.scope ?? ""),
     expires_in: String(data.expires_in ?? ""),
+    refresh_expires_in: String(data.refresh_expires_in ?? ""),
     token_type: String(data.token_type ?? ""),
+    ...rotation,
   };
   await apiPost(accessToken, `/sheets/${DIAG_SHEET_ID}/records/create`, {
     records: [{ fields_value: JSON.stringify(fields) }],
@@ -145,7 +224,7 @@ export default defineEventHandler(async (event) => {
 
     // 诊断失败不能影响授权本身
     try {
-      await recordTokenResponseDiagnostics(tokenValue, data);
+      await recordTokenResponseDiagnostics(tokenValue, data, appId, appSecret);
     } catch (err) {
       console.error("[oauth-callback] 诊断写入失败:", err instanceof Error ? err.message : String(err));
     }

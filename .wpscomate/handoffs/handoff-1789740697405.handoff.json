@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1789740697405",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789740697405,
+  "note": {
+    "completed": [
+      "act-as 探针：9 种「应用身份+指定用户」形态（header x-wps-user-id/x-user-id/x-kso-user-id/x-act-as-user/x-wps-act-as/act-as + query user_id/act_as）全部返回逐字节相同的 403 403000001，证明网关无代用户执行入口",
+      "JWT 解码确认应用 token 为 atp=sp + spi，无 uid/sub/act 声明，代用户执行在 token 层面不成立",
+      "确认 grant_type=refresh_token 为平台支持（假 token 报 invalid_grant 而非 unsupported_grant_type）",
+      "观测通道建成：新建多维表 sheet 13「OAuth诊断」（file tmcQvuKxFrMJAHExDfFFrxC3PB5vCD4E7），callback 用刚换到的 access_token 写入，再由 kdocs-comate-cli dbsheet list_records 以用户身份读回——绕开『平台无服务端日志』的观测盲区",
+      "探针1（是否下发 refresh_token）：是。响应字段 access_token, expires_in, refresh_expires_in, refresh_token, token_type；refresh_token 102 字符、前缀 kso_rt_",
+      "探针2（有效期）：refresh_expires_in=31536000，即 refresh_token 有效期 1 年；access_token 7200 秒",
+      "探针3（轮换）：每次刷新都返回新的 refresh_token（不同），且用旧 token 再刷返回 401 invalid_grant——轮换后旧 token 立即失效",
+      "发现 localhost 回调被平台接受：用 playwright + WPS_SID 注入 localhost 与 .wpsgo.com 双域 cookie，可 headless 完整走通 OAuth 往返（应用界面带真实数据渲染），因此探针全程无需用户重新授权",
+      "已发布 version id=6214782787241690 / version_number=1789740095359（published），描述『OAuth回调记录refresh_token响应诊断』",
+      "缩略图已重做并上传（默认截图脚本停在平台登录页，改用双域 cookie 脚本截到带真实数据的看板）",
+      "lint 0 错误、check:types 0 错误"
+    ],
+    "remaining": [
+      "Phase 4a 结论已更新：refresh_token 方案必须有服务端可写的持久化存储，且必须承接每次轮换出的新 token（不能只存种子）",
+      "候选方向A：AppBase 应用自有数据库（app-cloud skill）是否支持无用户身份的服务端读写——handoff 曾判定 JS SDK 无 service key，但未验证 app-cloud 的『可信服务端』通道",
+      "候选方向B：manifest 是否可声明 app: 前缀的 dbsheet 应用级 scope（现有 app:kso.chat_message.readwrite 即应用级），若有则服务端可免用户读多维表，整个 ② 消失",
+      "候选方向C：多维表自身作为可变存储——但服务端读多维表需先有 token，与『先取 token 再读表』构成循环，需再设计",
+      "Phase 4b/4c：服务端 refresh 换 access_token、sweep 主逻辑、/invoke cron 入口",
+      "Phase 6：平台 cron 自动化任务创建与启用",
+      "线上仍挂着旧版诊断代码（每有人授权即往 sheet 13 写一行，且会多做两次刷新交换使该次 refresh_token 失效）——待定：移除后重发 / 保留作后续仪器",
+      "commit 2f8e3fb 等 auto-commit 未 push 到 origin/main；ONES 云端 403；96f2c7d ONES token 硬编码建议轮换；真@重做待定；computeDefectStats 既有失败"
+    ],
+    "decisions": [
+      "结论：应用身份（client_credentials）无法访问多维表，平台只认用户委托——403000004 明确要求 delegated scope，非 scope 声明问题",
+      "refresh_token 有效期 1 年，但每次刷新即轮换且旧 token 立即失效，故『build 期存一次种子 token』最多撑一次刷新（约 2 小时）",
+      "诊断数据只落字段名、长度、前缀与结论，绝不落 token 明文",
+      "诊断写入必须复用 server/utils/remind-task-dbsheet.ts 的 apiPost（含 code!==0 业务错误校验），裸 fetch 会静默失败",
+      "多维表新建列一律 type=MultiLineText，值存 JSON 字符串",
+      "观测服务端行为的方式：把结果写进多维表再用 kdocs-comate-cli 读回（平台不提供已部署服务端日志查询）",
+      "headless 走通 OAuth 的方法：playwright + WPS_SID 同时注入 localhost 与 .wpsgo.com 域 cookie"
+    ],
+    "issues": [
+      "【最大阻塞·已精确定位】refresh_token 轮换 + 无服务端可写存储 = 无人值守最多维持一次刷新周期",
+      "平台不提供已部署服务端日志（wpsgo 无 logs 命令），服务端行为只能靠回写多维表观测",
+      "线上旧版诊断会消耗并失效被授权用户的 refresh_token（当前无功能影响，因无人使用 RT）",
+      "本地代码已含轮换探针，线上版本尚未包含，本地/线上存在版本差"
+    ],
+    "files_changed": [
+      "server/routes/api/oauth/callback.ts",
+      "thumbnail_760386581358207.png"
+    ]
+  },
+  "reason": "OAuth 服务端身份三连探针全部查实：平台下发 refresh_token（1年），但每次刷新即轮换且旧 token 立即失效——「存一次种子」方案被否，必须有服务端可写持久化存储"
+}
