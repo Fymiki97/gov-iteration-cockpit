@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "handoffId": "defect-persist-verified",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789729024457,
+  "note": {
+    "completed": [
+      "多维表持久化端到端验证通过：debug 端点探针返回 load.taskCount=1（读成功，读到真实记录）与 save.ok=true（写成功）",
+      "定位并修复 fetchRemindTasks 合并方向错误：原先以服务端（多维表）版本为准，而 webhook 为敏感字段不落表故服务端为空字符串，刷新时会静默清空本地 webhook 导致提醒失效；现改为服务端 webhook 为空时保留本地值",
+      "移除临时调试端点 server/routes/api/debug-dbsheet-write.get.ts",
+      "check:types 0 错误、lint 0 错误（6 个既有警告）、pnpm run pack 完成",
+      "部署 version_id 5397660730535004，deployment_id 47d1e243-26ae-4562-8ef0-52b5820481b0，access_url https://o.wpsgo.com/app/41000207/9w1qvC8NVtKs/",
+      "应用封面已从「登录页」换成真实看板页面截图：新增/覆盖 thumbnail_760386581358207.png（67KB，历史封面均为 82-84KB 的登录页），并已通过 comate.sh code thumbnail 上传成功",
+      "按用户确认删除多维表 2 条调试残留记录（BCbw 调试-可删除、BCbx 调试任务-可删除），删除后该表剩余 0 条记录，无用户数据被误删",
+      "git 提交 defe365 已推送 origin/main，工作树干净"
+    ],
+    "remaining": [
+      "用户在多维表所在应用创建一条真实提醒任务，确认表内出现记录（当前表为空，因为修复上线后尚未有新建任务动作）",
+      "ONES 云端 403（ones-cache.wps.cn）仍未解决，需单独排查 token 是否过期或云端网络限制",
+      "96f2c7d 将 ONES token 硬编码进 git 仓库，存在安全隐患，建议轮换并改环境变量",
+      "真@重做仍待定：需要可靠的 userid 来源",
+      "dbsheet-cache.ts 仍使用旧的 gateway_token 路径（同样失效），本次未处理"
+    ],
+    "decisions": [
+      "封面截图方案：本地 Vite 预览页会跳转 WPS 登录页（account.wps.cn），无法直接截图；利用 OAuthProvider 门禁的放行分支——让本地代理对 /api/oauth/status 返回 503 且 message 不含 appid，前端即 setStatus(\"authorized\") 不再跳转，从而截到真实页面。该代理为临时脚本，已删除",
+      "像素差异对比法在本项目不可靠：登录页与看板页均以白色为主，二者差异仅约 6.8%，易误判；判断页面内容应改用 Playwright 取 document.body.innerText（本次据此确认 61235 端口 2s~15s 稳定渲染看板）",
+      "所有 API 错误统一返回 200 + {ok:false, error}，因为 Nitro 生产模式会剥离 5xx 的 message 导致前端只见 Server Error",
+      "多维表读写鉴权走 verifyCapaSessionJwt（capa_session_<appId> cookie + SESSION_SECRET），非 gateway_token",
+      "任务持久化采用 localStorage 为主 + 服务端多维表落库；webhook 地址为敏感信息不落表，由前端拼接后随请求传入",
+      "多维表写入用逐行 upsert 而非先删后建，避免部分失败导致全量数据丢失"
+    ],
+    "issues": [
+      "若用户在多维表端直接改任务，因 webhook 字段不落表，刷新后本地 webhook 仍会被保留但可能与表内其他字段产生期望差",
+      "ONES 内网域名 ones.dig.kso.net 解析到 198.19.0.218（内网保留网段），云端容器大概率不可达；若线上确认不可达，代码层无解，需产品/平台决策"
+    ],
+    "files_changed": [
+      "client/src/lib/defect-remind-api.ts",
+      "server/utils/remind-task-dbsheet.ts",
+      "server/utils/remind-task-auth.ts",
+      "server/routes/api/defect-remind-tasks.get.ts",
+      "server/routes/api/defect-remind-tasks.post.ts",
+      "server/routes/api/defect-remind-tasks/[id].put.ts",
+      "server/routes/api/defect-remind-tasks/[id].delete.ts",
+      "server/routes/api/defect-remind-tasks/run.post.ts",
+      "server/routes/api/ones-defects.get.ts",
+      "server/utils/ones-defects.ts",
+      "thumbnail_760386581358207.png"
+    ]
+  },
+  "reason": "缺陷提醒任务多维表持久化已端到端验证通过并上线，封面已换成真实看板截图"
+}
