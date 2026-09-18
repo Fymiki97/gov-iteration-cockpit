@@ -6,4 +6,4 @@
 4. [x] Phase 3: 新增 backfillRemindTasks + sync.post.ts 增量回填端点
 5. [x] Phase 3: 前端 fetchRemindTasks 接入自动回填（服务端读失败时不得触发）
 6. [x] Phase 4: CLI 将现有 3 条任务回填进多维表并回读校验
-7. [-] Phase 4: lint + check:types + pack，部署上线并更新封面
+7. [x] Phase 4: lint + check:types + pack，部署上线并更新封面

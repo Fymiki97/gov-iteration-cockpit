@@ -216,6 +216,12 @@
       "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
       "createdAt": 1789729024457,
       "file": "defect-persist-verified.handoff.json"
+    },
+    {
+      "handoffId": "handoff-1789730331455",
+      "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+      "createdAt": 1789730331456,
+      "file": "handoff-1789730331455.handoff.json"
     }
   ]
 }

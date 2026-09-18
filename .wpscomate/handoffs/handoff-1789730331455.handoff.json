@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1789730331455",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789730331456,
+  "note": {
+    "completed": [
+      "多维表「缺陷提醒任务」表结构改造：提醒模板由 2 选项扩展为 4 选项（默认模板/详细清单/截止日期/升级催办），移除无用选项「批量合并」",
+      "新增文本字段「Webhook地址」（字段 ID = IE），webhook 现随任务落表",
+      "修复频率映射错误：原代码查 'workday'，实际枚举为 'weekdays'，导致「工作日」任务被静默写成「每日」",
+      "修复模板映射：补齐 detailed/deadline/escalate 三值，原先后 3 种模板全被写成「默认模板」",
+      "移除 defect-remind-store.ts 中两处主动剥离 webhook 的逻辑，webhook 现可落表",
+      "加固 formatDate：多维表可能返回 '2026/09/15' 斜杠格式，而 isTaskDue 用字符串比较日期，'2026-09-18' < '2026/09/15' 会误判为真导致任务永不触发；现统一分隔符并做 YYYY-MM-DD 校验",
+      "新增回填端点 server/routes/api/defect-remind-tasks/sync.post.ts（按 id 增量补写，不覆盖已存在任务）",
+      "前端 fetchRemindTasks 接入自动回填：仅在服务端读取成功时触发，服务端读失败时不触发（避免把表内数据误删）",
+      "CLI 回填 3 条现有任务进多维表并回读校验，字段值与源数据完全一致，无重复记录",
+      "lint 0 错误（6 个既有警告）、check:types 0 错误、pack 成功",
+      "本地运行时验证：GET 返回 3 条任务；sync 空载荷 ok；重复任务 added=0；无 webhook 任务 skipped=1；本地数据未被污染",
+      "用 CDP 驱动无头 Chromium 切换「缺陷列表」页签，真实缺陷行渲染正常、零控制台错误",
+      "部署上线 version_id 8939636805041547，deployment_id 47d1e243-26ae-4562-8ef0-52b5820481b0",
+      "封面已更新上传（67079 字节，与真实看板截图一致；登录页为 82-84KB 可作区分）",
+      "临时脚本、临时代理、后台进程、/tmp 文件均已清理"
+    ],
+    "remaining": [
+      "用户需在多维表所在应用新建一条真实提醒任务，确认表内出现记录",
+      "ONES 云端 403（ones-cache.wps.cn）仍未解决",
+      "96f2c7d 将 ONES token 硬编码进 git 仓库，建议轮换并改环境变量",
+      "真@重做仍待定：需要可靠 userid 来源",
+      "dbsheet-cache.ts 仍走旧的 gateway_token 路径，本地缺 token 时抛 404 no_token（本次确认属既有问题，未处理）",
+      "commit aaa7096（发布流程自动生成）尚未 push 到 origin/main"
+    ],
+    "decisions": [
+      "多维表读写映射的枚举值必须与前端 RemindFrequency/RemindTemplate 严格一一对应，改枚举时两侧需同步",
+      "日期字段统一归一化为 YYYY-MM-DD：isTaskDue 依赖字符串比较，任何斜杠格式都会破坏比较语义",
+      "回填采用按 id 增量补写而非全量覆盖，避免覆盖用户在表内的手工修改",
+      "回填只在服务端读取成功时触发，防止服务端临时不可用时用本地列表覆盖云端",
+      "删除语义变更：从多维表直接删记录，下次打开应用会被自动补回；真正删除须在应用 UI 内操作",
+      "用户已确认接受 webhook 明文入库的可见性风险",
+      "所有 API 错误统一返回 200 + {ok:false, error}（Nitro 生产模式会剥离 5xx 的 message）",
+      "本地预览截图绕过登录页的方法：让 /api/oauth/status 返回非 2xx 且 message 不含 appid，OAuthProvider 即走放行分支；用临时反代实现，验证后删除"
+    ],
+    "issues": [
+      "线上网关对任意路径（含不存在的路由）统一返回 401 unauthorized: no gateway_token，导致无法从外部用 curl 验证新路由是否生效；该验证手段在网关层被短路",
+      "client/src/lib/defect.test.ts 中 computeDefectStats 用例失败（fatal 期望 3 实得 4）：defect.ts 零 import 且未被修改，属既有失败，与本次改动无关",
+      "图片读取工具（read + view_image）在本机对 100-200KB 的 PNG/JPG 连续超时，无法目视核对截图内容；改用 Chromium --dump-dom 取 innerText 验证渲染",
+      "若用户在多维表端直接改任务，因 webhook 字段虽已落表但仍以本地为准合并，可能出现期望差"
+    ],
+    "files_changed": [
+      "client/src/lib/defect-remind-api.ts",
+      "server/utils/defect-remind-store.ts",
+      "server/utils/remind-task-dbsheet.ts",
+      "server/routes/api/defect-remind-tasks/sync.post.ts",
+      "server/data/ones-defects-snapshot.json",
+      "thumbnail_760386581358207.png"
+    ]
+  },
+  "reason": "缺陷提醒任务已回填进多维表并上线；修复了频率/模板映射错误与日期格式隐患"
+}
