@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "handoffId": "remind-custom-time-done",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789737952168,
+  "note": {
+    "completed": [
+      "多维表 sheet 12 新增「提醒时间」列：字段 ID=IF，type=MultiLineText（用 kdocs-comate-cli dbsheet create-fields 以用户身份创建，get-schema 回读确认 17 列、唯一）",
+      "FIELD_MAP 增加 IF: \"remindTimes\"；并新增 FIELD_NAME_FALLBACK 按列名回退解析，用户手工加列即可生效无需改代码",
+      "remindTimes 为 string[]（30 分钟槽位字符串，如 [\"09:00\",\"18:00\"]），空数组=不限时刻=旧记录行为完全不变、零迁移",
+      "服务端与前端 isTaskDue 均改为槽位判定：日规则决定哪天发，remindTimes 决定那天哪些时刻发；shanghaiSlot 向下对齐到 30 分钟；同日续跑仅限多时刻（≤1 时保持旧的当天只发一次）",
+      "新增 formatDateTime 保留时分——原 formatDate 把 lastRunAt 截断成 YYYY-MM-DD 会导致多时刻去重失效",
+      "parseRunAt 显式按 +08:00 解析多维表墙钟串，避免在非 UTC+8 容器被当本地时间而跨天错位",
+      "配置弹窗新增「提醒时间」Popover 多选控件（48 档 4 列网格 + 已选计数 + 清空），任务列表与发送弹窗展示已选时刻",
+      "补服务端测试 server/utils/defect-remind.test.ts：19 项全过（槽位/墙钟解析/多时刻/跨天去重/once/weekly/起止日期/normalizeRemindTimes）",
+      "补客户端槽位测试 9 项全过",
+      "lint 0 错误（6 既有警告）、check:types 0 错误、pack 成功",
+      "已上线：version_id 386862918959875（published），地址 https://comate.wpsgo.com/s/Ody4imQ5yeXM/",
+      "已清理：无遗留 dev server / 端口 5917、4917 空闲 / 临时 JSON 已删"
+    ],
+    "remaining": [
+      "用户需在线上 UI 新建/编辑任务选好时刻并保存，刷新后确认时刻回显（我无用户 cookie，跑不了 App 的 dbsheet 读写链路，这是唯一未端到端验证的环节）",
+      "服务端定时 sweep 与 /invoke cron 入口未实现：卡在多维表身份通道，需用户先定 refresh_token 捕获 或 AppBase 镜像",
+      "平台 cron 自动化任务未创建（依赖上一条）",
+      "commit 2f8e3fb 等 auto-commit 仍未 push 到 origin/main",
+      "ONES 云端 403（ones-cache.wps.cn）仍未解决",
+      "96f2c7d 将 ONES token 硬编码进 git 仓库，建议轮换并改环境变量",
+      "真@重做仍待定：需要可靠 userid 来源",
+      "client/src/lib/defect.test.ts 中 computeDefectStats 用例失败（fatal 期望 3 实得 4），已用 git show HEAD 核对为既有失败"
+    ],
+    "decisions": [
+      "remindTimes 空数组 = 不限时刻，保证旧记录零迁移、行为不变",
+      "时刻按 30 分钟槽位向下取整比较（16:20→16:00），避免定时器秒级漂移导致漏发/重发",
+      "同日续跑仅当 remindTimes.length > 1；单时刻任务保持旧的「当天只发一次」语义",
+      "lastRunAt 必须用 formatDateTime 保留时分，否则多时刻去重失效",
+      "多维表 Date 字段只接受字符串，纯日期按本地 00:00 处理（既有约束，继续遵守）",
+      "新建列一律 type=MultiLineText（API 唯一文本类型，Text 是非法枚举），值存 JSON 数组字符串，与既有 严重级别/所属迭代 同构",
+      "FIELD_MAP 用字段 ID 为主、列名回退为辅：ID 跨重命名稳定，列名回退让用户手工加列即生效",
+      "不引入 Nitro 内常驻 setInterval（server/AGENTS.md 禁止模块顶层有状态单例），定时必须走平台 cron",
+      "平台明确不支持应用级授权调多维表：client_credentials 换到的 token 调多维表报 403000001 unable to read user permission，调用户 API 报 403000004 this API does not support app authorization, required delegated scopes: [kso.user_base.read]——只能用户委托授权",
+      "验证 UI 内容用 CDP 读 document.body.innerText，不用像素差异对比"
+    ],
+    "issues": [
+      "无用户 cookie 时服务端读不到多维表任务配置，cron 无法无人值守——这是当前最大阻塞",
+      "oauth/callback.ts:101 只取 access_token/expires_in，把响应里可能存在的 refresh_token 丢弃了；ones-config.json 里 kso_rt_ 开头的 refresh_token 是别的应用 AK20260422PLNKHP 的手工 OAuth 残留且已失效（40100009 invalid_grant）",
+      "线上网关对任意路径统一返回 401 unauthorized: no gateway_token，无法从外部 curl 验证线上路由",
+      "wpsgo code status 的 latest_version 字段是陈旧值，判断是否发布成功要看 wpsgo code versions 列表",
+      "wpsgo code deploy 必须传 -w 与 --version，不接受 --project-id；wpsgo code versions 是隐藏命令（--help 不列出）",
+      "server/data/ones-defects-snapshot.json 会在每次构建时被重新生成，属正常副作用"
+    ],
+    "files_changed": [
+      "server/utils/remind-task-dbsheet.ts",
+      "server/utils/defect-remind.ts",
+      "server/utils/defect-remind-store.ts",
+      "server/utils/defect-remind.test.ts",
+      "client/src/lib/defect.ts",
+      "client/src/lib/defect.test.ts",
+      "client/src/components/DefectRemindConfigDialog.tsx",
+      "client/src/components/DefectRemindSendDialog.tsx",
+      ".wpscomate/plans/remind-custom-time.plan.md",
+      ".wpscomate/plans/remind-custom-time.todo.md"
+    ]
+  },
+  "reason": "缺陷提醒新增「自定义提醒时间（30 分钟粒度）」：已完成多维表建列 + 全链路代码 + 单元验证 + 上线；服务端定时因身份受限未做"
+}

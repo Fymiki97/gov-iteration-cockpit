@@ -10,4 +10,4 @@
 8. [ ] Phase 4: 服务端多维表身份通道（待定 refresh_token / AppBase 镜像）
 9. [ ] Phase 4: sweep 主逻辑 + /invoke cron 入口（依赖身份通道）
 10. [ ] Phase 6: 平台 cron 自动化任务创建与启用
-11. [-] Phase 7: pack + 上线 + 清理临时产物
+11. [x] Phase 7: pack + 上线 + 清理临时产物
