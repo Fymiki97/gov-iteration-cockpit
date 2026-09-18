@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "handoffId": "remind-date-fix-verified",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789731940852,
+  "note": {
+    "completed": [
+      "定位并修复「新建提醒任务不写入多维表」根因：多维表 Date 字段拒绝毫秒时间戳，报 500 E_INVALIDARG Failed due to field: 开始日期",
+      "toDateCell 改为写字符串（日期字段 yyyy-MM-dd，时间字段 yyyy-MM-dd HH:mm），直连实验确证毫秒值失败、字符串成功",
+      "formatDate 读回侧统一归一化为 YYYY-MM-DD（多维表返回 2026/09/15 斜杠格式，会破坏 isTaskDue 的字符串比较）",
+      "修复 saveTasks 创建后不回填 dbRecordIds：导致下次保存把刚建任务当新任务重复创建，触发「任务ID 值不唯一」使整批写入失败",
+      "让持久化失败可见：writeTasks 返回 {ok,error}，store/路由透出 persisted/persistError，前端 toast.warning 提示，不再静默降级到本地文件却返回 ok:true",
+      "修复跨请求身份串用：setDbCookie 在 cookie 变化时作废 dbCache/dbRecordIds；ensureDbToken 无 cookie 时写入空串而非沿用上一个请求的身份",
+      "toDateCell 纯日期串按本地 00:00 处理，避免 new Date('YYYY-MM-DD') 按 UTC 解析在 UTC+8 下写成 08:00",
+      "本地端到端验证：连续新建 2 条任务均 persisted=true（原第 2 次必失败）；回读 source=db 5 条；无 cookie 请求 persisted=false 且报错明确；删除正常",
+      "UI 实测（CDP 无头 Chromium + 预览代理）：切「缺陷列表」页签渲染真实数据（缺陷总数 1623、待修复 23），toast 显示「当前列表来自本地缓存，未能读取多维表」，零控制台错误",
+      "lint 0 错误（6 既有警告）、check:types 0 错误、pack 成功",
+      "两次部署上线：version 1789731734266 (version_id 6230686273377334)、version 1789731896023 (version_id 3135061992138111)",
+      "封面重新截图上传（256633 字节，缺陷列表页真实渲染）",
+      "临时脚本、CDP profile、预览代理进程、/tmp 文件均已清理"
+    ],
+    "remaining": [
+      "用户需在线上应用新建一条带日期的提醒任务，确认表内出现记录",
+      "用户浏览器 localStorage 中约 5 条「测试」系列任务：写入修复后下次打开应用会被自动回填进多维表；如需清理须在应用 UI 内删除（会在表内同步删除）",
+      "commit 尚未 push 到 origin/main（da44c53 等 auto-commit）",
+      "ONES 云端 403（ones-cache.wps.cn）仍未解决",
+      "96f2c7d 将 ONES token 硬编码进 git 仓库，建议轮换并改环境变量",
+      "真@重做仍待定：需要可靠 userid 来源",
+      "dbsheet-cache.ts 仍走旧的 gateway_token 路径，缺 token 时抛 404 no_token（既有问题）"
+    ],
+    "decisions": [
+      "多维表 Date 字段只接受字符串，禁止传毫秒时间戳",
+      "日期字段统一归一化为 YYYY-MM-DD：isTaskDue 依赖字符串比较，斜杠格式会破坏比较语义",
+      "所有写路径必须把持久化结果透出给前端，禁止静默降级到本地文件后仍返回 ok:true",
+      "saveTasks 创建记录后必须把返回的 record id 回填 dbRecordIds，否则重复创建",
+      "dbCache/dbRecordIds/dbCookie 为进程级全局，cookie 变化时必须作废，避免跨用户串数据",
+      "所有 API 错误统一返回 200 + {ok:false,error}（Nitro 生产模式会剥离 5xx 的 message）",
+      "本地预览截图绕过登录页：让 /api/oauth/status 返回非 2xx 且 message 不含 appid，OAuthProvider 即走放行分支；用临时反代实现，验证后删除",
+      "验证 UI 内容用 CDP 读 document.body.innerText，不用像素差异对比（登录页与看板页均以白色为主，差异仅约 6.8%，易误判）"
+    ],
+    "issues": [
+      "线上网关对任意路径（含不存在的路由）统一返回 401 unauthorized: no gateway_token，无法从外部 curl 验证新路由是否生效",
+      "client/src/lib/defect.test.ts 中 computeDefectStats 用例失败（fatal 期望 3 实得 4）：defect.ts 零 import 且未被修改，属既有失败",
+      "read + view_image 工具在本机对 100-256KB 的 PNG 连续超时，无法目视核对截图内容，改用 CDP 读 innerText 验证",
+      "若用户在多维表端直接改任务，webhook 字段虽已落表但仍以本地为准合并，可能出现期望差"
+    ],
+    "files_changed": [
+      "server/utils/remind-task-dbsheet.ts",
+      "server/utils/defect-remind-store.ts",
+      "server/utils/remind-task-auth.ts",
+      "server/routes/api/defect-remind-tasks.get.ts",
+      "server/routes/api/defect-remind-tasks.post.ts",
+      "server/routes/api/defect-remind-tasks/[id].put.ts",
+      "server/routes/api/defect-remind-tasks/[id].delete.ts",
+      "server/routes/api/defect-remind-tasks/sync.post.ts",
+      "client/src/lib/defect-remind-api.ts",
+      "client/src/components/DefectRemindDialog.tsx",
+      "thumbnail_760386581358207.png",
+      "server/data/ones-defects-snapshot.json"
+    ]
+  },
+  "reason": "修复提醒任务写入多维表失败（Date 字段拒毫秒值 + 重复创建 + 静默降级）并两次上线"
+}
