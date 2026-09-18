@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1789741669297",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789741669299,
+  "note": {
+    "completed": [
+      "验证线上应用可被 headless 驱动（playwright + WPS_SID 双域 cookie 导航 o.wpsgo.com 应用地址，看板真实数据渲染），因此可在任意时刻主动触发线上容器的 OAuth 回调",
+      "建立线上/本地回调区分方法：sheet 13 中带『刷新测试结果』的行=本地代码，不带的=线上代码",
+      "文件系统探针（callback 内 read-自增-write 计数文件 + 记录 hostname/uptime）已实现并部署",
+      "实测结论1：部署容器 /tmp 与 /code（process.cwd()）均可写；/app 与 /home/app 不存在",
+      "实测结论2：同一容器内文件跨请求保留（count 1→2→3，first 时间戳不变）",
+      "实测结论3（致命）：同一部署内出现 4 个不同 hostname（f156fd9457a3 / a160af11c1bf / 4fca2a143a39 / 71f0d65cd22d），且进程启动时刻相同——线上是多副本；count 在不同副本上重置为 1，证明各副本文件系统独立",
+      "实测结论4：重新部署后容器重建（uptime 归 18 秒），文件必然丢失",
+      "探针：app:kso.dbsheet.readwrite / app:kso.dbsheet.read / app:kso.dbsheet / app:kso.user_base.read 均返回 400 invalid_scope——平台不认 app: 前缀的多维表 scope",
+      "已部署版本 version_id 6968650968267989 与 1675237728177771（均含 fs 探针）",
+      "lint 0 错误（6 既有警告）、check:types 0 错误"
+    ],
+    "remaining": [
+      "Phase 4a 仍阻塞：refresh_token 必须有服务端可写且跨副本可见的持久化存储；文件方案已实测排除",
+      "候选方向A（唯一未否）：AppBase 服务端免用户访问——但 server-api-guide 明确 useAppBase(event) 透传请求 cookie、RLS 与前端一致，无用户会话时不可用；待验证是否存在 service key / RLS 服务端策略",
+      "候选方向B 已部分否定：app:kso.dbsheet.* 系列 invalid_scope；权威 scope 清单需 wps365-open-appbuild 技能（本机未安装，无法查询 scope_view）",
+      "候选方向D（新）：把提醒配置从多维表移到服务端可读处，让 cron 不依赖多维表（但 UI 无法写服务端配置）",
+      "Phase 4b/4c：服务端 refresh 换 access_token、sweep 主逻辑、/invoke cron 入口",
+      "Phase 6：平台 cron 自动化任务创建与启用",
+      "线上诊断代码（含 fs 探针）每有人授权即写一行且做两次刷新交换——待定：移除后重发 / 保留",
+      "commit 2f8e3fb 等 auto-commit 未 push 到 origin/main；ONES 云端 403；96f2c7d ONES token 硬编码建议轮换；真@重做待定；computeDefectStats 既有失败"
+    ],
+    "decisions": [
+      "【新增】容器文件系统不可用于存 refresh_token：多副本文件系统独立 + 每次部署重建容器",
+      "【新增】该方案比『丢文件』更危险：多副本各自刷新会互相作废对方 refresh_token（轮换+立即失效），造成间歇性、极难排查的鉴权失败",
+      "应用身份（client_credentials）无法访问多维表，平台只认用户委托；app: 前缀多维表 scope 不存在",
+      "refresh_token 有效期 1 年，但每次刷新即轮换且旧 token 立即失效",
+      "诊断数据只落字段名、长度、前缀与结论，绝不落 token 明文",
+      "观测服务端行为：把结果写进多维表再用 kdocs-comate-cli 读回（平台不提供已部署服务端日志）",
+      "线上/本地回调区分：sheet 13 带『刷新测试结果』列为本地，无则为线上",
+      "多维表新建列一律 type=MultiLineText，值存 JSON 字符串"
+    ],
+    "issues": [
+      "【最大阻塞·已精确定位】refresh_token 轮换 + 无跨副本可写的持久化存储 = 无人值守不可行",
+      "线上运行多副本（同一部署 4 个 hostname），这对任何本地状态方案都是硬约束",
+      "平台不提供已部署服务端日志（wpsgo 无 logs 命令），服务端行为只能靠回写多维表观测",
+      "server/nitro.config.ts 硬编码 SESSION_SECRET / WPS_APP_SECRET（提交文件写密钥，违反 app-cloud 约束，同类事故 96f2c7d）",
+      "线上诊断代码仍在生效，每次授权会多做两次刷新交换并失效该次 refresh_token"
+    ],
+    "files_changed": [
+      "server/routes/api/oauth/callback.ts",
+      "thumbnail_760386581358207.png"
+    ]
+  },
+  "reason": "容器文件系统实测不可用于存 refresh_token：/tmp 可写且跨请求保留，但线上是多副本各自独立文件系统，且每次部署容器重建——文件方案被否；app: 前缀多维表 scope 亦不认"
+}
