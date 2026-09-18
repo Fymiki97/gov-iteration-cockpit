@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { defineEventHandler, getRequestURL, getHeader } from "h3";
+import { apiPost } from "~/utils/remind-task-dbsheet";
 
 /**
  * 覆盖 @ks-open/capability 的默认 OAuth 回调。
@@ -27,6 +28,37 @@ function signSessionJwt(accessToken: string, expiresAt: number, secret: string):
     .update(`${header}.${payload}`)
     .digest("base64url");
   return `${header}.${payload}.${signature}`;
+}
+
+/**
+ * 诊断用：token 响应写入多维表「OAuth诊断」表。
+ *
+ * 平台不提供已部署服务端的日志查询（wpsgo 无 logs 命令），而 OAuth 授权页只有用户
+ * 浏览器能触发、Agent 无登录态，所以换 token 的响应在服务端“看得见但取不出”。
+ * 这里用刚换到的 access_token 把响应的结构落进多维表，再由 kdocs-comate-cli
+ * 以用户身份读回，用于确认平台是否下发 refresh_token。
+ * 只记录字段名、长度与前缀，不落 token 明文。
+ */
+const DIAG_SHEET_ID = 13;
+
+async function recordTokenResponseDiagnostics(
+  accessToken: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const refreshToken = typeof data.refresh_token === "string" ? data.refresh_token : "";
+  const fields = {
+    诊断时间: new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).slice(0, 19),
+    响应字段列表: Object.keys(data).sort().join(", "),
+    有refresh_token: refreshToken ? "是" : "否",
+    refresh_token长度: String(refreshToken.length),
+    refresh_token前缀: refreshToken ? `${refreshToken.slice(0, 8)}...` : "",
+    scope: String(data.scope ?? ""),
+    expires_in: String(data.expires_in ?? ""),
+    token_type: String(data.token_type ?? ""),
+  };
+  await apiPost(accessToken, `/sheets/${DIAG_SHEET_ID}/records/create`, {
+    records: [{ fields_value: JSON.stringify(fields) }],
+  });
 }
 
 function isSafeReturnUrl(raw: string, requestOrigin: string): boolean {
@@ -99,14 +131,24 @@ export default defineEventHandler(async (event) => {
       event.node.res.statusCode = 502;
       return "OAuth token exchange failed";
     }
-    const data = (await tokenRes.json()) as { access_token?: string; expires_in?: number };
-    if (!data.access_token || !data.expires_in) {
-      console.error("[oauth-callback] Invalid token response", data);
+    const data = (await tokenRes.json()) as Record<string, unknown>;
+    const tokenValue = typeof data.access_token === "string" ? data.access_token : "";
+    const expiresValue = Number(data.expires_in);
+    if (!tokenValue || !Number.isFinite(expiresValue) || expiresValue <= 0) {
+      // 只打字段名，不打响应体（含 token 明文）
+      console.error(`[oauth-callback] Invalid token response keys=${Object.keys(data).join(",")}`);
       event.node.res.statusCode = 502;
       return "Invalid token response from WPS";
     }
-    accessToken = data.access_token;
-    expiresIn = data.expires_in;
+    accessToken = tokenValue;
+    expiresIn = expiresValue;
+
+    // 诊断失败不能影响授权本身
+    try {
+      await recordTokenResponseDiagnostics(tokenValue, data);
+    } catch (err) {
+      console.error("[oauth-callback] 诊断写入失败:", err instanceof Error ? err.message : String(err));
+    }
   } catch (err) {
     console.error("[oauth-callback] Token exchange error:", err instanceof Error ? err.message : String(err));
     event.node.res.statusCode = 502;

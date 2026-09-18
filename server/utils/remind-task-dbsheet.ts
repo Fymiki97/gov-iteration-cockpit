@@ -71,7 +71,8 @@ async function getAccessToken(cookieHeader: string): Promise<string> {
 
 // ─── HTTP ───
 
-async function apiPost<T = Record<string, unknown>>(
+/** 多维表写/读请求（开放平台 openapi 通道，需用户 access_token） */
+export async function apiPost<T = Record<string, unknown>>(
   accessToken: string,
   path: string,
   body: Record<string, unknown>,
