@@ -37,6 +37,7 @@ function sampleTask(overrides: Partial<DefectRemindTask> = {}): DefectRemindTask
     enabled: true,
     severities: ["S-致命", "A-严重"],
     iterations: [],
+    remindTimes: [],
     template: "default",
     includeDetail: true,
     includeDeadline: true,
@@ -156,6 +157,71 @@ describe("isTaskDue", () => {
       frequency: "weekly",
       lastRunAt: "2026-09-06T02:00:00.000Z",
     }), now)).toBe(true);
+  });
+});
+
+// now = 2026-09-14 16:20 (北京时间)，对应槽位 16:00
+describe("isTaskDue 提醒时刻（30 分钟槽位）", () => {
+  it("空 remindTimes 视为不限时刻，旧记录行为不变", () => {
+    expect(isTaskDue(sampleTask({ remindTimes: [] }), now)).toBe(true);
+  });
+
+  it("单时刻：命中当前槽位才发，否则不发", () => {
+    expect(isTaskDue(sampleTask({ remindTimes: ["16:00"] }), now)).toBe(true);
+    expect(isTaskDue(sampleTask({ remindTimes: ["09:00"] }), now)).toBe(false);
+  });
+
+  it("时刻向下对齐到 30 分钟槽位，不是精确匹配", () => {
+    const at1640 = new Date("2026-09-14T16:40:00+08:00");
+    expect(isTaskDue(sampleTask({ remindTimes: ["16:30"] }), at1640)).toBe(true);
+    expect(isTaskDue(sampleTask({ remindTimes: ["16:30"] }), now)).toBe(false);
+  });
+
+  it("多时刻：当天已发过早上的，晚上到点仍要发", () => {
+    expect(isTaskDue(sampleTask({
+      remindTimes: ["09:00", "16:00"],
+      lastRunAt: "2026-09-14T01:05:00.000Z",
+    }), now)).toBe(true);
+  });
+
+  it("同一（日, 槽位）只发一次", () => {
+    expect(isTaskDue(sampleTask({
+      remindTimes: ["09:00", "16:00"],
+      lastRunAt: "2026-09-14T08:05:00.000Z",
+    }), now)).toBe(false);
+  });
+
+  it("单时刻任务当天已发过就不再发（保持旧的当天只发一次）", () => {
+    expect(isTaskDue(sampleTask({
+      remindTimes: ["16:00"],
+      lastRunAt: "2026-09-14T01:05:00.000Z",
+    }), now)).toBe(false);
+  });
+
+  it("多维表墙钟串 lastRunAt 按北京时间解析，不被当成本地时间而跨天错位", () => {
+    expect(isTaskDue(sampleTask({
+      remindTimes: ["16:00"],
+      lastRunAt: "2026-09-14 09:05",
+    }), now)).toBe(false);
+  });
+
+  it("仅一次：到设定时刻才发，且执行过就不再发", () => {
+    const once = { frequency: "once" as const, remindTimes: ["16:00"] };
+    expect(isTaskDue(sampleTask(once), now)).toBe(true);
+    expect(isTaskDue(sampleTask({ ...once, remindTimes: ["09:00"] }), now)).toBe(false);
+    expect(isTaskDue(sampleTask({ ...once, lastRunAt: "2026-09-14T01:05:00.000Z" }), now)).toBe(false);
+  });
+
+  it("每周 + 多时刻：同日续跑不受 7 天限制拦截", () => {
+    expect(isTaskDue(sampleTask({
+      frequency: "weekly",
+      remindTimes: ["09:00", "16:00"],
+      lastRunAt: "2026-09-14T01:05:00.000Z",
+    }), now)).toBe(true);
+  });
+
+  it("未对齐到槽位的脏值不会被误命中（归一化在服务端读写时完成）", () => {
+    expect(isTaskDue(sampleTask({ remindTimes: ["16:07"] }), now)).toBe(false);
   });
 });
 

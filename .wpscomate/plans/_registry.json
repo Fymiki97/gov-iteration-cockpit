@@ -9,6 +9,15 @@
       "createdAt": 1789729290559,
       "updatedAt": 1789730314884,
       "completedAt": null
+    },
+    {
+      "planId": "remind-custom-time",
+      "suffix": "remind-custom-time",
+      "title": "缺陷提醒：自定义提醒时间（30 分钟粒度）+ 服务端定时",
+      "status": "active",
+      "createdAt": 1789735695170,
+      "updatedAt": 1789736835763,
+      "completedAt": null
     }
   ]
 }

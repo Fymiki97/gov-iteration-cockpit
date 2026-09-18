@@ -16,6 +16,7 @@ import {
   detectWebhookChannel,
   formatRemindMessage,
   frequencyLabel,
+  remindTimesLabel,
   matchTaskDefects,
   uniqueOwners,
   type DefectRemindTask,
@@ -104,7 +105,7 @@ export function DefectRemindSendDialog(props: {
                 value={selectedId}
                 items={Object.fromEntries(enabledTasks.map((item) => [
                   item.id,
-                  `${item.name} · ${item.team} · ${frequencyLabel(item.frequency)}`,
+                  `${item.name} · ${item.team} · ${frequencyLabel(item.frequency)} · ${remindTimesLabel(item.remindTimes ?? [])}`,
                 ]))}
                 onValueChange={(val) => setTaskId(String(val ?? ""))}
               >
@@ -112,7 +113,7 @@ export function DefectRemindSendDialog(props: {
                 <SelectContent>
                   {enabledTasks.map((item) => (
                     <SelectItem key={item.id} value={item.id}>
-                      {item.name} · {item.team} · {frequencyLabel(item.frequency)}
+                      {item.name} · {item.team} · {frequencyLabel(item.frequency)} · {remindTimesLabel(item.remindTimes ?? [])}
                     </SelectItem>
                   ))}
                 </SelectContent>

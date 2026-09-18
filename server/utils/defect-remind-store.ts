@@ -1,4 +1,4 @@
-import { loadTasks, saveTasks } from "./remind-task-dbsheet";
+import { loadTasks, saveTasks, normalizeRemindTimes } from "./remind-task-dbsheet";
 
 export type DefectSeverity = "S-致命" | "A-严重" | "B-一般" | "C-低";
 export type RemindFrequency = "daily" | "weekly" | "weekdays" | "once";
@@ -15,6 +15,8 @@ export interface DefectRemindTask {
   enabled: boolean;
   severities: DefectSeverity[];
   iterations: string[];
+  /** 提醒时刻，HH:mm 且对齐到 30 分钟槽位；空数组 = 不限制时刻（沿用旧行为） */
+  remindTimes: string[];
   template: RemindTemplate;
   includeDetail: boolean;
   includeDeadline: boolean;
@@ -35,6 +37,7 @@ export interface DefectRemindTaskInput {
   enabled?: boolean;
   severities?: DefectSeverity[];
   iterations?: string[];
+  remindTimes?: string[];
   template?: RemindTemplate;
   includeDetail?: boolean;
   includeDeadline?: boolean;
@@ -181,6 +184,11 @@ export function normalizeTaskInput(input: DefectRemindTaskInput, existing?: Defe
     enabled: input.enabled === undefined ? (existing?.enabled ?? true) : asBoolean(input.enabled, true),
     severities: input.severities ? asSeverities(input.severities) : asSeverities(existing?.severities),
     iterations: Array.isArray(input.iterations) ? input.iterations : (existing?.iterations ?? []),
+    // 不传则继承原值；显式传空数组表示「清空时刻限制」
+    remindTimes:
+      input.remindTimes === undefined
+        ? normalizeRemindTimes(existing?.remindTimes)
+        : normalizeRemindTimes(input.remindTimes),
     template: input.template ? asTemplate(input.template) : (existing?.template ?? "default"),
     includeDetail: input.includeDetail === undefined ? (existing?.includeDetail ?? true) : asBoolean(input.includeDetail, true),
     includeDeadline: input.includeDeadline === undefined ? (existing?.includeDeadline ?? true) : asBoolean(input.includeDeadline, true),

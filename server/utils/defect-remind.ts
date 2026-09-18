@@ -38,18 +38,69 @@ function daysBetween(fromDay: string, toDay: string): number {
   return Math.round((to - from) / 86_400_000);
 }
 
-export function isTaskDue(task: DefectRemindTask, now = new Date()): boolean {
+/**
+ * 北京时间的 30 分钟槽位（HH:mm），当前时刻向下取整。
+ * 提醒时刻按槽位比较而非精确时刻，避免定时触发器的秒级漂移造成漏发或重发。
+ */
+export function shanghaiSlot(date = new Date()): string {
+  const hhmm = date
+    .toLocaleTimeString("en-GB", { timeZone: "Asia/Shanghai", hourCycle: "h23" })
+    .slice(0, 5);
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${String(h).padStart(2, "0")}:${m < 30 ? "00" : "30"}`;
+}
+
+/**
+ * 解析 lastRunAt。
+ * 多维表读回的是北京时间墙钟串（"YYYY-MM-DD HH:mm"），前端乐观更新写入的是带 Z 的 ISO 串。
+ * 前者不能直接 new Date()——在非 UTC+8 容器里会被当作本地时间，跨天判断会错位。
+ */
+export function parseRunAt(val: string): Date | null {
+  const raw = val.trim();
+  if (!raw) return null;
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(raw)) {
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const m = raw.replace(/\//g, "-").match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/);
+  if (!m) return null;
+  const d = new Date(`${m[1]}T${m[2] ?? "00:00"}:00+08:00`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * 到期判定：日规则决定「哪些天要发」，remindTimes 决定「那天在哪些时刻发」。
+ * remindTimes 为空时视为不限制时刻（旧记录行为不变）。
+ */
+export function isTaskDue(task: DefectRemindTask, now = new Date(), slot = shanghaiSlot(now)): boolean {
   if (!task.enabled || !task.webhook.trim()) return false;
   const today = shanghaiDay(now);
   if (task.startDate && today < task.startDate) return false;
   if (task.endDate && today > task.endDate) return false;
   const weekday = new Date(`${today}T12:00:00+08:00`).getDay();
   if (task.frequency === "weekdays" && (weekday === 0 || weekday === 6)) return false;
-  if (task.frequency === "once") return !task.lastRunAt;
-  if (!task.lastRunAt) return true;
-  const lastDay = shanghaiDay(new Date(task.lastRunAt));
-  if (task.frequency === "weekly") return daysBetween(lastDay, today) >= 7;
-  return today > lastDay;
+
+  const times = task.remindTimes ?? [];
+  const slotOk = times.length === 0 || times.includes(slot);
+
+  // 「仅一次」：未执行过且已到设定时刻
+  if (task.frequency === "once") return !task.lastRunAt && slotOk;
+
+  const last = task.lastRunAt ? parseRunAt(task.lastRunAt) : null;
+  if (last) {
+    const lastDay = shanghaiDay(last);
+    if (lastDay === today) {
+      // 同一天续跑仅限多时刻任务；≤1 个时刻保持旧的「当天只发一次」语义
+      if (times.length <= 1) return false;
+    } else if (task.frequency === "weekly") {
+      if (daysBetween(lastDay, today) < 7) return false;
+    } else if (today <= lastDay) {
+      return false;
+    }
+    // 槽位去重：同一 (日, 槽位) 只发一次
+    if (shanghaiDay(last) === today && shanghaiSlot(last) === slot) return false;
+  }
+  return slotOk;
 }
 
 export function matchTaskDefects(options: {

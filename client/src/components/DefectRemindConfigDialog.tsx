@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Play, Pencil, Bell } from "lucide-react";
+import { Plus, Trash2, Play, Pencil, Bell, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,14 +14,17 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ALL_TEAMS,
   DEFAULT_SEVERITIES,
   FREQUENCY_OPTIONS,
+  REMIND_TIME_SLOTS,
   TEMPLATE_OPTIONS,
   SEVERITY_OPTIONS,
   emptyRemindTaskInput,
   frequencyLabel,
+  remindTimesLabel,
   taskToInput,
   type DefectRemindTask,
   type DefectRemindTaskInput,
@@ -52,6 +55,15 @@ export function DefectRemindConfigDialog(props: {
   const [running, setRunning] = useState(false);
 
   const selected = props.tasks.find((item) => item.id === mode) ?? null;
+
+  const toggleRemindTime = (slot: string) => {
+    setForm((prev) => ({
+      ...prev,
+      remindTimes: prev.remindTimes.includes(slot)
+        ? prev.remindTimes.filter((item) => item !== slot)
+        : [...prev.remindTimes, slot].sort(),
+    }));
+  };
 
   const startNew = () => {
     setMode("new");
@@ -161,7 +173,7 @@ export function DefectRemindConfigDialog(props: {
           <DialogHeader>
             <DialogTitle>提醒任务配置</DialogTitle>
             <DialogDescription>
-              配置团队、频率、起止日期和 webhook。任务会留存在列表中，可随时修改、新建或立即执行。
+              配置团队、频率、提醒时间、起止日期和 webhook。任务会留存在列表中，可随时修改、新建或立即执行。
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -190,7 +202,8 @@ export function DefectRemindConfigDialog(props: {
                   </span>
                 </div>
                 <p className="text-[11px] text-[#94A3B8] mt-1 truncate">
-                  {task.team || ALL_TEAMS} · {frequencyLabel(task.frequency)}{task.iterations?.length ? ` · ${(task.iterations as string[]).length}个迭代` : ""}
+                  {task.team || ALL_TEAMS} · {frequencyLabel(task.frequency)} · {remindTimesLabel(task.remindTimes ?? [])}
+                  {task.iterations?.length ? ` · ${(task.iterations as string[]).length}个迭代` : ""}
                 </p>
               </button>
             ))}
@@ -240,6 +253,63 @@ export function DefectRemindConfigDialog(props: {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>提醒时间</Label>
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <button
+                        type="button"
+                        className={`w-full h-9 px-3 text-sm rounded-lg border inline-flex items-center justify-between gap-2 text-left transition-colors ${
+                          form.remindTimes.length > 0
+                            ? "border-[#C7D7FE] bg-[#EFF4FF] text-[#2A6FDB]"
+                            : "border-[#E4ECFC] bg-white text-[#94A3B8] hover:border-[#CBD5E1]"
+                        }`}
+                      />
+                    }
+                  >
+                    <span className="truncate">{remindTimesLabel(form.remindTimes)}</span>
+                    <Clock className="w-4 h-4 shrink-0" />
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-72 p-3 gap-0 bg-white text-[#0F172A] border border-[#E4ECFC] shadow-lg"
+                    align="start"
+                    side="bottom"
+                  >
+                    <p className="text-xs text-[#64748B] mb-2">按 30 分钟一档，可多选；不选 = 不限时刻</p>
+                    <div className="grid grid-cols-4 gap-1.5 max-h-56 overflow-y-auto">
+                      {REMIND_TIME_SLOTS.map((slot) => {
+                        const active = form.remindTimes.includes(slot);
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => toggleRemindTime(slot)}
+                            className={`h-7 text-xs rounded-md border transition-colors ${
+                              active
+                                ? "border-[#2A6FDB] bg-[#2A6FDB] text-white"
+                                : "border-[#E4ECFC] bg-white text-[#64748B] hover:border-[#C7D7FE]"
+                            }`}
+                          >
+                            {slot}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#EEF2F8]">
+                      <span className="text-[11px] text-[#94A3B8]">已选 {form.remindTimes.length} 个</span>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, remindTimes: [] }))}
+                        className="text-[11px] text-[#2A6FDB] hover:underline"
+                      >
+                        清空
+                      </button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-[11px] text-[#94A3B8]">多选则当天每个时刻各推送一次；不选表示不限时刻。</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="start-date">开始日期</Label>

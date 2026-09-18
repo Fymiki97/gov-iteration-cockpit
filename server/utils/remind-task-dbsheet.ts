@@ -32,6 +32,14 @@ const FIELD_MAP: Record<string, string> = {
   IE: "webhook",
 };
 
+/**
+ * 未在 FIELD_MAP 登记、但需按中文列名解析的列。
+ * 新增列时无需先回读字段 ID 再改代码，只要列名一致即可自动生效。
+ */
+const FIELD_NAME_FALLBACK: Record<string, string> = {
+  remindTimes: "提醒时间",
+};
+
 /** 业务字段名 → 多维表实际字段名（运行时从表结构解析，避免硬编码中文名出错） */
 type FieldNames = Record<string, string>;
 
@@ -108,6 +116,17 @@ async function resolveFieldNames(accessToken: string): Promise<FieldNames> {
     const name = idToName.get(id);
     if (name) names[key] = name;
   }
+  const existingNames = new Set(schema.map((f) => f.name));
+  for (const [key, colName] of Object.entries(FIELD_NAME_FALLBACK)) {
+    if (!names[key] && existingNames.has(colName)) names[key] = colName;
+  }
+  // 缺列必须显式告警：静默跳过会让「配置保存成功但没落库」看起来像正常
+  const missing = Object.entries(FIELD_NAME_FALLBACK)
+    .filter(([key]) => !names[key])
+    .map(([, colName]) => colName);
+  if (missing.length > 0) {
+    console.warn(`[remind-dbsheet] 多维表缺少列：${missing.join("、")}，对应配置不会落库`);
+  }
   fieldNamesCache = names;
   return names;
 }
@@ -141,7 +160,7 @@ function rowToTask(row: Record<string, unknown>, names: FieldNames): Record<stri
   if (!id) return null;
 
   const startDate = formatDate(fields[names.startDate]);
-  const lastRunAt = formatDate(fields[names.lastRunAt]);
+  const lastRunAt = formatDateTime(fields[names.lastRunAt]);
 
   return {
     id,
@@ -154,6 +173,7 @@ function rowToTask(row: Record<string, unknown>, names: FieldNames): Record<stri
     enabled: toBool(fields[names.enabled]),
     severities: parseJsonArray(fields[names.severities]),
     iterations: parseJsonArray(fields[names.iterations]),
+    remindTimes: normalizeRemindTimes(fields[names.remindTimes]),
     template: mapTemplateToEn(cellText(fields[names.template])),
     includeDetail: toBool(fields[names.includeDetail]),
     includeDeadline: toBool(fields[names.includeDeadline]),
@@ -167,27 +187,32 @@ function rowToTask(row: Record<string, unknown>, names: FieldNames): Record<stri
 
 function taskToFields(task: Record<string, unknown>, names: FieldNames): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  out[names.id] = String(task.id ?? "");
-  out[names.name] = String(task.name ?? "");
-  out[names.team] = String(task.team ?? "全部团队");
-  out[names.frequency] = mapFrequencyToZh(String(task.frequency ?? "daily"));
+  // 表结构缺列时跳过，避免写出名为 "undefined" 的键污染记录
+  const put = (key: string, value: unknown) => {
+    const name = names[key];
+    if (name) out[name] = value;
+  };
+  put("id", String(task.id ?? ""));
+  put("name", String(task.name ?? ""));
+  put("team", String(task.team ?? "全部团队"));
+  put("frequency", mapFrequencyToZh(String(task.frequency ?? "daily")));
   const startCell = toDateCell(task.startDate);
-  if (startCell) out[names.startDate] = startCell;
+  if (startCell) put("startDate", startCell);
   const endCell = toDateCell(task.endDate);
-  if (endCell) out[names.endDate] = endCell;
-  out[names.enabled] = task.enabled === true;
-  out[names.severities] = JSON.stringify(task.severities ?? []);
-  out[names.iterations] = JSON.stringify(task.iterations ?? []);
-  out[names.template] = mapTemplateToZh(String(task.template ?? "default"));
-  out[names.includeDetail] = task.includeDetail === true;
-  out[names.includeDeadline] = task.includeDeadline === true;
+  if (endCell) put("endDate", endCell);
+  put("enabled", task.enabled === true);
+  put("severities", JSON.stringify(task.severities ?? []));
+  put("iterations", JSON.stringify(task.iterations ?? []));
+  put("remindTimes", JSON.stringify(normalizeRemindTimes(task.remindTimes)));
+  put("template", mapTemplateToZh(String(task.template ?? "default")));
+  put("includeDetail", task.includeDetail === true);
+  put("includeDeadline", task.includeDeadline === true);
   const lastCell = toDateCell(task.lastRunAt, true);
-  if (lastCell) out[names.lastRunAt] = lastCell;
+  if (lastCell) put("lastRunAt", lastCell);
   const statusZh = mapStatusToZh(task.lastRunStatus);
-  if (statusZh) out[names.lastRunStatus] = statusZh;
-  out[names.lastRunMessage] = String(task.lastRunMessage ?? "");
-  // webhook 为可选列：表结构未添加该列时跳过，避免写出 "undefined" 键污染记录
-  if (names.webhook) out[names.webhook] = String(task.webhook ?? "");
+  if (statusZh) put("lastRunStatus", statusZh);
+  put("lastRunMessage", String(task.lastRunMessage ?? ""));
+  put("webhook", String(task.webhook ?? ""));
   return out;
 }
 
@@ -275,6 +300,37 @@ function toDateCell(val: unknown, withTime = false): string | undefined {
   if (isNaN(d.getTime())) return undefined;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * 读回日期时间字段，保留到分钟（YYYY-MM-DD HH:mm）。
+ * lastRunAt 必须保留时分：多时刻任务靠「同一天同一时刻」去重，截断成日期会导致重复发送。
+ */
+function formatDateTime(val: unknown): string | null {
+  if (typeof val === "number" && val > 0) {
+    // sv-SE 的 locale 输出即 "YYYY-MM-DD HH:mm:ss"，比手工拼装省事
+    return new Date(val).toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).slice(0, 16);
+  }
+  if (typeof val !== "string" || !val.trim()) return null;
+  const raw = val.trim().replace(/\//g, "-");
+  const day = raw.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const time = raw.slice(11, 16);
+  return /^\d{2}:\d{2}$/.test(time) ? `${day} ${time}` : `${day} 00:00`;
+}
+
+/** 归一化提醒时刻：只保留 HH:mm、向下对齐到 30 分钟槽位、去重升序 */
+export function normalizeRemindTimes(raw: unknown): string[] {
+  const slots = new Set<string>();
+  for (const item of parseJsonArray(raw)) {
+    const m = String(item).trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) continue;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if (h > 23 || min > 59) continue;
+    slots.add(`${String(h).padStart(2, "0")}:${min < 30 ? "00" : "30"}`);
+  }
+  return [...slots].sort();
 }
 
 // ─── 公开接口 ───
