@@ -16,8 +16,8 @@ export default defineEventHandler(async (event) => {
     const webhook = body.webhook === undefined ? existing.webhook : String(body.webhook);
     if (!webhook.trim()) return { ok: false, error: "请填写 webhook" };
     parseWebhookUrl(webhook);
-    const task = await saveRemindTask(normalizeTaskInput(body, existing));
-    return { ok: true, task };
+    const { task, persist } = await saveRemindTask(normalizeTaskInput(body, existing));
+    return { ok: true, task, persisted: persist.persisted, persistError: persist.error };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };

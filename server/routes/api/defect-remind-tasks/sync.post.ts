@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
       return { ok: true, added: 0, patched: 0, skipped: 0 };
     }
     const result = await backfillRemindTasks(tasks);
-    return { ok: true, ...result };
+    return { ok: true, ...result, persisted: result.persist.persisted, persistError: result.persist.error };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };

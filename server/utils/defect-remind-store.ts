@@ -49,6 +49,12 @@ let dbCookie: string | null = null;
 
 /** 设置请求 cookie 头（含 capa_session JWT），供多维表鉴权使用 */
 export function setDbCookie(cookieHeader: string): void {
+  if (cookieHeader !== dbCookie) {
+    // 授权身份变化时必须作废缓存：否则会把上一个用户的任务列表与 record 映射
+    // 直接交给当前用户（表现为「看到别人的任务」或写入错行）。
+    dbCache = null;
+    dbRecordIds = new Map();
+  }
   dbCookie = cookieHeader;
 }
 
@@ -68,18 +74,39 @@ export async function syncFromDb(): Promise<void> {
   }
 }
 
+/** 一次持久化的结果。persisted=false 时任务仅落在容器本地文件，重启/换实例即丢 */
+export interface PersistResult {
+  persisted: boolean;
+  error?: string;
+}
+
+let lastPersistError: string | null = null;
+let lastReadSource: "db" | "local" = "local";
+
+/** 供接口层暴露存储状态，避免「保存成功但表里没有」这类静默失败 */
+export function getStoreStatus(): { lastPersistError: string | null; lastReadSource: "db" | "local"; hasCookie: boolean } {
+  return { lastPersistError, lastReadSource, hasCookie: Boolean(dbCookie) };
+}
+
 /** 持久化到多维表（逐条 upsert） */
-async function persistToDb(tasks: DefectRemindTask[]): Promise<boolean> {
-  if (!dbCookie) return false;
+async function persistToDb(tasks: DefectRemindTask[]): Promise<PersistResult> {
+  if (!dbCookie) {
+    lastPersistError = "未收到 capa_session 授权 cookie，无法写入多维表（请刷新页面重新授权）";
+    return { persisted: false, error: lastPersistError };
+  }
   try {
-    console.info(`[remind-store] persistToDb: ${tasks.length} 条, 已知 recordIds: ${dbRecordIds.size}`);
-    const ok = await saveTasks(dbCookie, tasks as unknown as Record<string, unknown>[], dbRecordIds);
-    if (ok) dbCache = tasks;
-    console.info(`[remind-store] persistToDb result: ${ok}`);
-    return ok;
+    const result = await saveTasks(dbCookie, tasks as unknown as Record<string, unknown>[], dbRecordIds);
+    if (result.ok) {
+      dbCache = tasks;
+      lastPersistError = null;
+      return { persisted: true };
+    }
+    lastPersistError = result.error ?? "多维表写入失败";
+    return { persisted: false, error: lastPersistError };
   } catch (err) {
-    console.warn("[remind-store] 多维表写入失败:", err instanceof Error ? err.message : err);
-    return false;
+    lastPersistError = err instanceof Error ? err.message : String(err);
+    console.warn("[remind-store] 多维表写入失败:", lastPersistError);
+    return { persisted: false, error: lastPersistError };
   }
 }
 
@@ -111,18 +138,27 @@ async function writeLocal(tasks: DefectRemindTask[]): Promise<void> {
 // ─── 统一读写（多维表优先，本地降级） ───
 
 async function readTasks(): Promise<DefectRemindTask[]> {
-  if (dbCache) return [...dbCache].sort((a: DefectRemindTask, b: DefectRemindTask) => b.updatedAt.localeCompare(a.updatedAt));
+  const byUpdatedAt = (a: DefectRemindTask, b: DefectRemindTask) => b.updatedAt.localeCompare(a.updatedAt);
+  if (dbCache) {
+    lastReadSource = "db";
+    return [...dbCache].sort(byUpdatedAt);
+  }
   if (dbCookie) {
     await syncFromDb();
-    if (dbCache) return [...dbCache].sort((a: DefectRemindTask, b: DefectRemindTask) => b.updatedAt.localeCompare(a.updatedAt));
+    if (dbCache) {
+      lastReadSource = "db";
+      return [...dbCache].sort(byUpdatedAt);
+    }
   }
+  lastReadSource = "local";
   return readLocal();
 }
 
-async function writeTasks(tasks: DefectRemindTask[]): Promise<void> {
-  const dbOk = await persistToDb(tasks);
+async function writeTasks(tasks: DefectRemindTask[]): Promise<PersistResult> {
+  const result = await persistToDb(tasks);
   await writeLocal(tasks);
-  if (!dbOk) console.warn("[remind-store] 多维表写入失败，已降级到本地文件");
+  if (!result.persisted) console.warn("[remind-store] 多维表写入失败，已降级到本地文件:", result.error);
+  return result;
 }
 
 function newId(): string {
@@ -235,13 +271,18 @@ export async function getRemindTask(id: string): Promise<DefectRemindTask | null
   return tasks.find((item) => item.id === id) ?? null;
 }
 
-export async function saveRemindTask(task: DefectRemindTask): Promise<DefectRemindTask> {
+export interface SaveTaskResult {
+  task: DefectRemindTask;
+  persist: PersistResult;
+}
+
+export async function saveRemindTask(task: DefectRemindTask): Promise<SaveTaskResult> {
   const tasks = await readTasks();
   const index = tasks.findIndex((item) => item.id === task.id);
   if (index >= 0) tasks[index] = task;
   else tasks.unshift(task);
-  await writeTasks(tasks);
-  return task;
+  const persist = await writeTasks(tasks);
+  return { task, persist };
 }
 
 /**
@@ -251,7 +292,7 @@ export async function saveRemindTask(task: DefectRemindTask): Promise<DefectRemi
  */
 export async function backfillRemindTasks(
   incoming: unknown[],
-): Promise<{ added: number; patched: number; skipped: number }> {
+): Promise<{ added: number; patched: number; skipped: number; persist: PersistResult }> {
   const tasks = await readTasks();
   const indexById = new Map(tasks.map((item, i) => [item.id, i]));
   let added = 0;
@@ -275,16 +316,17 @@ export async function backfillRemindTasks(
     }
   }
 
-  if (added > 0 || patched > 0) await writeTasks(tasks);
-  return { added, patched, skipped };
+  let persist: PersistResult = { persisted: true };
+  if (added > 0 || patched > 0) persist = await writeTasks(tasks);
+  return { added, patched, skipped, persist };
 }
 
-export async function removeRemindTask(id: string): Promise<boolean> {
+export async function removeRemindTask(id: string): Promise<{ removed: boolean; persist: PersistResult }> {
   const tasks = await readTasks();
   const next = tasks.filter((item) => item.id !== id);
-  if (next.length === tasks.length) return false;
-  await writeTasks(next);
-  return true;
+  if (next.length === tasks.length) return { removed: false, persist: { persisted: true } };
+  const persist = await writeTasks(next);
+  return { removed: true, persist };
 }
 
 export async function markRemindTaskRun(options: {
@@ -301,5 +343,6 @@ export async function markRemindTaskRun(options: {
     lastRunMessage: options.message.slice(0, 200),
     updatedAt: new Date().toISOString(),
   };
-  return saveRemindTask(next);
+  const saved = await saveRemindTask(next);
+  return saved.task;
 }

@@ -155,9 +155,12 @@ export function DefectListTab() {
         }
       }
       try {
-        const loaded = await fetchRemindTasks();
+        const { tasks: loaded, warning } = await fetchRemindTasks();
         if (cancelled) return;
         setTasks(loaded);
+        // 固定 id 避免每次加载都叠一个提示；落库异常持续存在时应持续可见
+        if (warning) toast.warning(warning, { id: "remind-store-status" });
+        else toast.dismiss("remind-store-status");
         const due = loaded.filter((task) => isTaskDue(task) && !hasAutoRun(task.id));
         if (due.length === 0) return;
         const next = [...loaded];

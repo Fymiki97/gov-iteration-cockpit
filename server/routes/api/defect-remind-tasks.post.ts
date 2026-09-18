@@ -13,8 +13,8 @@ export default defineEventHandler(async (event) => {
       return { ok: false, error: "请填写 webhook" };
     }
     parseWebhookUrl(String(body.webhook));
-    const task = await saveRemindTask(normalizeTaskInput(body));
-    return { ok: true, task };
+    const { task, persist } = await saveRemindTask(normalizeTaskInput(body));
+    return { ok: true, task, persisted: persist.persisted, persistError: persist.error };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };

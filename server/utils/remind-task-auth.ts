@@ -7,5 +7,6 @@ import { setDbCookie } from "./defect-remind-store";
 
 export function ensureDbToken(event: any): void {
   const cookieHeader = getRequestHeader(event, "cookie") ?? "";
-  if (cookieHeader) setDbCookie(cookieHeader);
+  // 即使没有 cookie 也要写入（空串），否则会沿用上一个请求的身份
+  setDbCookie(cookieHeader);
 }

@@ -171,18 +171,18 @@ function taskToFields(task: Record<string, unknown>, names: FieldNames): Record<
   out[names.name] = String(task.name ?? "");
   out[names.team] = String(task.team ?? "全部团队");
   out[names.frequency] = mapFrequencyToZh(String(task.frequency ?? "daily"));
-  const startMs = parseDateToMs(task.startDate);
-  if (startMs) out[names.startDate] = startMs;
-  const endMs = parseDateToMs(task.endDate);
-  if (endMs) out[names.endDate] = endMs;
+  const startCell = toDateCell(task.startDate);
+  if (startCell) out[names.startDate] = startCell;
+  const endCell = toDateCell(task.endDate);
+  if (endCell) out[names.endDate] = endCell;
   out[names.enabled] = task.enabled === true;
   out[names.severities] = JSON.stringify(task.severities ?? []);
   out[names.iterations] = JSON.stringify(task.iterations ?? []);
   out[names.template] = mapTemplateToZh(String(task.template ?? "default"));
   out[names.includeDetail] = task.includeDetail === true;
   out[names.includeDeadline] = task.includeDeadline === true;
-  const lastMs = parseDateToMs(task.lastRunAt);
-  if (lastMs) out[names.lastRunAt] = lastMs;
+  const lastCell = toDateCell(task.lastRunAt, true);
+  if (lastCell) out[names.lastRunAt] = lastCell;
   const statusZh = mapStatusToZh(task.lastRunStatus);
   if (statusZh) out[names.lastRunStatus] = statusZh;
   out[names.lastRunMessage] = String(task.lastRunMessage ?? "");
@@ -250,16 +250,28 @@ function parseJsonArray(val: unknown): string[] {
 function formatDate(val: unknown): string | null {
   if (typeof val === "number" && val > 0) return new Date(val).toISOString().split("T")[0];
   if (typeof val !== "string" || !val) return null;
-  const day = val.split("T")[0].replace(/\//g, "-");
+  // 可能是 "2026/09/15"，也可能是写入时的 "2026-09-18 19:30"，统一取日期段
+  const day = val.replace(/\//g, "-").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
 }
 
-function parseDateToMs(dateStr: unknown): number | undefined {
-  if (typeof dateStr === "string" && dateStr) {
-    const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? undefined : d.getTime();
+/**
+ * 转为多维表 Date 字段可接受的字符串。
+ * 该字段拒绝毫秒时间戳（实测写入 number 会返回 500410002 E_INVALIDARG，
+ * 导致整条记录写入失败），必须传 "YYYY-MM-DD" 或 "YYYY-MM-DD HH:mm"。
+ * 纯日期走字符串截取而非 Date 解析，避免容器时区与北京时区不一致时日期偏移。
+ */
+function toDateCell(val: unknown, withTime = false): string | undefined {
+  if (typeof val !== "string" || !val.trim()) return undefined;
+  const raw = val.trim().replace(/\//g, "-");
+  if (!withTime) {
+    const day = raw.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
   }
-  return undefined;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return undefined;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ─── 公开接口 ───
@@ -295,10 +307,10 @@ export async function saveTasks(
   cookieHeader: string,
   tasks: Record<string, unknown>[],
   existingRecordIds: Map<string, string>,
-): Promise<boolean> {
+): Promise<{ ok: boolean; error?: string }> {
   const accessToken = await getAccessToken(cookieHeader);
   const names = await resolveFieldNames(accessToken);
-  let ok = true;
+  let error: string | undefined;
 
   const toCreate: Record<string, unknown>[] = [];
   const toUpdate: Record<string, unknown>[] = [];
@@ -312,14 +324,24 @@ export async function saveTasks(
 
   try {
     if (toCreate.length > 0) {
-      await apiPost(accessToken, `/sheets/${REMIND_SHEET_ID}/records/create`, { records: toCreate });
+      const created = await apiPost<{ records?: Array<{ id?: string; fields?: unknown }> }>(
+        accessToken,
+        `/sheets/${REMIND_SHEET_ID}/records/create`,
+        { records: toCreate },
+      );
+      // 回填新记录 id。否则下一次保存时这些任务仍无 recordId，会被当成新任务重复创建，
+      // 触发「任务ID 值不唯一」并导致整批写入失败（包含本次要更新的其他任务）。
+      for (const row of created?.records ?? []) {
+        const taskId = cellText(normalizeFields(row.fields)[names.id]).trim();
+        if (row.id && taskId) existingRecordIds.set(taskId, row.id);
+      }
     }
     if (toUpdate.length > 0) {
       await apiPost(accessToken, `/sheets/${REMIND_SHEET_ID}/records/update`, { records: toUpdate });
     }
   } catch (err) {
-    console.warn("[remind-dbsheet] 写入失败:", err instanceof Error ? err.message : err);
-    ok = false;
+    error = err instanceof Error ? err.message : String(err);
+    console.warn("[remind-dbsheet] 写入失败:", error);
   }
 
   const currentIds = new Set(tasks.map((t) => String(t.id ?? "")));
@@ -331,10 +353,10 @@ export async function saveTasks(
     try {
       await apiPost(accessToken, `/sheets/${REMIND_SHEET_ID}/records/batch_delete`, { records: toDelete });
     } catch (err) {
-      console.warn("[remind-dbsheet] 删除失败:", err instanceof Error ? err.message : err);
-      ok = false;
+      error = error ?? (err instanceof Error ? err.message : String(err));
+      console.warn("[remind-dbsheet] 删除失败:", error);
     }
   }
 
-  return ok;
+  return { ok: !error, error };
 }
