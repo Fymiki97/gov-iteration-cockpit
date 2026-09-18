@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1789742247162",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789742247163,
+  "note": {
+    "completed": [
+      "查实 AppBase 无服务端免用户凭据（四路交叉验证）：server/utils/appbase.ts 的 useAppBase(event) 透传请求 cookie；appbase-js-guide 明确生产环境认证靠 gateway_token cookie 且『不需要任何额外的 token 配置』；app-cloud 的 db.py/storage.py 均用 cookie: wps_sid=...; csrf=... 用户凭据；appbase-js SDK 里 X-Project-Api-Key 请求头标注为 /** @internal reserved for future API key support */ 且不在公开 ClientOptions 类型里，是未启用桩代码。结论：方向 A（AppBase 服务端免用户读写）已排除",
+      "查实项目当前无 cron 入口（无 routes/invoke.post.ts、无 routes/api/automation/），server/capabilities/ 只有 dbsheet.json，提醒路由全部经 ensureDbToken(event) 取请求 cookie",
+      "查实提醒链路中无需用户凭据的部分：ONES 用 nitro.config.ts:31 的静态 ONES_AUTH_TOKEN；发送用 task.webhook 静态 URL（defect-remind.ts:266 纯 fetch）",
+      "【关键发现】automation-task/references/automation-api.md 明确：cron 的 action_config 是自定义 JSON，『其他自定义字段也会透传到 invoke payload 中，可供 executor 使用』——即配置可随定时任务下发，服务端无需读表、无需任何用户凭据",
+      "已保存 handoff-1789741669297（容器文件系统实测结论）"
+    ],
+    "remaining": [
+      "向用户汇报：AppBase 方向排除 + cron payload 携带配置的新方案，等用户拍板是否实施",
+      "若实施：为提醒配置设计 payload schema；新增 routes/invoke.post.ts（从 payload 取配置→取 ONES→发 webhook）；创建 cron 任务（POST /projects/{id}/automations，wps_sid 鉴权，action_config 携带配置）",
+      "待确认偏差：automation-task 要求入口路由『仅做代理转发、不含业务逻辑』，而本提醒需自定义逻辑（取 ONES + 筛选 + 格式化），需用户认可",
+      "待确认限制：自动化管理 API 只有 create/toggle/list/delete，无 update——改配置需 delete + 重建",
+      "UI 保存配置后的同步方案待定：由服务端路由用请求内 wps_sid 代理调管理 API 写入任务",
+      "线上诊断代码（含 fs 探针）仍在生效，每次授权写一行并失效该次 refresh_token——待定移除后重发",
+      "commit 2f8e3fb 等 auto-commit 未 push；ONES 云端 403；96f2c7d token 硬编码建议轮换"
+    ],
+    "decisions": [
+      "【新增】AppBase 不能做服务端存储：无服务密钥，生产环境只认 gateway_token 用户会话 cookie",
+      "【新增】无人值守的正解是让 cron payload 携带配置（无状态），而非寻找服务端存储——无状态天然免疫多副本约束",
+      "【新增】提醒链路三个环节中两个已无需用户凭据（ONES 静态 token、webhook 静态 URL），唯一依赖用户凭据的是多维表配置读写",
+      "【新增】回写 lastRunAt/lastRunStatus 到多维表需用户凭据，属可舍弃的状态展示，不影响核心提醒",
+      "容器文件系统不可用于存 refresh_token（多副本文件系统独立 + 每次部署重建）",
+      "refresh_token 轮换 + 旧值立即失效；应用身份无法访问多维表；app: 前缀多维表 scope 不存在",
+      "观测服务端行为：写多维表再用 kdocs-comate-cli 读回（平台无服务端日志）"
+    ],
+    "issues": [
+      "【待确认】cron 入口需自定义业务逻辑，偏离 automation-task『入口仅代理转发』约定",
+      "【待确认】自动化管理 API 无 update，配置变更需 delete + 重建任务",
+      "线上诊断代码仍在生效，每次授权会多做两次刷新交换并失效该次 refresh_token",
+      "server/nitro.config.ts 硬编码 SESSION_SECRET / WPS_APP_SECRET / ONES_AUTH_TOKEN（提交文件写密钥，违反 app-cloud 约束）",
+      "平台不提供已部署服务端日志（wpsgo 无 logs 命令）"
+    ],
+    "files_changed": [
+      "server/routes/api/oauth/callback.ts",
+      "thumbnail_760386581358207.png"
+    ]
+  },
+  "reason": "AppBase 四路交叉验证排除服务端免用户访问；转而挖到 cron action_config 可携带自定义配置透传到 invoke payload——无状态方案免疫多副本约束，是无人值守的正解"
+}
