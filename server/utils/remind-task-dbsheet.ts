@@ -1,12 +1,15 @@
 /**
- * 缺陷提醒任务 — WPS 365 多维表持久化存储
+ * 缺陷提醒任务 — WPS 多维表持久化存储
  *
- * 通过平台 gateway_token 代理访问多维表 CRUD API，
- * 替代本地 .data/ 文件存储（容器重启不丢失）。
+ * 鉴权：用 gateway_token cookie 向平台网关换取 access_token（getWpsGatewaySession），
+ * 再以 Bearer 调用 openapi.wps.cn 的多维表 API。
+ * 注意：不能直连 o.wpsgo.com/app/app-base/base-proxy（那条路要求 OAuth 且返回 401）。
  */
+import { getWpsGatewaySession } from "@ks-open/capability/server";
 
 const REMIND_FILE_ID = "tmcQvuKxFrMJAHExDfFFrxC3PB5vCD4E7";
 const REMIND_SHEET_ID = 12;
+const OPENAPI_BASE = "https://openapi.wps.cn/v7/coop/dbsheet";
 
 /** 多维表字段 ID → 业务字段名 */
 const FIELD_MAP: Record<string, string> = {
@@ -27,89 +30,173 @@ const FIELD_MAP: Record<string, string> = {
   ID: "lastRunMessage",
 };
 
-const REVERSE_MAP = Object.fromEntries(Object.entries(FIELD_MAP).map(([k, v]) => [v, k]));
+/** 业务字段名 → 多维表实际字段名（运行时从表结构解析，避免硬编码中文名出错） */
+type FieldNames = Record<string, string>;
 
-/** 从多维表记录行提取扁平字段值 */
-function extractField(row: Record<string, unknown>, fieldId: string): unknown {
-  const cell = row[fieldId];
-  if (cell == null) return null;
-  // 多维表文本字段返回 { text: "..." } 或直接字符串
-  if (typeof cell === "object" && cell !== null && "text" in cell) {
-    return (cell as { text: string }).text;
+let fieldNamesCache: FieldNames | null = null;
+
+// ─── 网关鉴权 ───
+
+type GatewaySessionRequest = Parameters<typeof getWpsGatewaySession>[0];
+
+async function getAccessToken(gatewayToken: string): Promise<string> {
+  // 能力包声明的是 DOM 的 Request，与 Node undici 的全局 Request 类型定义不同，运行时接口兼容
+  const request = {
+    headers: new Headers({ cookie: `gateway_token=${gatewayToken}` }),
+  } as unknown as GatewaySessionRequest;
+  const session = await getWpsGatewaySession(request, {});
+  if (!session.access_token) throw new Error("网关会话未返回 access_token");
+  return session.access_token;
+}
+
+// ─── HTTP ───
+
+async function apiPost<T = Record<string, unknown>>(
+  accessToken: string,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const url = `${OPENAPI_BASE}/${REMIND_FILE_ID}${path}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    throw new Error(`多维表 API HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
-  // 日期字段返回毫秒时间戳
-  if (typeof cell === "number") return cell;
-  return cell;
+  let json: { code?: number; msg?: string; message?: string; data?: T };
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`多维表 API 返回非 JSON: ${text.slice(0, 200)}`);
+  }
+  if (json.code !== undefined && json.code !== 0) {
+    throw new Error(`多维表 API 错误 ${json.code}: ${json.msg || json.message || "unknown"}`);
+  }
+  return (json.data ?? (json as unknown as T)) as T;
 }
 
-/** 从多维表记录行解析为 DefectRemindTask */
-function rowToTask(row: Record<string, unknown>): Record<string, unknown> | null {
-  const rawId = String(extractField(row, "H1") ?? "").trim();
-  if (!rawId) return null;
+/** 解析表结构，得到「业务字段名 → 实际字段名」映射（进程内缓存） */
+async function resolveFieldNames(accessToken: string): Promise<FieldNames> {
+  if (fieldNamesCache) return fieldNamesCache;
+  const data = await apiPost<{ fields_schema?: Array<{ id: string; name: string }> }>(
+    accessToken,
+    `/sheets/${REMIND_SHEET_ID}/records`,
+    { max_records: 1, show_fields_info: true },
+  );
+  const schema = data?.fields_schema ?? [];
+  if (schema.length === 0) throw new Error("多维表未返回字段结构");
+  const idToName = new Map(schema.map((f) => [f.id, f.name]));
+  const names: FieldNames = {};
+  for (const [id, key] of Object.entries(FIELD_MAP)) {
+    const name = idToName.get(id);
+    if (name) names[key] = name;
+  }
+  fieldNamesCache = names;
+  return names;
+}
 
-  const task: Record<string, unknown> = {
-    id: rawId,
-    name: String(extractField(row, "H2") ?? ""),
-    team: String(extractField(row, "H3") ?? "全部团队"),
-    frequency: mapFrequencyToEn(String(extractField(row, "H4") ?? "daily")),
-    startDate: formatDate(extractField(row, "H5")),
-    endDate: formatDate(extractField(row, "H6")),
-    webhook: "", // 不存多维表，由前端提供
-    enabled: extractField(row, "H7") === true || extractField(row, "H7") === "true",
-    severities: parseJsonArray(extractField(row, "H8")),
-    iterations: parseJsonArray(extractField(row, "H9")),
-    template: mapTemplateToEn(String(extractField(row, "H-") ?? "default")),
-    includeDetail: extractField(row, "H_") === true || extractField(row, "H_") === "true",
-    includeDeadline: extractField(row, "IA") === true || extractField(row, "IA") === "true",
-    createdAt: formatDate(extractField(row, "H5")) || new Date().toISOString(),
-    updatedAt: formatDate(extractField(row, "IB")) || new Date().toISOString(),
-    lastRunAt: formatDate(extractField(row, "IB")),
-    lastRunStatus: mapStatusToEn(extractField(row, "IC")),
-    lastRunMessage: String(extractField(row, "ID") ?? ""),
+// ─── 记录解析 ───
+
+/** 多维表记录行的字段值可能被序列化成 JSON 字符串，统一还原为对象 */
+function normalizeFields(raw: unknown): Record<string, unknown> {
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  }
+  return raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+}
+
+function cellText(val: unknown): string {
+  if (val == null) return "";
+  if (typeof val === "object" && "text" in (val as Record<string, unknown>)) {
+    return String((val as { text: unknown }).text ?? "");
+  }
+  return String(val);
+}
+
+function rowToTask(row: Record<string, unknown>, names: FieldNames): Record<string, unknown> | null {
+  const fields = normalizeFields(row["fields"] ?? row);
+  const id = cellText(fields[names.id]).trim();
+  if (!id) return null;
+
+  const startDate = formatDate(fields[names.startDate]);
+  const lastRunAt = formatDate(fields[names.lastRunAt]);
+
+  return {
+    id,
+    name: cellText(fields[names.name]),
+    team: cellText(fields[names.team]) || "全部团队",
+    frequency: mapFrequencyToEn(cellText(fields[names.frequency])),
+    startDate,
+    endDate: formatDate(fields[names.endDate]),
+    webhook: "", // 敏感信息不入多维表，运行时由前端提供
+    enabled: toBool(fields[names.enabled]),
+    severities: parseJsonArray(fields[names.severities]),
+    iterations: parseJsonArray(fields[names.iterations]),
+    template: mapTemplateToEn(cellText(fields[names.template])),
+    includeDetail: toBool(fields[names.includeDetail]),
+    includeDeadline: toBool(fields[names.includeDeadline]),
+    createdAt: startDate || new Date().toISOString(),
+    updatedAt: lastRunAt || new Date().toISOString(),
+    lastRunAt,
+    lastRunStatus: mapStatusToEn(cellText(fields[names.lastRunStatus])),
+    lastRunMessage: cellText(fields[names.lastRunMessage]),
   };
-  return task;
 }
 
-/** 将 DefectRemindTask 转为多维表记录行 */
-function taskToRow(task: Record<string, unknown>): Record<string, unknown> {
-  const row: Record<string, unknown> = {};
-  row["H1"] = String(task.id ?? "");
-  row["H2"] = String(task.name ?? "");
-  row["H3"] = String(task.team ?? "全部团队");
-  row["H4"] = mapFrequencyToZh(String(task.frequency ?? "daily"));
-  if (task.startDate) row["H5"] = parseDateToMs(task.startDate);
-  if (task.endDate) row["H6"] = parseDateToMs(task.endDate);
-  row["H7"] = task.enabled === true;
-  row["H8"] = JSON.stringify(task.severities ?? []);
-  row["H9"] = JSON.stringify(task.iterations ?? []);
-  row["H-"] = mapTemplateToZh(String(task.template ?? "default"));
-  row["H_"] = task.includeDetail === true;
-  row["IA"] = task.includeDeadline === true;
-  if (task.lastRunAt) row["IB"] = parseDateToMs(task.lastRunAt);
-  if (task.lastRunStatus) row["IC"] = mapStatusToZh(task.lastRunStatus);
-  row["ID"] = String(task.lastRunMessage ?? "");
-  return row;
+function taskToFields(task: Record<string, unknown>, names: FieldNames): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  out[names.id] = String(task.id ?? "");
+  out[names.name] = String(task.name ?? "");
+  out[names.team] = String(task.team ?? "全部团队");
+  out[names.frequency] = mapFrequencyToZh(String(task.frequency ?? "daily"));
+  const startMs = parseDateToMs(task.startDate);
+  if (startMs) out[names.startDate] = startMs;
+  const endMs = parseDateToMs(task.endDate);
+  if (endMs) out[names.endDate] = endMs;
+  out[names.enabled] = task.enabled === true;
+  out[names.severities] = JSON.stringify(task.severities ?? []);
+  out[names.iterations] = JSON.stringify(task.iterations ?? []);
+  out[names.template] = mapTemplateToZh(String(task.template ?? "default"));
+  out[names.includeDetail] = task.includeDetail === true;
+  out[names.includeDeadline] = task.includeDeadline === true;
+  const lastMs = parseDateToMs(task.lastRunAt);
+  if (lastMs) out[names.lastRunAt] = lastMs;
+  const statusZh = mapStatusToZh(task.lastRunStatus);
+  if (statusZh) out[names.lastRunStatus] = statusZh;
+  out[names.lastRunMessage] = String(task.lastRunMessage ?? "");
+  return out;
 }
 
 // ─── 映射函数 ───
 
 function mapFrequencyToEn(zh: string): string {
-  const map: Record<string, string> = { "每日": "daily", "每周": "weekly", "工作日": "workday" };
+  const map: Record<string, string> = { 每日: "daily", 每周: "weekly", 工作日: "workday", 仅一次: "once" };
   return map[zh] ?? "daily";
 }
 function mapFrequencyToZh(en: string): string {
-  const map: Record<string, string> = { daily: "每日", weekly: "每周", workday: "工作日" };
+  const map: Record<string, string> = { daily: "每日", weekly: "每周", workday: "工作日", once: "仅一次" };
   return map[en] ?? "每日";
 }
 function mapTemplateToEn(zh: string): string {
-  const map: Record<string, string> = { "默认模板": "default", "批量合并": "batch" };
+  const map: Record<string, string> = { 默认模板: "default", 批量合并: "batch" };
   return map[zh] ?? "default";
 }
 function mapTemplateToZh(en: string): string {
   const map: Record<string, string> = { default: "默认模板", batch: "批量合并" };
   return map[en] ?? "默认模板";
 }
-function mapStatusToEn(zh: unknown): "success" | "failed" | null {
+function mapStatusToEn(zh: string): "success" | "failed" | null {
   if (zh === "成功") return "success";
   if (zh === "失败") return "failed";
   return null;
@@ -120,21 +207,25 @@ function mapStatusToZh(en: unknown): string | undefined {
   return undefined;
 }
 
+function toBool(val: unknown): boolean {
+  return val === true || val === "true";
+}
+
 function parseJsonArray(val: unknown): string[] {
-  if (Array.isArray(val)) return val;
+  if (Array.isArray(val)) return val.map(String);
   if (typeof val === "string") {
     try {
       const parsed = JSON.parse(val);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
   }
   return [];
 }
 
 function formatDate(val: unknown): string | null {
-  if (typeof val === "number" && val > 0) {
-    return new Date(val).toISOString().split("T")[0];
-  }
+  if (typeof val === "number" && val > 0) return new Date(val).toISOString().split("T")[0];
   if (typeof val === "string" && val) return val.split("T")[0];
   return null;
 }
@@ -147,152 +238,78 @@ function parseDateToMs(dateStr: unknown): number | undefined {
   return undefined;
 }
 
-// ─── API 调用 ───
-
-async function fetchRecords(
-  gatewayToken: string,
-  body: Record<string, unknown>,
-): Promise<Record<string, unknown>[] | null> {
-  const config = useRuntimeConfig();
-  const endpoint = (config.appBaseEndpoint as string) || "https://o.wpsgo.com/app/app-base";
-  const url = `${endpoint}/base-proxy/v7/coop/dbsheet/${REMIND_FILE_ID}/sheets/${REMIND_SHEET_ID}/records`;
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: `gateway_token=${gatewayToken}` },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      console.warn(`[remind-dbsheet] fetchRecords HTTP ${res.status}`);
-      return null;
-    }
-    const json = await res.json() as { data?: { records?: unknown[] } };
-    return Array.isArray(json?.data?.records) ? (json.data.records as Record<string, unknown>[]) : [];
-  } catch (err) {
-    console.warn("[remind-dbsheet] fetchRecords error:", err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-
-async function createRecords(
-  gatewayToken: string,
-  rows: Record<string, unknown>[],
-): Promise<boolean> {
-  const config = useRuntimeConfig();
-  const endpoint = (config.appBaseEndpoint as string) || "https://o.wpsgo.com/app/app-base";
-  const url = `${endpoint}/base-proxy/v7/coop/dbsheet/${REMIND_FILE_ID}/sheets/${REMIND_SHEET_ID}/records`;
-
-  try {
-    const res = await fetch(url, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Cookie: `gateway_token=${gatewayToken}` },
-      body: JSON.stringify({ records: rows }),
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn("[remind-dbsheet] createRecords error:", err instanceof Error ? err.message : err);
-    return false;
-  }
-}
-
-async function deleteRecordsById(gatewayToken: string, ids: string[]): Promise<boolean> {
-  if (ids.length === 0) return true;
-  const config = useRuntimeConfig();
-  const endpoint = (config.appBaseEndpoint as string) || "https://o.wpsgo.com/app/app-base";
-  const url = `${endpoint}/base-proxy/v7/coop/dbsheet/${REMIND_FILE_ID}/sheets/${REMIND_SHEET_ID}/records`;
-
-  try {
-    const res = await fetch(url, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json", Cookie: `gateway_token=${gatewayToken}` },
-      body: JSON.stringify({ records: ids }),
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn("[remind-dbsheet] deleteRecordsById error:", err instanceof Error ? err.message : err);
-    return false;
-  }
-}
-
-export async function upsertRecord(
-  gatewayToken: string,
-  row: Record<string, unknown>,
-  existingRecordId?: string,
-): Promise<boolean> {
-  const config = useRuntimeConfig();
-  const endpoint = (config.appBaseEndpoint as string) || "https://o.wpsgo.com/app/app-base";
-  const url = `${endpoint}/base-proxy/v7/coop/dbsheet/${REMIND_FILE_ID}/sheets/${REMIND_SHEET_ID}/records`;
-
-  const payload = existingRecordId
-    ? { records: [{ _id: existingRecordId, ...row }] }
-    : { records: [row] };
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: `gateway_token=${gatewayToken}` },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.text().catch(() => "");
-    if (!res.ok) {
-      console.warn(`[remind-dbsheet] upsertRecord HTTP ${res.status}:`, body.slice(0, 300));
-    } else {
-      console.info(`[remind-dbsheet] upsertRecord OK (${existingRecordId ? "update" : "create"}):`, row["H1"]);
-    }
-    return res.ok;
-  } catch (err) {
-    console.warn("[remind-dbsheet] upsertRecord error:", err instanceof Error ? err.message : err);
-    return false;
-  }
-}
-
 // ─── 公开接口 ───
 
-/** 从多维表读取全部提醒任务，同时返回 record _id 用于 upsert */
+/** 从多维表读取全部提醒任务，同时返回 record id 用于后续 upsert */
 export async function loadTasks(
   gatewayToken: string,
 ): Promise<{ tasks: Record<string, unknown>[]; recordIds: Map<string, string> }> {
-  const rows = await fetchRecords(gatewayToken, { prefer_id: true, max_records: 1000 });
-  if (!rows) return { tasks: [], recordIds: new Map() };
-  const recordIds = new Map<string, string>();
+  const accessToken = await getAccessToken(gatewayToken);
+  const names = await resolveFieldNames(accessToken);
+  const data = await apiPost<{ records?: Record<string, unknown>[] }>(
+    accessToken,
+    `/sheets/${REMIND_SHEET_ID}/records`,
+    { max_records: 1000 },
+  );
+
+  const rows = data?.records ?? [];
   const tasks: Record<string, unknown>[] = [];
+  const recordIds = new Map<string, string>();
   for (const row of rows) {
-    const rid = String(row["_id"] ?? "");
-    const task = rowToTask(row);
-    if (task?.id && rid) {
-      recordIds.set(String(task.id), rid);
+    const task = rowToTask(row, names);
+    const recordId = String(row["id"] ?? "");
+    if (task?.id && recordId) {
+      recordIds.set(String(task.id), recordId);
       tasks.push(task);
     }
   }
   return { tasks, recordIds };
 }
 
-/** 逐条 upsert 提醒任务到多维表，删除本地已有但多维表中不存在的 */
+/** 逐条 upsert 提醒任务，并删除多维表中已不存在的记录 */
 export async function saveTasks(
   gatewayToken: string,
   tasks: Record<string, unknown>[],
   existingRecordIds: Map<string, string>,
 ): Promise<boolean> {
+  const accessToken = await getAccessToken(gatewayToken);
+  const names = await resolveFieldNames(accessToken);
   let ok = true;
 
-  // upsert 每条
+  const toCreate: Record<string, unknown>[] = [];
+  const toUpdate: Record<string, unknown>[] = [];
+
   for (const task of tasks) {
-    const row = taskToRow(task);
-    const rid = existingRecordIds.get(String(task.id ?? "")) ?? "";
-    const result = await upsertRecord(gatewayToken, row, rid);
-    if (!result) ok = false;
+    const fieldsValue = JSON.stringify(taskToFields(task, names));
+    const recordId = existingRecordIds.get(String(task.id ?? ""));
+    if (recordId) toUpdate.push({ id: recordId, fields_value: fieldsValue });
+    else toCreate.push({ fields_value: fieldsValue });
   }
 
-  // 删除多维表中有但本次列表中没有的（任务被删除的情况）
-  const currentIds = new Set(tasks.map((t) => String(t.id ?? "")));
-  const toDelete: string[] = [];
-  for (const [taskId, recordId] of existingRecordIds) {
-    if (!currentIds.has(taskId) && recordId) toDelete.push(recordId);
+  try {
+    if (toCreate.length > 0) {
+      await apiPost(accessToken, `/sheets/${REMIND_SHEET_ID}/records/create`, { records: toCreate });
+    }
+    if (toUpdate.length > 0) {
+      await apiPost(accessToken, `/sheets/${REMIND_SHEET_ID}/records/update`, { records: toUpdate });
+    }
+  } catch (err) {
+    console.warn("[remind-dbsheet] 写入失败:", err instanceof Error ? err.message : err);
+    ok = false;
   }
+
+  const currentIds = new Set(tasks.map((t) => String(t.id ?? "")));
+  const toDelete = [...existingRecordIds.entries()]
+    .filter(([taskId, recordId]) => !currentIds.has(taskId) && recordId)
+    .map(([, recordId]) => recordId);
+
   if (toDelete.length > 0) {
-    const delResult = await deleteRecordsById(gatewayToken, toDelete);
-    if (!delResult) ok = false;
+    try {
+      await apiPost(accessToken, `/sheets/${REMIND_SHEET_ID}/records/batch_delete`, { records: toDelete });
+    } catch (err) {
+      console.warn("[remind-dbsheet] 删除失败:", err instanceof Error ? err.message : err);
+      ok = false;
+    }
   }
 
   return ok;
