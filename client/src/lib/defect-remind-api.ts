@@ -63,6 +63,21 @@ async function parseJson<T>(res: Response): Promise<T> {
   return data;
 }
 
+/** 把本地独有的任务增量补写回多维表（已存在的任务不会被覆盖） */
+async function backfillRemindTasks(tasks: DefectRemindTask[]): Promise<void> {
+  try {
+    const res = await fetch(getAppApiUrl("api/defect-remind-tasks/sync"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ tasks }),
+    });
+    await parseJson<{ ok: boolean; added?: number; patched?: number; error?: string }>(res);
+  } catch {
+    // 回填失败不阻断任务加载，下次打开页面会重试
+  }
+}
+
 export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
   const local = loadLocalTasks();
   try {
@@ -77,7 +92,7 @@ export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
       const localT = localMap.get(t.id);
       if (!localT) return t;
       const next = { ...t };
-      // webhook 属敏感字段，不写入多维表，因此以本地为准，避免刷新后被空值覆盖
+      // webhook 已随任务写入多维表；仅当服务端为空时用本地值兜底（历史数据或字段未同步）
       if (!next.webhook && localT.webhook) next.webhook = localT.webhook;
       if (localT.lastRunAt && (!next.lastRunAt || next.lastRunAt < localT.lastRunAt)) {
         next.lastRunAt = localT.lastRunAt;
@@ -87,6 +102,9 @@ export async function fetchRemindTasks(): Promise<DefectRemindTask[]> {
       return next;
     });
     const localOnly = local.filter((t) => !serverIds.has(t.id));
+    // 本地有、多维表没有的任务（历史写入失败或未同步）自动补写回多维表。
+    // 仅在服务端读取成功时执行——读取失败时无法得知多维表真实内容，贸然回填可能误删记录。
+    if (localOnly.length > 0) void backfillRemindTasks(localOnly);
     return [...localOnly, ...merged];
   } catch {
     return local;

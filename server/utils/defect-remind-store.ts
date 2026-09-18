@@ -73,11 +73,7 @@ async function persistToDb(tasks: DefectRemindTask[]): Promise<boolean> {
   if (!dbCookie) return false;
   try {
     console.info(`[remind-store] persistToDb: ${tasks.length} 条, 已知 recordIds: ${dbRecordIds.size}`);
-    const forDb = tasks.map((t) => {
-      const { webhook, ...rest } = t as unknown as Record<string, unknown>;
-      return rest;
-    });
-    const ok = await saveTasks(dbCookie, forDb, dbRecordIds);
+    const ok = await saveTasks(dbCookie, tasks as unknown as Record<string, unknown>[], dbRecordIds);
     if (ok) dbCache = tasks;
     console.info(`[remind-store] persistToDb result: ${ok}`);
     return ok;
@@ -124,8 +120,7 @@ async function readTasks(): Promise<DefectRemindTask[]> {
 }
 
 async function writeTasks(tasks: DefectRemindTask[]): Promise<void> {
-  const forDb = tasks.map((t) => ({ ...t, webhook: "" }));
-  const dbOk = await persistToDb(forDb);
+  const dbOk = await persistToDb(tasks);
   await writeLocal(tasks);
   if (!dbOk) console.warn("[remind-store] 多维表写入失败，已降级到本地文件");
 }
@@ -184,6 +179,38 @@ export function normalizeTaskInput(input: DefectRemindTaskInput, existing?: Defe
   };
 }
 
+/** 把客户端传来的原始任务规范化为完整任务，保留其 id 与执行记录 */
+function normalizeIncomingTask(raw: unknown): DefectRemindTask | null {
+  if (!raw || typeof raw !== "object") return null;
+  const src = raw as Record<string, unknown>;
+  const id = asString(src.id);
+  if (!id) return null;
+  const base = normalizeTaskInput({
+    name: asString(src.name),
+    team: asString(src.team),
+    frequency: asFrequency(src.frequency),
+    startDate: asString(src.startDate),
+    endDate: asString(src.endDate),
+    webhook: asString(src.webhook),
+    enabled: typeof src.enabled === "boolean" ? src.enabled : true,
+    severities: asSeverities(src.severities),
+    iterations: Array.isArray(src.iterations) ? src.iterations.map(String) : [],
+    template: asTemplate(src.template),
+    includeDetail: typeof src.includeDetail === "boolean" ? src.includeDetail : true,
+    includeDeadline: typeof src.includeDeadline === "boolean" ? src.includeDeadline : true,
+  });
+  const status = src.lastRunStatus;
+  return {
+    ...base,
+    id,
+    createdAt: asString(src.createdAt) || base.createdAt,
+    updatedAt: asString(src.updatedAt) || base.updatedAt,
+    lastRunAt: asString(src.lastRunAt) || null,
+    lastRunStatus: status === "success" || status === "failed" ? status : null,
+    lastRunMessage: asString(src.lastRunMessage) || null,
+  };
+}
+
 const FREQUENCIES: RemindFrequency[] = ["daily", "weekly", "weekdays", "once"];
 const TEMPLATES: RemindTemplate[] = ["default", "detailed", "deadline", "escalate"];
 const SEVERITIES: DefectSeverity[] = ["S-致命", "A-严重", "B-一般", "C-低"];
@@ -215,6 +242,41 @@ export async function saveRemindTask(task: DefectRemindTask): Promise<DefectRemi
   else tasks.unshift(task);
   await writeTasks(tasks);
   return task;
+}
+
+/**
+ * 增量回填：把「多维表尚未收录」的任务补写进去。
+ * 已存在的 id 不覆盖（仅补空 webhook），避免本地旧数据反向覆盖服务端较新状态。
+ * 无 webhook 的任务不可发送，直接跳过并计入 skipped。
+ */
+export async function backfillRemindTasks(
+  incoming: unknown[],
+): Promise<{ added: number; patched: number; skipped: number }> {
+  const tasks = await readTasks();
+  const indexById = new Map(tasks.map((item, i) => [item.id, i]));
+  let added = 0;
+  let patched = 0;
+  let skipped = 0;
+
+  for (const raw of incoming) {
+    const task = normalizeIncomingTask(raw);
+    if (!task || !task.webhook) {
+      skipped += 1;
+      continue;
+    }
+    const at = indexById.get(task.id);
+    if (at === undefined) {
+      tasks.push(task);
+      indexById.set(task.id, tasks.length - 1);
+      added += 1;
+    } else if (!tasks[at].webhook) {
+      tasks[at] = { ...tasks[at], webhook: task.webhook };
+      patched += 1;
+    }
+  }
+
+  if (added > 0 || patched > 0) await writeTasks(tasks);
+  return { added, patched, skipped };
 }
 
 export async function removeRemindTask(id: string): Promise<boolean> {

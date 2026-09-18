@@ -29,6 +29,7 @@ const FIELD_MAP: Record<string, string> = {
   IB: "lastRunAt",
   IC: "lastRunStatus",
   ID: "lastRunMessage",
+  IE: "webhook",
 };
 
 /** 业务字段名 → 多维表实际字段名（运行时从表结构解析，避免硬编码中文名出错） */
@@ -149,7 +150,7 @@ function rowToTask(row: Record<string, unknown>, names: FieldNames): Record<stri
     frequency: mapFrequencyToEn(cellText(fields[names.frequency])),
     startDate,
     endDate: formatDate(fields[names.endDate]),
-    webhook: "", // 敏感信息不入多维表，运行时由前端提供
+    webhook: cellText(fields[names.webhook]),
     enabled: toBool(fields[names.enabled]),
     severities: parseJsonArray(fields[names.severities]),
     iterations: parseJsonArray(fields[names.iterations]),
@@ -185,25 +186,31 @@ function taskToFields(task: Record<string, unknown>, names: FieldNames): Record<
   const statusZh = mapStatusToZh(task.lastRunStatus);
   if (statusZh) out[names.lastRunStatus] = statusZh;
   out[names.lastRunMessage] = String(task.lastRunMessage ?? "");
+  // webhook 为可选列：表结构未添加该列时跳过，避免写出 "undefined" 键污染记录
+  if (names.webhook) out[names.webhook] = String(task.webhook ?? "");
   return out;
 }
 
 // ─── 映射函数 ───
 
+// 频率枚举须与 RemindFrequency（daily/weekly/weekdays/once）完全一致，
+// 曾误用 "workday" 导致「工作日」任务写表时静默降级为「每日」
 function mapFrequencyToEn(zh: string): string {
-  const map: Record<string, string> = { 每日: "daily", 每周: "weekly", 工作日: "workday", 仅一次: "once" };
+  const map: Record<string, string> = { 每日: "daily", 每周: "weekly", 工作日: "weekdays", 仅一次: "once" };
   return map[zh] ?? "daily";
 }
 function mapFrequencyToZh(en: string): string {
-  const map: Record<string, string> = { daily: "每日", weekly: "每周", workday: "工作日", once: "仅一次" };
+  const map: Record<string, string> = { daily: "每日", weekly: "每周", weekdays: "工作日", once: "仅一次" };
   return map[en] ?? "每日";
 }
+// 模板枚举须与 RemindTemplate（default/detailed/deadline/escalate）一一对应，
+// 多维表该字段的 4 个选项已按此对齐
 function mapTemplateToEn(zh: string): string {
-  const map: Record<string, string> = { 默认模板: "default", 批量合并: "batch" };
+  const map: Record<string, string> = { 默认模板: "default", 详细清单: "detailed", 截止日期: "deadline", 升级催办: "escalate" };
   return map[zh] ?? "default";
 }
 function mapTemplateToZh(en: string): string {
-  const map: Record<string, string> = { default: "默认模板", batch: "批量合并" };
+  const map: Record<string, string> = { default: "默认模板", detailed: "详细清单", deadline: "截止日期", escalate: "升级催办" };
   return map[en] ?? "默认模板";
 }
 function mapStatusToEn(zh: string): "success" | "failed" | null {
@@ -234,10 +241,17 @@ function parseJsonArray(val: unknown): string[] {
   return [];
 }
 
+/**
+ * 归一化为 YYYY-MM-DD。
+ * 多维表可能返回毫秒时间戳，也可能返回 "2026/09/15" 这类按字段 numberFormat 渲染的字符串；
+ * 而 isTaskDue 用字符串比较日期，混入斜杠格式会让 "2026-09-18" < "2026/09/15" 误判为真，
+ * 导致任务永不触发，因此这里必须统一分隔符。
+ */
 function formatDate(val: unknown): string | null {
   if (typeof val === "number" && val > 0) return new Date(val).toISOString().split("T")[0];
-  if (typeof val === "string" && val) return val.split("T")[0];
-  return null;
+  if (typeof val !== "string" || !val) return null;
+  const day = val.split("T")[0].replace(/\//g, "-");
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
 }
 
 function parseDateToMs(dateStr: unknown): number | undefined {
