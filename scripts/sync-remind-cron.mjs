@@ -134,6 +134,25 @@ async function api(path, init = {}) {
   return { status: res.status, body };
 }
 
+function canonical(actionConfig) {
+  // 比对时剔除易变字段：updatedAt 每次读取都会变成当前时间，不剔除会导致「永远认为有变化」
+  const strip = (t) => {
+    const c = { ...t };
+    delete c.updatedAt;
+    delete c.createdAt;
+    return c;
+  };
+  // 直接拼规范字符串，避免依赖对象字面量与键序
+  const stable = (v) => {
+    if (Array.isArray(v)) return "[" + v.map(stable).join(",") + "]";
+    if (v && typeof v === "object") {
+      return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}";
+    }
+    return JSON.stringify(v);
+  };
+  return JSON.stringify(stable({ tasks: actionConfig.tasks.map(strip), peopleMap: actionConfig.peopleMap }));
+}
+
 async function main() {
   if (!existsSync(KDOCS_CLI)) die(`kdocs-comate-cli 不存在: ${KDOCS_CLI}`);
   if (!process.env.WPS_SID) {
@@ -170,14 +189,23 @@ async function main() {
     return;
   }
 
-  console.log("2. 删除旧的 cron 任务（按 name 匹配）...");
+  console.log("2. 检查现有 cron 任务（按 name 匹配）...");
   const list = await api(`/projects/${PROJECT_ID}/automations`);
   if (list.status !== 200) die(`列出任务失败: HTTP ${list.status} ${JSON.stringify(list.body)}`);
   const all = list.body?.data?.items ?? [];
+  const existing = all.find((item) => item?.name === CRON_NAME);
+
+  // 配置未变则不动线上任务。定时任务每半小时跑一次，若每次都删+建，
+  // 会在「已删未建」的窗口里漏触发，且新建默认 disabled，toggle 失败即静默停发。
+  if (existing && canonical(existing.action_config ?? {}) === canonical(actionConfig)) {
+    console.log(`✓ 配置无变化，保持现状（id=${existing.id}, status=${existing.status}）`);
+    return;
+  }
+
   for (const item of all) {
     if (item?.name === CRON_NAME) {
       const del = await api(`/projects/${PROJECT_ID}/automations/${item.id}`, { method: "DELETE" });
-      console.log(`   已删除 ${CRON_NAME} (id=${item.id}): HTTP ${del.status}`);
+      console.log(`   已删除旧的 ${CRON_NAME} (id=${item.id}): HTTP ${del.status}`);
     }
   }
 
