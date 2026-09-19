@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1789818739762",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789818739762,
+  "note": {
+    "completed": [
+      "实测确认方案 C（多维表自动化/外部定时调用应用）不可行：应用后端无对外入口——/api/* 一律要求 gateway_token 会话（无 cookie 401 no gateway_token；应用级 client_credentials token 报 legacy token deprecated），/invoke 不在公网路由（返回平台 HTML 壳）。官方文档已确认多维表自动化支持定时触发 + AirScript + HTTP.fetch 自定义 header，卡点只在应用侧不可达",
+      "修复 scripts/sync-remind-cron.mjs 的模板映射 bug：原写「详细模板/截止模板/升级模板」，真实选项为「详细清单/截止日期/升级催办」，导致三类模板被静默降级为默认模板；同时补上「每日/每天」两种频率写法",
+      "脚本改为幂等：新增 canonical() 比对（剔除 updatedAt/createdAt 等易变字段），配置未变则不动线上 cron 任务，避免每 30 分钟删+建造成空窗漏触发与 toggle 失败静默停发；实测第二次运行输出「配置无变化，保持现状」",
+      "脚本新增失败 IM 告警：die() 改为 throw，入口统一 catch 后调 wps365 CLI（user me → im chat search 找与自己单聊的 p2p → im message send --confirm），6 小时节流（状态存 ~/.wpscomate/remind-sync-alert.json）；已用 PROJECT_ID=000000000000 实测触发成功（用户已收到测试私聊）",
+      "跑真实同步修掉线上不一致：cron payload 由 17:30 对齐到 19:00（新 id=2450408279253803, status=active），线上 payload 已确认 remindTimes=['19:00'] daily 政务AI",
+      "应用 UI 文案改为自动下发语义：弹窗警告条改为「配置已保存，将在 30 分钟内自动生效」+「知道了」按钮，移除命令框/复制命令/我已同步；三处 toast 改为「约 30 分钟内自动生效」；删除已无用的 REMIND_CRON_SYNC_COMMAND 常量与 Copy/CircleCheck 图标导入",
+      "「待同步」标记改为带时间戳（localStorage 存 Date.now()）+ 35 分钟 TTL，并在 DefectListTab 加 60s 定时器自动过期，避免长期显示一个已经自动完成的待同步；按钮橙点 title 改为「配置已改动，约 30 分钟内自动下发」",
+      "验证：pnpm lint 0 错误（6 个既有警告不变）、pnpm check:types 0 错误、pnpm run pack 成功且产物含新文案、HMR 无编译错误",
+      "已部署版本 202609191950（share_url https://comate.wpsgo.com/s/Ody4imQ5yeXM/）；已比对线上缩略图与本地 thumbnail_760386581358207.png MD5 一致（73fedf59090ac8958430ced85e4529b3），封面未被本次部署改动"
+    ],
+    "remaining": [
+      "用户需在 Comate 里创建定时任务：每 30 分钟执行 `node /Users/fymiki/.wpscomate/workspace/760386581358207/scripts/sync-remind-cron.mjs`，成功判据为退出码 0 且输出以「✓ 同步完成」或「✓ 配置无变化，保持现状」结尾",
+      "用户待测：改一次提醒配置 → 确认弹窗出现「将在 30 分钟内自动生效」警告条与按钮橙点 → 约 30 分钟后标记自动消失",
+      "多维表里的测试任务当前是启用状态（enabled=True），生产时间/提醒时间需用户确认是否合适",
+      "观察一次真实定时送达（下次 19:00）确认端到端；今天 19:00 已错过（同步时已过点），17:30 很可能按旧配置发过一次",
+      "本地领先 origin/main 的提交需用户在自己机器上 git push（本环境 GitHub 不可达）"
+    ],
+    "decisions": [
+      "方案 C 放弃：平台没给应用「免登录态可访问的入口」，AirScript/多维表自动化无论怎么写都调不到应用",
+      "不再追求「保存即自动生效」，改为「Comate 定时任务每 30 分钟同步一次」，配置改动最多 30 分钟延迟但无需任何人手动操作，且不涉及存储个人凭据",
+      "脚本幂等是硬要求：定时任务每 30 分钟跑，若每次都删+建，空窗期可能漏触发、且新建默认 disabled 有静默停发风险",
+      "告警节流 6 小时：失败会连续复现，不节流会 2 条/小时刷屏",
+      "「待同步」标记只作提示，按时间推断过期（应用无权读线上快照，无法确认同步是否真的发生）",
+      "不在服务端存储用户 wps_sid（会过期且属个人凭据）"
+    ],
+    "issues": [
+      "WPS_SID 过期后定时任务会开始失败并静默停发——现已加 IM 告警兜底，但仍依赖告警通道本身可用",
+      "脚本依赖 kdocs-comate-cli 登录态与本机环境；换机器/清凭据后同步会失败",
+      "定时任务是 Agent 任务（消耗 token 且行为可能波动），建议提示词写死「只执行这一条命令」",
+      "localStorage 标记只在本浏览器有效，换设备/清缓存会丢失",
+      "无状态去重：单次 cron 触发丢失即当天漏发（既定限制，已接受）",
+      "密钥硬编码在 server/nitro.config.ts 且已在 GitHub 历史中，用户决定不轮换（保持现状）"
+    ],
+    "files_changed": [
+      "scripts/sync-remind-cron.mjs",
+      "client/src/lib/defect.ts",
+      "client/src/components/DefectRemindConfigDialog.tsx",
+      "client/src/components/DefectListTab.tsx"
+    ]
+  },
+  "reason": "提醒定时任务同步机制改造：脚本幂等化 + 失败 IM 告警 + 应用文案改为「30 分钟内自动下发」，已上线 202609191950"
+}
