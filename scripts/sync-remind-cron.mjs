@@ -8,7 +8,11 @@
  * 流程：
  *   1. 用 kdocs-comate-cli 从多维表读提醒任务（sheet 12）+ 人员映射（sheet 28）
  *   2. 构造 action_config（tasks + peopleMap 透传给 invoke payload）
- *   3. 调管理 API：删除旧的 remind-cron 任务（按 name 匹配）→ 创建新任务 → 启用
+ *   3. 调管理 API：配置有变则删旧 cron 任务 → 建新任务 → 启用；无变则不动线上任务
+ *   4. 失败时给自己发 IM（6 小时内只提醒一次）
+ *
+ * 部署：由 Comate 定时任务每 30 分钟跑一次，因此无需人工介入；
+ *       应用自己无权改定时任务（管理 API 只认平台登录态），只能由本脚本代劳。
  *
  * 前置：
  *   - kdocs-comate-cli 已登录（auth status ok）
@@ -16,10 +20,16 @@
  *   - PROJECT_ID（默认 760386581358207）
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 const KDOCS_CLI = resolve(process.env.HOME, ".wpscomate/agent/skills/official/wps365-kdocs/cli/kdocs-comate-cli");
+/** 告警通道：失败时用 wps365 CLI 给自己发 IM */
+const WPS365_CLI = resolve(process.env.HOME, ".wpscomate/bin/wps365");
+/** 告警节流状态。放用户目录而非仓库，避免污染工作树 */
+const ALERT_STATE_FILE = resolve(process.env.HOME, ".wpscomate/remind-sync-alert.json");
+/** 每 30 分钟跑一次，失败会连续复现，所以 6 小时内只提醒一次 */
+const ALERT_THROTTLE_MS = 6 * 60 * 60 * 1000;
 /** 提醒任务表所在多维表 */
 const TASK_FILE_ID = "tmcQvuKxFrMJAHExDfFFrxC3PB5vCD4E7";
 /** 人员映射表所在多维表（与任务表不同文件） */
@@ -35,8 +45,52 @@ const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 
 function die(msg) {
-  console.error(`✗ ${msg}`);
-  process.exit(1);
+  // 抛错而非直接退出：由入口统一发 IM 告警后退出
+  throw new Error(msg);
+}
+
+/**
+ * 同步失败时给自己发 IM 私聊。
+ * 定时任务无人值守，失败若不告警，提醒会静默停发——这正是本机制要防的。
+ * 告警本身失败只记录日志，不影响退出码。
+ */
+function alertByIm(reason) {
+  const now = Date.now();
+  try {
+    if (existsSync(ALERT_STATE_FILE)) {
+      const last = Number(JSON.parse(readFileSync(ALERT_STATE_FILE, "utf-8")).alertedAt);
+      if (Number.isFinite(last) && now - last < ALERT_THROTTLE_MS) {
+        console.error("! 距上次告警不足 6 小时，跳过 IM 提醒");
+        return;
+      }
+    }
+  } catch {
+    // 状态文件损坏就当作没告警过
+  }
+
+  const run = (cmdArgs) => JSON.parse(execFileSync(WPS365_CLI, cmdArgs, { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }));
+  try {
+    const me = run(["user", "me"]).data;
+    if (!me?.id || !me?.user_name) throw new Error("拿不到当前用户信息");
+
+    // 发给自己 = 与自己单聊的 p2p 会话，按自己姓名搜索后取 peer.id 匹配的那条
+    const found = run(["im", "chat", "search", "--keyword", me.user_name]);
+    const selfChat = (found.items ?? [])
+      .map((item) => item?.chat)
+      .find((chat) => chat?.type === "p2p" && chat?.p2p_ext_attrs?.peer?.id === me.id);
+    if (!selfChat) throw new Error("未找到与自己单聊的会话");
+
+    const at = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
+    execFileSync(WPS365_CLI, [
+      "im", "message", "send", selfChat.id,
+      "--text", `⚠️ 缺陷提醒同步失败\n时间：${at}\n原因：${reason}\n影响：多维表里的提醒配置不会下发到定时任务，到点不会发送提醒。`,
+      "--confirm",
+    ], { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+    writeFileSync(ALERT_STATE_FILE, JSON.stringify({ alertedAt: now }));
+    console.error("! 已通过 IM 私聊发出同步失败告警");
+  } catch (err) {
+    console.error(`! IM 告警发送失败：${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function kdocs(action, params) {
@@ -234,4 +288,10 @@ async function main() {
   console.log(`✓ 同步完成：${enabled.length} 个启用任务已随 cron 下发，每小时 0/30 分检查`);
 }
 
-main().catch((err) => die(err instanceof Error ? err.stack : String(err)));
+main().catch((err) => {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(`✗ ${msg}`);
+  // dry-run 失败属人工调试，不打扰
+  if (!dryRun) alertByIm(msg);
+  process.exit(1);
+});

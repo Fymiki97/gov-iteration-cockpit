@@ -98,11 +98,18 @@ export function DefectListTab() {
   const [unrepairedOnly, setUnrepairedOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
-  // 配置改动后定时任务还是旧快照，需提醒用户跑同步脚本（应用无权改自己的定时任务）
+  // 配置改动后等下一次自动下发（Comate 定时任务每 30 分钟一次）
   const [cronDirty, setCronDirty] = useState(loadRemindCronDirty);
   const [sendOpen, setSendOpen] = useState(false);
   const [sendDefects, setSendDefects] = useState<DefectRow[]>([]);
   const [detail, setDetail] = useState<DefectRow | null>(null);
+
+  // 标记按同步周期自动过期：到期后不再提示，避免长期显示一个已经自动完成的「待同步」
+  useEffect(() => {
+    if (!cronDirty) return;
+    const timer = window.setInterval(() => setCronDirty(loadRemindCronDirty()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [cronDirty]);
 
   const teamDefects = defects.filter((item) => item.team === currentTeam);
   // 统计卡片跟随筛选条件（含迭代），但不受「仅看未修复」开关影响，
@@ -327,7 +334,7 @@ export function DefectListTab() {
             {cronDirty && (
               <span
                 className="w-1.5 h-1.5 rounded-full bg-[#F79009]"
-                title="配置已改动，定时任务未同步"
+                title="配置已改动，约 30 分钟内自动下发"
               />
             )}
           </button>

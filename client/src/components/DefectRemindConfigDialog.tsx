@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Play, Pencil, Bell, Clock, TriangleAlert, Copy, CircleCheck } from "lucide-react";
+import { Plus, Trash2, Play, Pencil, Bell, Clock, TriangleAlert } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,6 @@ import {
   ALL_TEAMS,
   DEFAULT_SEVERITIES,
   FREQUENCY_OPTIONS,
-  REMIND_CRON_SYNC_COMMAND,
   REMIND_TIME_SLOTS,
   TEMPLATE_OPTIONS,
   SEVERITY_OPTIONS,
@@ -46,7 +45,7 @@ export function DefectRemindConfigDialog(props: {
   defects: DefectRow[];
   onOpenChange: (open: boolean) => void;
   onTasksChange: (tasks: DefectRemindTask[]) => void;
-  /** 多维表配置已改但定时任务仍是旧快照 */
+  /** 多维表配置已改，等待下一次自动下发 */
   cronDirty: boolean;
   onCronDirtyChange: (dirty: boolean) => void;
   defaultTeam?: string;
@@ -58,17 +57,9 @@ export function DefectRemindConfigDialog(props: {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
 
-  // 配置写进多维表 ≠ 定时任务生效：cron 用的是上一次同步的快照，改完必须重跑同步脚本
+  // 配置写进多维表 ≠ 定时任务立即生效：cron 用的是上一次同步的快照，
+  // 由 Comate 定时任务每 30 分钟下发一次；这里只记录「有待下发的改动」
   const markCronDirty = () => props.onCronDirtyChange(true);
-
-  const copySyncCommand = async () => {
-    try {
-      await navigator.clipboard.writeText(REMIND_CRON_SYNC_COMMAND);
-      toast.success("同步命令已复制");
-    } catch {
-      toast.error("复制失败，请手动复制命令");
-    }
-  };
 
   const selected = props.tasks.find((item) => item.id === mode) ?? null;
 
@@ -120,7 +111,7 @@ export function DefectRemindConfigDialog(props: {
         setMode(task.id);
         setForm(taskToInput(task));
         markCronDirty();
-        toast.success("已新建提醒任务（定时生效需同步）");
+        toast.success("已新建提醒任务（约 30 分钟内自动生效）");
       } else {
         const { task, warning } = await updateRemindTask(mode, form);
         if (warning) {
@@ -130,7 +121,7 @@ export function DefectRemindConfigDialog(props: {
         props.onTasksChange(props.tasks.map((item) => item.id === task.id ? task : item));
         setForm(taskToInput(task));
         markCronDirty();
-        toast.success("已保存提醒任务（定时生效需同步）");
+        toast.success("已保存提醒任务（约 30 分钟内自动生效）");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "保存失败");
@@ -157,7 +148,7 @@ export function DefectRemindConfigDialog(props: {
       if (next[0]) selectTask(next[0]);
       else startNew();
       markCronDirty();
-      toast.success("已删除提醒任务（定时生效需同步）");
+      toast.success("已删除提醒任务（约 30 分钟内自动生效）");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "删除失败");
     } finally {
@@ -200,37 +191,19 @@ export function DefectRemindConfigDialog(props: {
               <div className="flex items-start gap-2">
                 <TriangleAlert className="w-4 h-4 text-[#B54708] mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[#B54708]">配置已保存，但定时任务仍是旧快照</p>
+                  <p className="text-sm font-medium text-[#B54708]">配置已保存，将在 30 分钟内自动生效</p>
                   <p className="text-[11px] text-[#93370D] mt-0.5">
-                    定时任务由平台托管，应用自己无权修改。需要在一台「装了 Comate 的电脑」上跑一次同步脚本
-                    （用本机登录态读多维表 → 更新平台定时任务），跟应用部署在哪里无关。
-                  </p>
-                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                    <code className="text-[11px] px-2 py-1 rounded bg-white border border-[#FEDF89] text-[#93370D] font-mono">
-                      {REMIND_CRON_SYNC_COMMAND}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={copySyncCommand}
-                      className="h-7 px-2 text-[11px] font-medium text-[#B54708] border border-[#FEDF89] bg-white rounded-md hover:bg-[#FEF0C7] inline-flex items-center gap-1"
-                    >
-                      <Copy className="w-3.5 h-3.5" /> 复制命令
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        props.onCronDirtyChange(false);
-                        toast.success("已标记为同步完成");
-                      }}
-                      className="h-7 px-2 text-[11px] font-medium text-[#B54708] border border-[#FEDF89] bg-white rounded-md hover:bg-[#FEF0C7] inline-flex items-center gap-1"
-                    >
-                      <CircleCheck className="w-3.5 h-3.5" /> 我已同步
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-[#93370D] mt-1.5">
-                    项目目录 ~/.wpscomate/workspace/760386581358207；最省事：直接跟 Comate 助手说「帮我同步提醒定时任务」。
+                    定时任务由平台的定时同步任务下发（每 30 分钟一次：读多维表 → 更新平台定时任务），
+                    不需要任何人手动操作。若超过 30 分钟仍未生效，可在 Comate 里说一句「帮我同步提醒定时任务」。
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => props.onCronDirtyChange(false)}
+                  className="h-7 px-2 shrink-0 text-[11px] font-medium text-[#B54708] border border-[#FEDF89] bg-white rounded-md hover:bg-[#FEF0C7]"
+                >
+                  知道了
+                </button>
               </div>
             </div>
           )}

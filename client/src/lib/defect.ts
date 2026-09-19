@@ -486,21 +486,28 @@ export function mergeDefects(seed: DefectRow[], extras: DefectRow[]): DefectRow[
   return [...map.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** 定时任务同步标记：多维表里的配置改动后，必须跑一次同步脚本才会下发给 cron */
+/** 定时任务同步标记：多维表里的配置改动后，等下一次自动同步才会下发给 cron */
 export const REMIND_CRON_DIRTY_STORAGE_KEY = "gov-cockpit-remind-cron-dirty";
 
-/** 同步命令，在项目根目录执行（脚本自带 wps_sid 兜底，缺失时需显式传入） */
-export const REMIND_CRON_SYNC_COMMAND = "node scripts/sync-remind-cron.mjs";
+/** Comate 定时任务的同步周期：每 30 分钟跑一次 scripts/sync-remind-cron.mjs */
+export const REMIND_CRON_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+/** 超过一个周期加 5 分钟缓冲，就认为改动已下发（应用无权查线上快照，只能按时间推断） */
+const REMIND_CRON_DIRTY_TTL_MS = REMIND_CRON_SYNC_INTERVAL_MS + 5 * 60 * 1000;
 
 /**
- * 读取「配置已改、定时任务未同步」标记。
- * 标记只存在浏览器本地：应用无权改自己的定时任务（管理 API 只认平台登录态），
- * 所以同步与否无法由服务端判断，只能靠用户跑完脚本后手动确认。
+ * 读取「配置已改、等待自动下发」标记。
+ * 存的是改动时间戳而非布尔值：应用无权读自己的定时任务快照（管理 API 只认平台登录态），
+ * 无法确认同步是否真的发生，只能按同步周期推断——过期即视为已下发。
  */
 export function loadRemindCronDirty(): boolean {
   if (typeof localStorage === "undefined") return false;
   try {
-    return localStorage.getItem(REMIND_CRON_DIRTY_STORAGE_KEY) === "1";
+    const raw = localStorage.getItem(REMIND_CRON_DIRTY_STORAGE_KEY);
+    if (!raw) return false;
+    const at = Number(raw);
+    // 旧版本写的是 "1"（无时间戳），无法判断时间，按未下发处理
+    if (!Number.isFinite(at)) return true;
+    return Date.now() - at < REMIND_CRON_DIRTY_TTL_MS;
   } catch {
     return false;
   }
@@ -509,7 +516,7 @@ export function loadRemindCronDirty(): boolean {
 export function saveRemindCronDirty(dirty: boolean): void {
   if (typeof localStorage === "undefined") return;
   try {
-    if (dirty) localStorage.setItem(REMIND_CRON_DIRTY_STORAGE_KEY, "1");
+    if (dirty) localStorage.setItem(REMIND_CRON_DIRTY_STORAGE_KEY, String(Date.now()));
     else localStorage.removeItem(REMIND_CRON_DIRTY_STORAGE_KEY);
   } catch {
     // 隐私模式下写入会抛错；标记只是提示，失败不应影响保存流程
