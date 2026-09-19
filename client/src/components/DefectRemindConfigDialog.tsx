@@ -202,7 +202,8 @@ export function DefectRemindConfigDialog(props: {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[#B54708]">配置已保存，但定时任务仍是旧快照</p>
                   <p className="text-[11px] text-[#93370D] mt-0.5">
-                    应用无权修改自己的定时任务，定时生效需在本机项目根目录跑一次同步脚本：
+                    定时任务由平台托管，应用自己无权修改。需要在一台「装了 Comate 的电脑」上跑一次同步脚本
+                    （用本机登录态读多维表 → 更新平台定时任务），跟应用部署在哪里无关。
                   </p>
                   <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                     <code className="text-[11px] px-2 py-1 rounded bg-white border border-[#FEDF89] text-[#93370D] font-mono">
@@ -226,6 +227,9 @@ export function DefectRemindConfigDialog(props: {
                       <CircleCheck className="w-3.5 h-3.5" /> 我已同步
                     </button>
                   </div>
+                  <p className="text-[11px] text-[#93370D] mt-1.5">
+                    项目目录 ~/.wpscomate/workspace/760386581358207；最省事：直接跟 Comate 助手说「帮我同步提醒定时任务」。
+                  </p>
                 </div>
               </div>
             </div>
