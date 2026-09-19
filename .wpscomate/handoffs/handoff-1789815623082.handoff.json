@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "handoffId": "handoff-1789815623082",
+  "sessionId": "1690533110-4978d742-7b83-4c09-acb3-f19ce8833992",
+  "createdAt": 1789815623083,
+  "note": {
+    "completed": [
+      "实现并上线方案 C：提醒配置弹窗在配置改动后显示「定时任务未同步」警告条",
+      "client/src/lib/defect.ts 新增 loadRemindCronDirty / saveRemindCronDirty（localStorage key: gov-cockpit-remind-cron-dirty）+ REMIND_CRON_SYNC_COMMAND 常量",
+      "DefectRemindConfigDialog：新建/保存/删除成功后打标记；顶部橙色警告条含命令框、复制命令、我已同步按钮；保存 toast 补「（定时生效需同步）」",
+      "DefectListTab：「提醒配置」按钮加小橙点标记",
+      "验证：pnpm lint 0 错误（6 个既有警告不变）、pnpm check:types 0 错误、pnpm run pack 成功、生产产物含新文案",
+      "已部署版本 202609191858，share_url https://comate.wpsgo.com/s/Ody4imQ5yeXM/",
+      "封面：本地 dev server 无登录态，新截图只是登录页，已用 git HEAD 的原主界面封面重新上传",
+      "已写 code config：session_id + task_type=local"
+    ],
+    "remaining": [
+      "用户待测：改一次提醒配置 → 确认警告条出现、复制命令可用、我已同步能清除",
+      "多维表测试任务仍是停用状态；定好生产时间后打开「是否启用」+ 填提醒时间（须 :00/:30）→ WPS_SID=<会话> node scripts/sync-remind-cron.mjs",
+      "观察一次真实定时送达确认端到端",
+      "本地领先 origin/main 的提交需用户在自己机器上 git push（本环境 GitHub 不可达）"
+    ],
+    "decisions": [
+      "「保存即自动同步定时任务」平台不支持，三条路已实测全堵死：服务端调管理 API 401（只认 wps_sid）、浏览器直连 CORS（OPTIONS 405 无 ACAO）、应用级 token 读表 403（unable to read user permission）",
+      "因此「已同步」只能手动确认（localStorage 标记 + 我已同步按钮），不做自动识别",
+      "若未来要自动识别：需在多维表加「同步时间戳」列由脚本回写，再由应用比对——需用户先手动加列",
+      "封面截图脚本在无登录态的 headless 浏览器下只能拍到登录页，需沿用已有封面"
+    ],
+    "issues": [
+      "localStorage 标记只在本浏览器有效，换设备/清缓存会丢失",
+      "无状态去重：单次 cron 触发丢失即当天漏发（既定限制，已接受）",
+      "密钥硬编码在 server/nitro.config.ts 且已在 GitHub 历史中，用户决定不轮换（保持现状）"
+    ],
+    "files_changed": [
+      "client/src/lib/defect.ts",
+      "client/src/components/DefectRemindConfigDialog.tsx",
+      "client/src/components/DefectListTab.tsx",
+      "thumbnail_760386581358207.png（恢复为原主界面封面）"
+    ]
+  },
+  "reason": "「配置改动后提醒用户同步定时任务」的 UI 提示（方案 C）已实现并上线版本 202609191858"
+}
