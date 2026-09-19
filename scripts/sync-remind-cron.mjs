@@ -86,7 +86,9 @@ function loadTasks() {
       id: extractText(f["任务ID"]),
       name: extractText(f["任务名称"]),
       team: extractText(f["所属团队"]) || "全部团队",
-      frequency: { "每天": "daily", "每周": "weekly", "工作日": "weekdays", "仅一次": "once" }[extractText(f["提醒频率"])] || "daily",
+      // 频率/模板选项须与多维表实际选项完全一致（每日 与 每天 并存，都归为 daily）；
+      // 曾误用「详细模板/截止模板/升级模板」，与表中真实选项不符，导致模板静默降级为默认模板
+      frequency: { "每日": "daily", "每天": "daily", "每周": "weekly", "工作日": "weekdays", "仅一次": "once" }[extractText(f["提醒频率"])] || "daily",
       startDate: normalizeDate(f["开始日期"]),
       endDate: normalizeDate(f["结束日期"]),
       webhook: extractText(f["Webhook地址"]),
@@ -94,7 +96,7 @@ function loadTasks() {
       severities: parseJsonArray(f["严重级别"]),
       iterations: parseJsonArray(f["所属迭代"]),
       remindTimes: parseJsonArray(f["提醒时间"]),
-      template: { "默认模板": "default", "详细模板": "detailed", "截止模板": "deadline", "升级模板": "escalate" }[extractText(f["提醒模板"])] || "default",
+      template: { "默认模板": "default", "详细清单": "detailed", "截止日期": "deadline", "升级催办": "escalate" }[extractText(f["提醒模板"])] || "default",
       includeDetail: f["包含详情"] !== false,
       includeDeadline: f["包含截止时间"] !== false,
       createdAt: "",
