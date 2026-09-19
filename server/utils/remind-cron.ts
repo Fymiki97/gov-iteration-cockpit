@@ -17,7 +17,7 @@ import {
   shanghaiDay,
   type DefectRemindItem,
 } from "./defect-remind";
-import { loadOnesConfig, fetchOpenBugs, mapTasksToRows, firstProjectUuid } from "./ones-defects";
+import { loadOnesConfig, fetchOpenBugs, mapTasksToRows, firstProjectUuid, readOnesSnapshot, rowsFromSnapshot } from "./ones-defects";
 
 /** invoke payload 顶层结构（action_config 透传 + FC 注入字段） */
 export interface RemindCronPayload {
@@ -149,32 +149,45 @@ export async function runRemindCron(payload: RemindCronPayload, now = new Date()
     return result;
   }
 
-  // ONES 取数一次，全部任务共用
+  // ONES 取数一次，全部任务共用。
+  // 云端容器访问不了内网 ones.dig.kso.net，ones-cache 反代也会超时，此时
+  // 回退到最近一次成功的快照（由 /api/ones-defects 实时拉取时写入）。
+  // 没有快照回退时，cron 触发也只会发一条「提醒异常」——等于提醒没发出去。
   let defects: DefectRemindItem[] = [];
+  /** 快照回退时的数据截止说明；实时取数成功时为空 */
+  let dataNote = "";
   try {
     const cfg = await loadOnesConfig();
     const onesTasks = await fetchOpenBugs(cfg);
     defects = mapTasksToRows(cfg, firstProjectUuid(cfg), onesTasks) as unknown as DefectRemindItem[];
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    result.ok = false;
-    result.failed = due.length;
-    result.messages.push(`ONES 取数失败，本次 ${due.length} 个到期任务全部未发送：${message}`);
-    // 无人值守下静默失败最危险：取数失败时向首个到期任务的群发异常通知，让负责人知道提醒中断
-    const reporter = due[0];
-    try {
-      await postWebhook({
-        webhook: reporter.webhook,
-        title: `${reporter.name}（提醒异常）`,
-        text: `缺陷提醒未能执行：读取 ONES 缺陷失败。\n\n原因：${message}\n\n请检查 ONES 配置或网络后重试。`,
-        atUserIds: [],
-      });
-      result.messages.push(`已向「${reporter.name}」发送异常通知`);
-    } catch (notifyErr) {
-      const notifyMessage = notifyErr instanceof Error ? notifyErr.message : String(notifyErr);
-      result.messages.push(`异常通知发送失败：${notifyMessage}`);
+    const snapshot = await readOnesSnapshot().catch(() => null);
+    if (!snapshot) {
+      result.ok = false;
+      result.failed = due.length;
+      result.messages.push(`ONES 取数失败，本次 ${due.length} 个到期任务全部未发送：${message}`);
+      // 无人值守下静默失败最危险：取数失败时向首个到期任务的群发异常通知，让负责人知道提醒中断
+      const reporter = due[0];
+      try {
+        await postWebhook({
+          webhook: reporter.webhook,
+          title: `${reporter.name}（提醒异常）`,
+          text: `缺陷提醒未能执行：读取 ONES 缺陷失败。\n\n原因：${message}\n\n请检查 ONES 配置或网络后重试。`,
+          atUserIds: [],
+        });
+        result.messages.push(`已向「${reporter.name}」发送异常通知`);
+      } catch (notifyErr) {
+        const notifyMessage = notifyErr instanceof Error ? notifyErr.message : String(notifyErr);
+        result.messages.push(`异常通知发送失败：${notifyMessage}`);
+      }
+      return result;
     }
-    return result;
+    // 快照可用：照常发提醒，并在消息里标注数据截止时间，避免负责人误以为是最新数据
+    defects = rowsFromSnapshot(snapshot) as unknown as DefectRemindItem[];
+    dataNote = `\n\n> 注：ONES 实时取数失败，以上为 ${shanghaiDay(new Date(snapshot.ts))} 的快照数据。`;
+    result.messages.push(`ONES 实时取数失败，已改用快照（${shanghaiDay(new Date(snapshot.ts))} 的数据）：${message}`);
+    console.warn(`[remind-cron] 实时取数失败，回退快照 ts=${snapshot.ts}: ${message}`);
   }
 
   for (const task of due) {
@@ -186,7 +199,7 @@ export async function runRemindCron(payload: RemindCronPayload, now = new Date()
       });
       const channel = detectWebhookChannel(task.webhook);
       const peopleMap = channel === "钉钉" ? (payload.peopleMap ?? null) : null;
-      const text = formatRemindMessage({ defects: matched, task, peopleMap, channel });
+      const text = formatRemindMessage({ defects: matched, task, peopleMap, channel }) + dataNote;
       await postWebhook({
         webhook: task.webhook,
         title: task.name,

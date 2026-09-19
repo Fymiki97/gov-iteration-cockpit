@@ -207,6 +207,14 @@ function canonical(actionConfig) {
   return JSON.stringify(stable({ tasks: actionConfig.tasks.map(strip), peopleMap: actionConfig.peopleMap }));
 }
 
+async function enable(automationId) {
+  const toggle = await api(`/projects/${PROJECT_ID}/automations/${automationId}/toggle`, {
+    method: "POST",
+    body: JSON.stringify({ enabled: true }),
+  });
+  if (toggle.status !== 200) die(`启用失败: HTTP ${toggle.status} ${JSON.stringify(toggle.body).slice(0, 300)}`);
+}
+
 async function main() {
   if (!existsSync(KDOCS_CLI)) die(`kdocs-comate-cli 不存在: ${KDOCS_CLI}`);
   if (!process.env.WPS_SID) {
@@ -249,42 +257,68 @@ async function main() {
   const all = list.body?.data?.items ?? [];
   const existing = all.find((item) => item?.name === CRON_NAME);
 
-  // 配置未变则不动线上任务。定时任务每半小时跑一次，若每次都删+建，
-  // 会在「已删未建」的窗口里漏触发，且新建默认 disabled，toggle 失败即静默停发。
+  // 配置未变则不动线上任务。定时任务每半小时跑一次，若每次都改，
+  // 会丢掉调度器已注册的定时器——实测 22:59:34 更新后，23:00 那个槽位就没触发。
   if (existing && canonical(existing.action_config ?? {}) === canonical(actionConfig)) {
+    // 配置没变但任务没在跑（toggle 失败/被停用）会静默停发，这里补一次启用
+    if (existing.status !== "active") {
+      console.log(`   配置无变化，但 status=${existing.status}，重新启用...`);
+      await enable(existing.id);
+      console.log(`✓ 配置无变化，已重新启用（id=${existing.id}）`);
+      return;
+    }
     console.log(`✓ 配置无变化，保持现状（id=${existing.id}, status=${existing.status}）`);
     return;
   }
 
-  for (const item of all) {
-    if (item?.name === CRON_NAME) {
-      const del = await api(`/projects/${PROJECT_ID}/automations/${item.id}`, { method: "DELETE" });
-      console.log(`   已删除旧的 ${CRON_NAME} (id=${item.id}): HTTP ${del.status}`);
-    }
-  }
-
-  console.log("3. 创建新 cron 任务...");
   // 本平台版本要求 action_config.path（指向 /invoke 入口）+ method；
   // tasks/peopleMap 为自定义字段，随 FC Timer payload 透传到 invoke。
-  const create = await api(`/projects/${PROJECT_ID}/automations`, {
-    method: "POST",
-    body: JSON.stringify({
-      name: CRON_NAME,
-      trigger_type: "cron",
-      trigger_config: { cron_expression: CRON_EXPR },
-      action_config: { path: "/invoke", method: "POST", ...actionConfig },
-    }),
-  });
-  if (create.status !== 200 && create.status !== 201) die(`创建失败: HTTP ${create.status} ${JSON.stringify(create.body).slice(0, 300)}`);
-  const automationId = create.body?.id ?? create.body?.data?.id;
-  console.log(`   已创建 id=${automationId}（默认 disabled）`);
+  const automationBody = {
+    name: CRON_NAME,
+    trigger_type: "cron",
+    trigger_config: { cron_expression: CRON_EXPR },
+    action_config: { path: "/invoke", method: "POST", ...actionConfig },
+  };
 
-  console.log("4. 启用任务...");
-  const toggle = await api(`/projects/${PROJECT_ID}/automations/${automationId}/toggle`, {
-    method: "POST",
-    body: JSON.stringify({ enabled: true }),
-  });
-  if (toggle.status !== 200) die(`启用失败: HTTP ${toggle.status} ${JSON.stringify(toggle.body).slice(0, 300)}`);
+  // 配置有变时原地 PUT 更新，绝不删+建。删+建会让平台丢掉已注册的定时器，
+  // 若更新时刻距目标提醒时刻很近（如 22:59:34 改完、23:00 就该发），那一次必漏。
+  let automationId = existing?.id;
+  if (automationId) {
+    console.log(`3. 原地更新 cron 任务（id=${automationId}）...`);
+    const update = await api(`/projects/${PROJECT_ID}/automations/${automationId}`, {
+      method: "PUT",
+      body: JSON.stringify(automationBody),
+    });
+    if (update.status !== 200) die(`更新失败: HTTP ${update.status} ${JSON.stringify(update.body).slice(0, 300)}`);
+    console.log("   已更新（沿用原 id，调度注册不受影响）");
+
+    // 历史删+建可能留下同名残留，只保留当前这一个
+    for (const item of all) {
+      if (item?.name === CRON_NAME && item.id !== automationId) {
+        const del = await api(`/projects/${PROJECT_ID}/automations/${item.id}`, { method: "DELETE" });
+        console.log(`   已清理重复任务 (id=${item.id}): HTTP ${del.status}`);
+      }
+    }
+  } else {
+    console.log("3. 创建 cron 任务...");
+    const create = await api(`/projects/${PROJECT_ID}/automations`, {
+      method: "POST",
+      body: JSON.stringify(automationBody),
+    });
+    if (create.status !== 200 && create.status !== 201) die(`创建失败: HTTP ${create.status} ${JSON.stringify(create.body).slice(0, 300)}`);
+    automationId = create.body?.id ?? create.body?.data?.id;
+    console.log(`   已创建 id=${automationId}（默认 disabled）`);
+  }
+
+  console.log("4. 确认任务处于启用状态...");
+  const after = await api(`/projects/${PROJECT_ID}/automations`);
+  const current = (after.body?.data?.items ?? []).find((item) => item?.id === automationId);
+  if (current?.status !== "active") {
+    await enable(automationId);
+    console.log("   已启用");
+  } else {
+    console.log("   已是 active，无需 toggle");
+  }
   console.log(`✓ 同步完成：${enabled.length} 个启用任务已随 cron 下发，每小时 0/30 分检查`);
 }
 
