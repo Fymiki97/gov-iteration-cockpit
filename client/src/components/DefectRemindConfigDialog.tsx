@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Play, Pencil, Bell, Clock } from "lucide-react";
+import { Plus, Trash2, Play, Pencil, Bell, Clock, TriangleAlert, Copy, CircleCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
   ALL_TEAMS,
   DEFAULT_SEVERITIES,
   FREQUENCY_OPTIONS,
+  REMIND_CRON_SYNC_COMMAND,
   REMIND_TIME_SLOTS,
   TEMPLATE_OPTIONS,
   SEVERITY_OPTIONS,
@@ -45,6 +46,9 @@ export function DefectRemindConfigDialog(props: {
   defects: DefectRow[];
   onOpenChange: (open: boolean) => void;
   onTasksChange: (tasks: DefectRemindTask[]) => void;
+  /** 多维表配置已改但定时任务仍是旧快照 */
+  cronDirty: boolean;
+  onCronDirtyChange: (dirty: boolean) => void;
   defaultTeam?: string;
 }) {
   const [mode, setMode] = useState<"new" | string>(props.tasks[0]?.id ?? "new");
@@ -53,6 +57,18 @@ export function DefectRemindConfigDialog(props: {
   );
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+
+  // 配置写进多维表 ≠ 定时任务生效：cron 用的是上一次同步的快照，改完必须重跑同步脚本
+  const markCronDirty = () => props.onCronDirtyChange(true);
+
+  const copySyncCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(REMIND_CRON_SYNC_COMMAND);
+      toast.success("同步命令已复制");
+    } catch {
+      toast.error("复制失败，请手动复制命令");
+    }
+  };
 
   const selected = props.tasks.find((item) => item.id === mode) ?? null;
 
@@ -103,7 +119,8 @@ export function DefectRemindConfigDialog(props: {
         props.onTasksChange([task, ...props.tasks]);
         setMode(task.id);
         setForm(taskToInput(task));
-        toast.success("已新建提醒任务");
+        markCronDirty();
+        toast.success("已新建提醒任务（定时生效需同步）");
       } else {
         const { task, warning } = await updateRemindTask(mode, form);
         if (warning) {
@@ -112,7 +129,8 @@ export function DefectRemindConfigDialog(props: {
         }
         props.onTasksChange(props.tasks.map((item) => item.id === task.id ? task : item));
         setForm(taskToInput(task));
-        toast.success("已保存提醒任务");
+        markCronDirty();
+        toast.success("已保存提醒任务（定时生效需同步）");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "保存失败");
@@ -138,7 +156,8 @@ export function DefectRemindConfigDialog(props: {
       props.onTasksChange(next);
       if (next[0]) selectTask(next[0]);
       else startNew();
-      toast.success("已删除提醒任务");
+      markCronDirty();
+      toast.success("已删除提醒任务（定时生效需同步）");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "删除失败");
     } finally {
@@ -176,6 +195,41 @@ export function DefectRemindConfigDialog(props: {
               配置团队、频率、提醒时间、起止日期和 webhook。任务会留存在列表中，可随时修改、新建或立即执行。
             </DialogDescription>
           </DialogHeader>
+          {props.cronDirty && (
+            <div className="mt-3 rounded-[10px] border border-[#FEDF89] bg-[#FFFAEB] px-3 py-2.5">
+              <div className="flex items-start gap-2">
+                <TriangleAlert className="w-4 h-4 text-[#B54708] mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#B54708]">配置已保存，但定时任务仍是旧快照</p>
+                  <p className="text-[11px] text-[#93370D] mt-0.5">
+                    应用无权修改自己的定时任务，定时生效需在本机项目根目录跑一次同步脚本：
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                    <code className="text-[11px] px-2 py-1 rounded bg-white border border-[#FEDF89] text-[#93370D] font-mono">
+                      {REMIND_CRON_SYNC_COMMAND}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={copySyncCommand}
+                      className="h-7 px-2 text-[11px] font-medium text-[#B54708] border border-[#FEDF89] bg-white rounded-md hover:bg-[#FEF0C7] inline-flex items-center gap-1"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> 复制命令
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        props.onCronDirtyChange(false);
+                        toast.success("已标记为同步完成");
+                      }}
+                      className="h-7 px-2 text-[11px] font-medium text-[#B54708] border border-[#FEDF89] bg-white rounded-md hover:bg-[#FEF0C7] inline-flex items-center gap-1"
+                    >
+                      <CircleCheck className="w-3.5 h-3.5" /> 我已同步
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] min-h-[420px] max-h-[70vh]">
           <aside className="border-b md:border-b-0 md:border-r border-[#E4ECFC] p-3 space-y-2 overflow-y-auto">

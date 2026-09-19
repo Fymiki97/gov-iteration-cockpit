@@ -41,8 +41,10 @@ import {
   isOverdue,
   isUnrepaired,
   loadExtraDefects,
+  loadRemindCronDirty,
   mergeDefects,
   ownerAvatarColor,
+  saveRemindCronDirty,
   uniqueValues,
   type DefectTeam,
   type DefectRemindTask,
@@ -96,6 +98,8 @@ export function DefectListTab() {
   const [unrepairedOnly, setUnrepairedOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
+  // 配置改动后定时任务还是旧快照，需提醒用户跑同步脚本（应用无权改自己的定时任务）
+  const [cronDirty, setCronDirty] = useState(loadRemindCronDirty);
   const [sendOpen, setSendOpen] = useState(false);
   const [sendDefects, setSendDefects] = useState<DefectRow[]>([]);
   const [detail, setDetail] = useState<DefectRow | null>(null);
@@ -171,6 +175,11 @@ export function DefectListTab() {
 
   const replaceTasks = (next: DefectRemindTask[]) => {
     setTasks(next);
+  };
+
+  const updateCronDirty = (dirty: boolean) => {
+    setCronDirty(dirty);
+    saveRemindCronDirty(dirty);
   };
 
   const patchTask = (task: DefectRemindTask) => {
@@ -315,6 +324,12 @@ export function DefectListTab() {
             className="h-9 px-3.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#344054] bg-white border border-[#E4ECFC] rounded-lg hover:bg-[#F8FAFC]"
           >
             <Settings2 className="w-4 h-4" /> 提醒配置
+            {cronDirty && (
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-[#F79009]"
+                title="配置已改动，定时任务未同步"
+              />
+            )}
           </button>
           <button
             type="button"
@@ -500,6 +515,8 @@ export function DefectListTab() {
         defaultTeam={currentTeam}
         onOpenChange={setConfigOpen}
         onTasksChange={replaceTasks}
+        cronDirty={cronDirty}
+        onCronDirtyChange={updateCronDirty}
       />
       <DefectRemindSendDialog
         open={sendOpen}

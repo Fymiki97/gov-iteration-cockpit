@@ -485,3 +485,33 @@ export function mergeDefects(seed: DefectRow[], extras: DefectRow[]): DefectRow[
   for (const item of extras) map.set(item.id, item);
   return [...map.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
+/** 定时任务同步标记：多维表里的配置改动后，必须跑一次同步脚本才会下发给 cron */
+export const REMIND_CRON_DIRTY_STORAGE_KEY = "gov-cockpit-remind-cron-dirty";
+
+/** 同步命令，在项目根目录执行（脚本自带 wps_sid 兜底，缺失时需显式传入） */
+export const REMIND_CRON_SYNC_COMMAND = "node scripts/sync-remind-cron.mjs";
+
+/**
+ * 读取「配置已改、定时任务未同步」标记。
+ * 标记只存在浏览器本地：应用无权改自己的定时任务（管理 API 只认平台登录态），
+ * 所以同步与否无法由服务端判断，只能靠用户跑完脚本后手动确认。
+ */
+export function loadRemindCronDirty(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  try {
+    return localStorage.getItem(REMIND_CRON_DIRTY_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function saveRemindCronDirty(dirty: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    if (dirty) localStorage.setItem(REMIND_CRON_DIRTY_STORAGE_KEY, "1");
+    else localStorage.removeItem(REMIND_CRON_DIRTY_STORAGE_KEY);
+  } catch {
+    // 隐私模式下写入会抛错；标记只是提示，失败不应影响保存流程
+  }
+}
