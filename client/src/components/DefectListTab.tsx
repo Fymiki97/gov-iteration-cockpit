@@ -2,21 +2,17 @@ import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
-  Bell,
   Bug,
   Clock,
   Download,
   RefreshCw,
   Search,
-  Send,
-  Settings2,
   TrendingUp,
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import {
@@ -26,8 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DefectRemindConfigDialog } from "@/components/DefectRemindConfigDialog";
-import { DefectRemindSendDialog } from "@/components/DefectRemindSendDialog";
 import {
   DEFECT_TEAMS,
   PRIORITY_COLORS,
@@ -37,21 +31,18 @@ import {
   SEVERITY_OPTIONS,
   STATUS_COLORS,
   computeDefectStats,
+  fetchOnesDefects,
   filterDefects,
   isOverdue,
   isUnrepaired,
   loadExtraDefects,
-  loadRemindCronDirty,
   mergeDefects,
   ownerAvatarColor,
-  saveRemindCronDirty,
   uniqueValues,
   type DefectTeam,
-  type DefectRemindTask,
   type DefectRow,
   type DefectStatus,
 } from "@/lib/defect";
-import { fetchOnesDefects, fetchRemindTasks } from "@/lib/defect-remind-api";
 
 const FILTER_ALL = "__all__";
 const STATUSES: DefectStatus[] = ["待处理", "处理中", "待验证"];
@@ -88,7 +79,6 @@ export function DefectListTab() {
   const [onesLoading, setOnesLoading] = useState(false);
   const [onesSource, setOnesSource] = useState<"live" | "snapshot" | "">("");
   const [currentTeam, setCurrentTeam] = useState<DefectTeam>(DEFECT_TEAMS[0]);
-  const [tasks, setTasks] = useState<DefectRemindTask[]>([]);
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState<string[]>(["S-致命", "A-严重"]);
   const [status, setStatus] = useState<string[]>([]);
@@ -96,20 +86,7 @@ export function DefectListTab() {
   const [iteration, setIteration] = useState(FILTER_ALL);
   const [itersExpanded, setItersExpanded] = useState(false);
   const [unrepairedOnly, setUnrepairedOnly] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [configOpen, setConfigOpen] = useState(false);
-  // 配置改动后等下一次自动下发（Comate 定时任务每 30 分钟一次）
-  const [cronDirty, setCronDirty] = useState(loadRemindCronDirty);
-  const [sendOpen, setSendOpen] = useState(false);
-  const [sendDefects, setSendDefects] = useState<DefectRow[]>([]);
   const [detail, setDetail] = useState<DefectRow | null>(null);
-
-  // 标记按同步周期自动过期：到期后不再提示，避免长期显示一个已经自动完成的「待同步」
-  useEffect(() => {
-    if (!cronDirty) return;
-    const timer = window.setInterval(() => setCronDirty(loadRemindCronDirty()), 60_000);
-    return () => window.clearInterval(timer);
-  }, [cronDirty]);
 
   const teamDefects = defects.filter((item) => item.team === currentTeam);
   // 统计卡片跟随筛选条件（含迭代），但不受「仅看未修复」开关影响，
@@ -144,9 +121,6 @@ export function DefectListTab() {
     setItersExpanded(false);
     if (iteration !== FILTER_ALL && !iterations.slice(0, VISIBLE_ITER_COUNT).includes(iteration)) setIteration(FILTER_ALL);
   };
-  const allFilteredSelected = filtered.length > 0 && filtered.every((item) => selectedIds.includes(item.id));
-  const selectedRows = defects.filter((item) => selectedIds.includes(item.id));
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -162,62 +136,9 @@ export function DefectListTab() {
           toast.error(detail ? `ONES 缺陷拉取失败：${detail}` : "ONES 缺陷拉取失败，当前显示本地数据");
         }
       }
-      try {
-        const { tasks: loaded, warning } = await fetchRemindTasks();
-        if (cancelled) return;
-        setTasks(loaded);
-        // 固定 id 避免每次加载都叠一个提示；落库异常持续存在时应持续可见
-        if (warning) toast.warning(warning, { id: "remind-store-status" });
-        else toast.dismiss("remind-store-status");
-        // 到期发送已由服务端 cron（/invoke）无人值守执行，页面只负责展示配置
-      } catch (err) {
-        if (!cancelled) {
-          const detail = err instanceof Error && err.message ? err.message : "";
-          toast.error(detail ? `提醒任务读取失败：${detail}` : "提醒任务读取失败，可稍后在配置中重试");
-        }
-      }
     })();
     return () => { cancelled = true; };
   }, []);
-
-  const replaceTasks = (next: DefectRemindTask[]) => {
-    setTasks(next);
-  };
-
-  const updateCronDirty = (dirty: boolean) => {
-    setCronDirty(dirty);
-    saveRemindCronDirty(dirty);
-  };
-
-  const patchTask = (task: DefectRemindTask) => {
-    setTasks(tasks.map((item) => item.id === task.id ? task : item));
-  };
-
-  const toggleOne = (id: string, checked: boolean) => {
-    setSelectedIds(checked ? [...selectedIds, id] : selectedIds.filter((item) => item !== id));
-  };
-
-  const toggleAll = (checked: boolean) => {
-    setSelectedIds(checked ? filtered.map((item) => item.id) : []);
-  };
-
-  const unrepairedOf = (rows: DefectRow[]) => rows.filter((item) => isUnrepaired(item.status));
-
-  const openRemind = (rows: DefectRow[]) => {
-    const unrepaired = unrepairedOf(rows);
-    if (unrepaired.length === 0) {
-      toast.error("当前没有可提醒的未修复缺陷");
-      return;
-    }
-    if (tasks.filter((item) => item.enabled && item.webhook.trim()).length === 0) {
-      toast.info("请先配置提醒任务");
-      setConfigOpen(true);
-      return;
-    }
-    setSendDefects(unrepaired);
-    setSendOpen(true);
-  };
-
 
   return (
     <div className="space-y-5">
@@ -228,7 +149,6 @@ export function DefectListTab() {
             type="button"
             onClick={() => {
               setCurrentTeam(team);
-              setSelectedIds([]);
               setSeverity(["S-致命", "A-严重"]);
               setStatus([]);
               setPriority([]);
@@ -314,58 +234,6 @@ export function DefectListTab() {
         />
       </div>
 
-      <div className="rounded-[10px] border border-[#C7D7FE] bg-[#F5F8FF] px-5 py-4 flex flex-col md:flex-row md:items-center gap-4">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-[#2A6FDB] text-white flex items-center justify-center shrink-0">
-            <Bell className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#0F172A]">一键提醒未修复缺陷</p>
-            <p className="text-xs text-[#64748B] mt-1">可配置通知渠道、接收对象、严重程度过滤与消息模板，一键批量催办</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setConfigOpen(true)}
-            className="h-9 px-3.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#344054] bg-white border border-[#E4ECFC] rounded-lg hover:bg-[#F8FAFC]"
-          >
-            <Settings2 className="w-4 h-4" /> 提醒配置
-            {cronDirty && (
-              <span
-                className="w-1.5 h-1.5 rounded-full bg-[#F79009]"
-                title="配置已改动，约 30 分钟内自动下发"
-              />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => openRemind(selectedRows.length > 0 ? selectedRows : unrepairedOf(filtered.length > 0 ? filtered : teamDefects))}
-            className="h-9 px-3.5 inline-flex items-center gap-1.5 text-sm font-medium text-white bg-[#F79009] hover:bg-[#DC6803] rounded-lg"
-          >
-            <Send className="w-4 h-4" /> 一键提醒未修复
-          </button>
-        </div>
-      </div>
-
-      {selectedIds.length > 0 && (
-        <div className="rounded-[10px] border border-[#E4ECFC] bg-white px-4 py-2.5 flex items-center justify-between gap-3">
-          <p className="text-sm text-[#64748B]">已选 {selectedIds.length} 条缺陷</p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => openRemind(selectedRows)}
-              className="h-8 px-3 text-sm font-medium text-white bg-[#F79009] hover:bg-[#DC6803] rounded-lg"
-            >
-              批量提醒
-            </button>
-            <button type="button" onClick={() => setSelectedIds([])} className="h-8 px-3 text-sm text-[#64748B] border border-[#E4ECFC] rounded-lg hover:bg-[#F8FAFC]">
-              取消选择
-            </button>
-          </div>
-        </div>
-      )}
-
       <Card className="shadow-sm border-[#E4ECFC] rounded-[10px] py-0 gap-0">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
@@ -443,12 +311,6 @@ export function DefectListTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#E4ECFC] text-left text-[#667085]">
-                    <th className="py-0 h-12 px-3 w-10">
-                      <Checkbox
-                        checked={allFilteredSelected}
-                        onCheckedChange={(checked) => toggleAll(checked === true)}
-                      />
-                    </th>
                     {["缺陷ID", "缺陷标题", "所属迭代", "优先级", "严重程度", "状态", "所属模块", "负责人", "创建时间", "截止日期", "操作"].map((head) => (
                       <th key={head} className="py-0 h-12 px-3 font-medium whitespace-nowrap">{head}</th>
                     ))}
@@ -459,12 +321,6 @@ export function DefectListTab() {
                     const overdue = isOverdue(item);
                     return (
                       <tr key={item.id} className="border-b border-[#F1F5FD] hover:bg-[#F8FAFC] h-12">
-                        <td className="px-3">
-                          <Checkbox
-                            checked={selectedIds.includes(item.id)}
-                            onCheckedChange={(checked) => toggleOne(item.id, checked === true)}
-                          />
-                        </td>
                         <td className="px-3 whitespace-nowrap font-medium">
                           {item.onesUrl ? (
                             <a href={item.onesUrl} target="_blank" rel="noreferrer" className="text-[#2A6FDB] hover:underline" title="在 ONES 中打开缺陷详情">{item.bugId}</a>
@@ -498,7 +354,6 @@ export function DefectListTab() {
                         </td>
                         <td className="px-3 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <button type="button" onClick={() => openRemind([item])} className="text-[#2A6FDB] hover:underline">提醒</button>
                             <button type="button" onClick={() => setDetail(item)} className="text-[#2A6FDB] hover:underline">详情</button>
                           </div>
                         </td>
@@ -511,29 +366,6 @@ export function DefectListTab() {
           )}
         </CardContent>
       </Card>
-
-      <DefectRemindConfigDialog
-        key={configOpen ? "config-open" : "config-closed"}
-        open={configOpen}
-        tasks={tasks}
-        teams={[...DEFECT_TEAMS]}
-        iterations={iterations}
-        defects={defects}
-        defaultTeam={currentTeam}
-        onOpenChange={setConfigOpen}
-        onTasksChange={replaceTasks}
-        cronDirty={cronDirty}
-        onCronDirtyChange={updateCronDirty}
-      />
-      <DefectRemindSendDialog
-        open={sendOpen}
-        defects={sendDefects}
-        tasks={tasks}
-        onOpenChange={setSendOpen}
-        onNeedConfig={() => setConfigOpen(true)}
-        onTaskUpdated={patchTask}
-        preferredTeam={currentTeam}
-      />
 
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null); }}>
         <DialogContent className="sm:max-w-lg">
